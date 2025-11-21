@@ -2,13 +2,15 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type { Recipe } from "../types";
 
-// Assume API_KEY is set in the environment
-const API_KEY = process.env.API_KEY;
-if (!API_KEY) {
+// Safely access the API key to prevent crashes in browser environments
+const API_KEY = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
+
+// Initialize the AI client only if the key is available
+const ai = API_KEY ? new GoogleGenAI({ apiKey: API_KEY }) : null;
+
+if (!ai) {
     console.warn("Gemini API key not found. AI features will be disabled.");
 }
-
-const ai = new GoogleGenAI({ apiKey: API_KEY! });
 
 const recipeSchema = {
     type: Type.OBJECT,
@@ -57,7 +59,7 @@ const parseJsonResponse = <T,>(text: string | undefined): T | null => {
 };
 
 export const generateRecipeFromIngredients = async (ingredients: string): Promise<Partial<Recipe> | null> => {
-    if (!API_KEY) return null;
+    if (!ai) return null;
     const prompt = `You are a creative chef. Invent a recipe using the following ingredients: ${ingredients}. Be creative and fill in any gaps with common pantry staples. Provide a complete recipe.`;
 
     try {
@@ -77,7 +79,7 @@ export const generateRecipeFromIngredients = async (ingredients: string): Promis
 };
 
 export const remixRecipe = async (recipe: Recipe, remixType: string): Promise<Partial<Recipe> | null> => {
-    if (!API_KEY) return null;
+    if (!ai) return null;
     const prompt = `You are a recipe modification expert. Take the following recipe and modify it to "${remixType}". Adjust ingredients and instructions accordingly.
     
     Original Recipe:
@@ -108,7 +110,7 @@ export const generateMealPlan = async (
     usePantry: boolean,
     useFavorites: boolean
 ): Promise<any | null> => {
-    if (!API_KEY) return null;
+    if (!ai) return null;
     const recipeList = recipes.map(r => `${r.name} (${r.meal_type}) ${r.is_favorite ? "[FAVORITE]" : ""}`).join('\n');
     
     const prompt = `You are an expert meal plan architect. Create a 7-day meal plan for Breakfast, Lunch, and Dinner.
