@@ -2,14 +2,32 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type { Recipe } from "../types";
 
-// Safely access the API key to prevent crashes in browser environments
-const API_KEY = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
+let ai: GoogleGenAI | null = null;
+let isInitialized = false;
 
-// Initialize the AI client only if the key is available
-const ai = API_KEY ? new GoogleGenAI({ apiKey: API_KEY }) : null;
+// Lazily initialize the AI client to prevent startup crashes in environments
+// where process.env is not available.
+function getAiClient(): GoogleGenAI | null {
+    if (isInitialized) {
+        return ai;
+    }
 
-if (!ai) {
-    console.warn("Gemini API key not found. AI features will be disabled.");
+    isInitialized = true; // Attempt initialization only once
+
+    try {
+        // Robustly check for the API key without causing a ReferenceError.
+        // This is safe to run in any browser environment.
+        if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+            ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        } else {
+            console.warn("Gemini API key not found or 'process.env' is not available. AI features will be disabled.");
+        }
+    } catch (error) {
+        console.error("An unexpected error occurred during AI client initialization:", error);
+        ai = null; // Ensure ai is null on error
+    }
+    
+    return ai;
 }
 
 const recipeSchema = {
@@ -59,11 +77,13 @@ const parseJsonResponse = <T,>(text: string | undefined): T | null => {
 };
 
 export const generateRecipeFromIngredients = async (ingredients: string): Promise<Partial<Recipe> | null> => {
-    if (!ai) return null;
+    const client = getAiClient();
+    if (!client) return null;
+
     const prompt = `You are a creative chef. Invent a recipe using the following ingredients: ${ingredients}. Be creative and fill in any gaps with common pantry staples. Provide a complete recipe.`;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await client.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
             config: {
@@ -79,7 +99,9 @@ export const generateRecipeFromIngredients = async (ingredients: string): Promis
 };
 
 export const remixRecipe = async (recipe: Recipe, remixType: string): Promise<Partial<Recipe> | null> => {
-    if (!ai) return null;
+    const client = getAiClient();
+    if (!client) return null;
+    
     const prompt = `You are a recipe modification expert. Take the following recipe and modify it to "${remixType}". Adjust ingredients and instructions accordingly.
     
     Original Recipe:
@@ -88,7 +110,7 @@ export const remixRecipe = async (recipe: Recipe, remixType: string): Promise<Pa
     Generate the new, modified recipe. The name of the recipe should reflect the change, e.g., "Healthier ${recipe.name}" or "${recipe.name} (Vegan)".`;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await client.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
             config: {
@@ -110,7 +132,9 @@ export const generateMealPlan = async (
     usePantry: boolean,
     useFavorites: boolean
 ): Promise<any | null> => {
-    if (!ai) return null;
+    const client = getAiClient();
+    if (!client) return null;
+    
     const recipeList = recipes.map(r => `${r.name} (${r.meal_type}) ${r.is_favorite ? "[FAVORITE]" : ""}`).join('\n');
     
     const prompt = `You are an expert meal plan architect. Create a 7-day meal plan for Breakfast, Lunch, and Dinner.
@@ -144,7 +168,7 @@ export const generateMealPlan = async (
     };
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await client.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
             config: {
