@@ -8,13 +8,16 @@ import Spinner from './Spinner';
 interface SousChefProps {
     recipes: Recipe[];
     pantry: PantryItem[];
+    consumeCredits: (cost: number) => boolean;
+    onDisable: () => void;
 }
 
-const SousChef: React.FC<SousChefProps> = ({ recipes, pantry }) => {
+const SousChef: React.FC<SousChefProps> = ({ recipes, pantry, consumeCredits, onDisable }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [showTooltip, setShowTooltip] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const location = useLocation();
 
@@ -51,16 +54,36 @@ const SousChef: React.FC<SousChefProps> = ({ recipes, pantry }) => {
         scrollToBottom();
     }, [messages, isOpen]);
 
-    // Initial greeting based on context logic change
     useEffect(() => {
         if (messages.length === 0 && isOpen) {
              setMessages([{ role: 'model', text: "Bonjour! I'm your AI Sous Chef. How can I help you in the kitchen today?" }]);
         }
     }, [isOpen]);
 
+    // Handle One-time Tooltip
+    useEffect(() => {
+        const hasSeen = localStorage.getItem('ks_sous_chef_seen');
+        if (!hasSeen) {
+            setShowTooltip(true);
+            const timer = setTimeout(() => {
+                setShowTooltip(false);
+                localStorage.setItem('ks_sous_chef_seen', 'true');
+            }, 8000);
+            return () => clearTimeout(timer);
+        }
+    }, []);
+
+    const dismissTooltip = () => {
+        setShowTooltip(false);
+        localStorage.setItem('ks_sous_chef_seen', 'true');
+    };
+
     const handleSend = async (textOverride?: string) => {
         const text = textOverride || input;
         if (!text.trim()) return;
+
+        // Check credits (1 credit per message)
+        if (!consumeCredits(1)) return;
 
         const newMessages: ChatMessage[] = [...messages, { role: 'user', text }];
         setMessages(newMessages);
@@ -94,34 +117,47 @@ const SousChef: React.FC<SousChefProps> = ({ recipes, pantry }) => {
     return (
         <>
             {/* Toggle Button */}
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className={`fixed bottom-6 right-6 z-50 w-16 h-16 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-90 ${isOpen ? 'bg-red-500 rotate-90' : 'bg-gradient-to-tr from-blue-600 to-indigo-600 animate-bounce-slow'}`}
-                title={isOpen ? "Close Assistant" : "Open Sous Chef"}
-            >
-                {isOpen ? <i className="fas fa-times text-white text-2xl"></i> : <i className="fas fa-robot text-white text-3xl"></i>}
-                {!isOpen && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full animate-ping"></span>
+            <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+                {showTooltip && !isOpen && (
+                    <div className="mb-3 mr-1 w-40 bg-white p-3 rounded-xl shadow-lg border border-gray-100 animate-slide-up text-center relative after:content-[''] after:absolute after:top-full after:right-4 after:border-8 after:border-transparent after:border-t-white">
+                        <p className="text-xs text-gray-600 font-medium">I'm here if you need me!</p>
+                        <button onClick={dismissTooltip} className="absolute -top-2 -right-2 bg-gray-200 rounded-full w-5 h-5 text-[10px] hover:bg-gray-300 text-gray-600">&times;</button>
+                    </div>
                 )}
-            </button>
+                
+                <button
+                    onClick={() => { setIsOpen(!isOpen); dismissTooltip(); }}
+                    className={`w-11 h-11 rounded-full shadow-md flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95 border-2 border-white/80 ${isOpen ? 'bg-gray-700 rotate-90' : 'bg-blue-600 hover:bg-blue-700'}`}
+                    title={isOpen ? "Close Assistant" : "Open Sous Chef"}
+                >
+                    {isOpen ? <i className="fas fa-times text-white text-sm"></i> : <i className="fas fa-robot text-white text-lg"></i>}
+                </button>
+            </div>
 
             {/* Chat Window */}
             {isOpen && (
-                <div className="fixed bottom-24 right-4 md:right-8 w-[calc(100vw-32px)] md:w-96 h-[500px] max-h-[80vh] bg-white rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden border border-gray-100 animate-slide-up">
+                <div className="fixed bottom-20 right-4 md:right-8 w-[calc(100vw-32px)] md:w-96 h-[500px] max-h-[70vh] bg-white rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden border border-gray-100 animate-slide-up">
                     {/* Header */}
-                    <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 flex justify-between items-center text-white">
+                    <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 flex justify-between items-center text-white shadow-md">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-                                <i className="fas fa-hat-wizard text-lg"></i>
+                            <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                                <i className="fas fa-hat-wizard text-sm"></i>
                             </div>
                             <div>
-                                <h3 className="font-bold text-lg leading-tight">Sous Chef</h3>
+                                <h3 className="font-bold text-sm leading-tight">Sous Chef</h3>
                                 <div className="flex items-center gap-1.5">
-                                    <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                                    <span className="text-xs text-blue-100 font-medium">Online • Context Aware</span>
+                                    <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
+                                    <span className="text-[10px] text-blue-100 font-medium opacity-90">Online • 1 Credit/Msg</span>
                                 </div>
                             </div>
                         </div>
+                        <button 
+                            onClick={() => { setIsOpen(false); onDisable(); }} 
+                            className="text-xs bg-black/20 hover:bg-black/30 px-3 py-1.5 rounded-full transition-colors text-white flex items-center gap-1 border border-white/10"
+                            title="Hide Sous Chef permanently (can re-enable in Profile)"
+                        >
+                            <i className="fas fa-eye-slash"></i> Hide
+                        </button>
                     </div>
 
                     {/* Messages */}
@@ -140,9 +176,9 @@ const SousChef: React.FC<SousChefProps> = ({ recipes, pantry }) => {
                         {isLoading && (
                             <div className="flex justify-start">
                                 <div className="bg-white border border-gray-100 p-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
+                                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
+                                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-100"></div>
+                                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-200"></div>
                                 </div>
                             </div>
                         )}
@@ -151,12 +187,12 @@ const SousChef: React.FC<SousChefProps> = ({ recipes, pantry }) => {
 
                     {/* Suggestions */}
                     {messages.length < 4 && (
-                        <div className="px-4 py-2 bg-gray-50 flex gap-2 overflow-x-auto no-scrollbar">
+                        <div className="px-4 py-2 bg-gray-50 flex gap-2 overflow-x-auto no-scrollbar border-t border-gray-100">
                             {getSuggestions().map(s => (
                                 <button 
                                     key={s} 
                                     onClick={() => handleSend(s)}
-                                    className="whitespace-nowrap px-3 py-1 bg-white border border-blue-100 text-blue-600 text-xs rounded-full hover:bg-blue-50 transition-colors shadow-sm"
+                                    className="whitespace-nowrap px-3 py-1 bg-white border border-blue-100 text-blue-600 text-[10px] font-bold rounded-full hover:bg-blue-50 transition-colors shadow-sm"
                                 >
                                     {s}
                                 </button>
@@ -165,7 +201,7 @@ const SousChef: React.FC<SousChefProps> = ({ recipes, pantry }) => {
                     )}
 
                     {/* Input */}
-                    <div className="p-4 bg-white border-t border-gray-100">
+                    <div className="p-3 bg-white border-t border-gray-100">
                         <div className="relative">
                             <input
                                 type="text"
@@ -173,14 +209,14 @@ const SousChef: React.FC<SousChefProps> = ({ recipes, pantry }) => {
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={handleKeyDown}
                                 placeholder="Ask about this page..."
-                                className="w-full pr-12 pl-4 py-3 bg-gray-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder-gray-400"
+                                className="w-full pr-10 pl-4 py-2.5 bg-gray-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder-gray-400"
                             />
                             <button
                                 onClick={() => handleSend()}
                                 disabled={!input.trim() || isLoading}
-                                className="absolute right-2 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                                className="absolute right-2 top-1/2 transform -translate-y-1/2 w-7 h-7 bg-blue-600 text-white rounded-lg flex items-center justify-center hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                             >
-                                <i className="fas fa-paper-plane text-xs"></i>
+                                <i className="fas fa-paper-plane text-[10px]"></i>
                             </button>
                         </div>
                     </div>

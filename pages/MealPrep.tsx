@@ -48,7 +48,8 @@ const MealPrep: React.FC<MealPrepProps> = ({ recipes }) => {
         const shoppingList: { [key: string]: NeededIngredient } = {};
         const totalNutrition = { calories: 0, protein: 0, fat: 0, carbs: 0 };
 
-        Object.entries(selectedRecipes).forEach(([recipeId, desiredServings]) => {
+        Object.entries(selectedRecipes).forEach(([recipeId, val]) => {
+            const desiredServings = val as number;
             const recipe = recipes.find(r => r.id === Number(recipeId));
             if (!recipe) return;
 

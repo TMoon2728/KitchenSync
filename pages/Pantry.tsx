@@ -9,6 +9,7 @@ interface PantryProps {
     pantry: PantryItem[];
     setPantry: React.Dispatch<React.SetStateAction<PantryItem[]>>;
     recipes: Recipe[];
+    consumeCredits: (cost: number) => boolean;
 }
 
 interface Suggestion {
@@ -19,7 +20,7 @@ interface Suggestion {
 
 const INGREDIENT_CATEGORIES = ['Produce', 'Meat', 'Seafood', 'Dairy & Eggs', 'Pantry Staples', 'Spices & Seasonings', 'Bakery', 'Frozen', 'Other'];
 
-const Pantry: React.FC<PantryProps> = ({ pantry, setPantry, recipes }) => {
+const Pantry: React.FC<PantryProps> = ({ pantry, setPantry, recipes, consumeCredits }) => {
     const [view, setView] = useState<'inPantry' | 'all'>('inPantry');
     const [isLoading, setIsLoading] = useState(false);
     const [suggestions, setSuggestions] = useState<Suggestion[] | null>(null);
@@ -45,6 +46,8 @@ const Pantry: React.FC<PantryProps> = ({ pantry, setPantry, recipes }) => {
     const pantryMap = useMemo(() => new Set(pantry.map(item => item.name.toLowerCase())), [pantry]);
 
     const handleSuggestRecipes = async () => {
+        if (!consumeCredits(1)) return;
+
         setIsLoading(true);
         setError(null);
         setSuggestions(null);
@@ -310,7 +313,11 @@ const Pantry: React.FC<PantryProps> = ({ pantry, setPantry, recipes }) => {
                             <i className="fas fa-hat-wizard text-9xl"></i>
                         </div>
                         
-                        <h2 className="text-2xl font-extrabold mb-2 relative z-10">Magic Chef</h2>
+                        <div className="flex justify-between items-center mb-2 relative z-10">
+                            <h2 className="text-2xl font-extrabold">Magic Chef</h2>
+                            <span className="text-[10px] bg-yellow-400 text-black px-2 py-1 rounded-full font-bold">1 Credit</span>
+                        </div>
+                        
                         <p className="text-blue-100 text-sm mb-6 relative z-10 leading-relaxed">Staring at random ingredients? Let the AI invent a recipe based on what you have.</p>
                         
                         <button 

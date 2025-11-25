@@ -64,6 +64,7 @@ export interface UserPreferences {
     enableConfetti: boolean;
     confettiIntensity: 'low' | 'medium' | 'high';
     themeColor: 'blue' | 'green' | 'purple' | 'slate' | 'orange' | 'rose';
+    showSousChef?: boolean;
 }
 
 export interface UserProfile {
@@ -74,4 +75,6 @@ export interface UserProfile {
     householdMembers: HouseholdMember[];
     groceryStores: GroceryStore[];
     preferences?: UserPreferences;
+    subscriptionTier: 'free' | 'starter' | 'pro';
+    credits: number;
 }

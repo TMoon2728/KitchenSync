@@ -8,9 +8,10 @@ import Spinner from '../components/Spinner';
 interface RecipeDetailProps {
     recipes: Recipe[];
     updateRecipe: (updatedRecipe: Recipe) => void;
+    consumeCredits: (cost: number) => boolean;
 }
 
-const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipes, updateRecipe }) => {
+const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipes, updateRecipe, consumeCredits }) => {
     const { id } = useParams();
     const navigate = useNavigate();
     const recipe = useMemo(() => recipes.find(r => r.id === Number(id)), [id, recipes]);
@@ -27,6 +28,8 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipes, updateRecipe }) =>
     }
 
     const handleRemix = async () => {
+        if (!consumeCredits(1)) return;
+
         setIsLoading(true);
         setError(null);
         setRemixResult(null);
@@ -69,6 +72,8 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipes, updateRecipe }) =>
     };
 
     const handleGenerateImage = async () => {
+        if (!consumeCredits(1)) return;
+
         setIsImageLoading(true);
         try {
             const context = recipe.instructions.slice(0, 100);
@@ -113,9 +118,9 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipes, updateRecipe }) =>
                         <button 
                             onClick={handleGenerateImage} 
                             disabled={isImageLoading}
-                            className="mt-4 bg-purple-600 text-white px-6 py-2 rounded-full font-semibold hover:bg-purple-700 transition-all shadow-md z-10"
+                            className="mt-4 bg-purple-600 text-white px-6 py-2 rounded-full font-semibold hover:bg-purple-700 transition-all shadow-md z-10 flex items-center"
                         >
-                            {isImageLoading ? <><Spinner size="sm"/> Generating...</> : <><i className="fas fa-magic mr-2"></i>Generate AI Photo</>}
+                            {isImageLoading ? <><Spinner size="sm"/> Generating...</> : <><i className="fas fa-magic mr-2"></i>Generate Photo <span className="text-[10px] ml-2 bg-yellow-400 text-black px-1.5 rounded-full font-bold">1⚡</span></>}
                         </button>
                     </div>
                 )}
@@ -216,7 +221,10 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipes, updateRecipe }) =>
                 </div>
 
                 <div className="mt-10 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-100">
-                    <h3 className="text-xl font-bold mb-2 flex items-center text-gray-800"><i className="fas fa-robot mr-2 text-purple-600"></i>AI Recipe Remix</h3>
+                    <h3 className="text-xl font-bold mb-2 flex items-center text-gray-800">
+                        <i className="fas fa-robot mr-2 text-purple-600"></i>AI Recipe Remix
+                        <span className="ml-3 text-[10px] bg-yellow-400 text-black px-2 py-1 rounded-full font-bold">1 Credit</span>
+                    </h3>
                     <p className="text-sm text-gray-600 mb-4">Want to shake things up? Let the AI reimagine this dish.</p>
                     <div className="flex flex-col sm:flex-row items-center gap-4">
                         <select value={remixType} onChange={(e) => setRemixType(e.target.value)} className="form-select w-full sm:w-1/3 p-2.5 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500 bg-white text-gray-900">

@@ -14,10 +14,11 @@ interface DashboardProps {
   setPantry: React.Dispatch<React.SetStateAction<PantryItem[]>>;
   setMealPlan: React.Dispatch<React.SetStateAction<MealPlan>>;
   userProfile: UserProfile;
+  consumeCredits: (cost: number) => boolean;
 }
 
-const StatCard: React.FC<{ icon: string; title: string; value: string | number; color: string; delay: string }> = ({ icon, title, value, color, delay }) => (
-    <div className={`bg-white p-4 rounded-xl shadow-lg border-b-4 border-gray-100 flex items-center transform transition-all duration-300 hover:-translate-y-1 hover:shadow-xl animate-slide-up ${delay}`}>
+const StatCard: React.FC<{ icon: string; title: string; value: string | number; color: string; delay: string; to: string; state?: any }> = ({ icon, title, value, color, delay, to, state }) => (
+    <Link to={to} state={state} className={`bg-white p-4 rounded-xl shadow-lg border-b-4 border-gray-100 flex items-center transform transition-all duration-300 hover:-translate-y-1 hover:shadow-xl animate-slide-up ${delay} block`}>
         <div className={`w-14 h-14 rounded-full flex items-center justify-center ${color} shadow-inner`}>
             <i className={`fas ${icon} text-white text-2xl`}></i>
         </div>
@@ -25,7 +26,7 @@ const StatCard: React.FC<{ icon: string; title: string; value: string | number; 
             <p className="text-gray-500 text-sm font-medium uppercase tracking-wide">{title}</p>
             <p className="text-3xl font-extrabold text-gray-800">{value}</p>
         </div>
-    </div>
+    </Link>
 );
 
 const FOOD_FACTS = [
@@ -38,7 +39,7 @@ const FOOD_FACTS = [
     "Ripe cranberries will bounce like rubber balls.",
 ];
 
-const Dashboard: React.FC<DashboardProps> = ({ recipes, pantry, mealPlan, setPantry, setMealPlan, userProfile }) => {
+const Dashboard: React.FC<DashboardProps> = ({ recipes, pantry, mealPlan, setPantry, setMealPlan, userProfile, consumeCredits }) => {
     const [aiIngredients, setAiIngredients] = useState('');
     const [generatedRecipe, setGeneratedRecipe] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -96,6 +97,9 @@ const Dashboard: React.FC<DashboardProps> = ({ recipes, pantry, mealPlan, setPan
             setError("Please enter some ingredients.");
             return;
         }
+
+        if (!consumeCredits(1)) return;
+
         setIsLoading(true);
         setError(null);
         setGeneratedRecipe(null);
@@ -203,6 +207,9 @@ const Dashboard: React.FC<DashboardProps> = ({ recipes, pantry, mealPlan, setPan
                                 <span className="font-bold text-gray-700 text-sm">{xpStats.currentLevel.name}</span>
                              </div>
                              <span className="text-xs text-gray-400 font-mono">{xpStats.xp} XP</span>
+                             <Link to="/subscription" className="ml-2 text-xs bg-yellow-400 text-black px-2 py-0.5 rounded font-bold hover:bg-yellow-300 shadow-sm">
+                                {userProfile.subscriptionTier === 'pro' ? 'PRO' : userProfile.subscriptionTier === 'starter' ? 'STARTER' : 'FREE'}
+                            </Link>
                         </div>
                     </div>
                 </div>
@@ -229,10 +236,10 @@ const Dashboard: React.FC<DashboardProps> = ({ recipes, pantry, mealPlan, setPan
             
             {/* Stat Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard icon="fa-book-open" title="Total Recipes" value={kitchenStats.totalRecipes} color="bg-blue-500" delay="delay-100" />
-                <StatCard icon="fa-box-open" title="Pantry Items" value={kitchenStats.pantryItems} color="bg-green-500" delay="delay-200" />
-                <StatCard icon="fa-heart" title="Favorites" value={kitchenStats.favoriteRecipes} color="bg-red-500" delay="delay-300" />
-                <div className="bg-white p-4 rounded-xl shadow-lg border-b-4 border-gray-100 flex items-center justify-between transform transition-all duration-300 hover:-translate-y-1 hover:shadow-xl animate-slide-up delay-400">
+                <StatCard icon="fa-book-open" title="Total Recipes" value={kitchenStats.totalRecipes} color="bg-blue-500" delay="delay-100" to="/recipes" />
+                <StatCard icon="fa-box-open" title="Pantry Items" value={kitchenStats.pantryItems} color="bg-green-500" delay="delay-200" to="/pantry" />
+                <StatCard icon="fa-heart" title="Favorites" value={kitchenStats.favoriteRecipes} color="bg-red-500" delay="delay-300" to="/recipes" state={{ filter: 'favorites' }} />
+                <Link to="/recipes" state={{ filter: 'canMake' }} className="bg-white p-4 rounded-xl shadow-lg border-b-4 border-gray-100 flex items-center justify-between transform transition-all duration-300 hover:-translate-y-1 hover:shadow-xl animate-slide-up delay-400 block">
                     <div>
                          <p className="text-gray-500 text-sm font-medium uppercase tracking-wide">Kitchen Health</p>
                          <p className={`text-3xl font-extrabold ${healthColor}`}>{kitchenHealth}%</p>
@@ -253,7 +260,7 @@ const Dashboard: React.FC<DashboardProps> = ({ recipes, pantry, mealPlan, setPan
                         </svg>
                         <i className={`fas fa-utensils absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 ${healthColor} text-sm`}></i>
                     </div>
-                </div>
+                </Link>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -350,9 +357,15 @@ const Dashboard: React.FC<DashboardProps> = ({ recipes, pantry, mealPlan, setPan
                             <i className="fas fa-magic text-9xl"></i>
                         </div>
                         
-                        <h2 className="text-xl font-bold mb-4 flex items-center relative z-10">
-                            <i className="fas fa-wand-magic-sparkles mr-2 text-purple-500"></i>Culinary Alchemist
-                        </h2>
+                        <div className="flex justify-between items-center mb-4 relative z-10">
+                            <h2 className="text-xl font-bold flex items-center">
+                                <i className="fas fa-wand-magic-sparkles mr-2 text-purple-500"></i>Culinary Alchemist
+                            </h2>
+                            <span className="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-bold border border-yellow-200">
+                                <i className="fas fa-bolt mr-1"></i>1 Credit
+                            </span>
+                        </div>
+                        
                         <p className="text-sm text-gray-500 mb-4 relative z-10">Have random ingredients? Let the AI invent a unique recipe just for you.</p>
                         
                         <textarea

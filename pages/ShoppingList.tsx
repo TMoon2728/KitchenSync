@@ -21,7 +21,7 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ mealPlan, pantry, recipes, 
     const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
     const [showStoreLinks, setShowStoreLinks] = useState(false);
 
-    const shoppingList = useMemo(() => {
+    const shoppingList: { [category: string]: NeededIngredient[] } = useMemo(() => {
         const needed: { [key: string]: NeededIngredient } = {};
 
         // Aggregate all ingredients from the meal plan
@@ -71,13 +71,13 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ mealPlan, pantry, recipes, 
     }, [mealPlan, pantry, recipes]);
     
     // Stats for Gamification
-    const totalItems = Object.values(shoppingList).reduce((acc, items) => acc + items.length, 0);
+    const totalItems = (Object.values(shoppingList) as NeededIngredient[][]).reduce((acc: number, items: NeededIngredient[]) => acc + items.length, 0);
     const completedItems = Array.from(checkedItems).filter(item => {
         // Only count if item is actually in current list (avoid stale state issues)
-        return Object.values(shoppingList).some(list => list.some(i => i.name === item));
+        return (Object.values(shoppingList) as NeededIngredient[][]).some(list => list.some(i => i.name === item));
     }).length;
     
-    const progress = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
+    const progress = (totalItems as number) > 0 ? (completedItems / (totalItems as number)) * 100 : 0;
 
     // Celebration Effect
     useEffect(() => {

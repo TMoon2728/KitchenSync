@@ -130,6 +130,8 @@ export const MOCK_PROFILE: UserProfile = {
     avatar: '👨‍🍳',
     kitchenName: "Chef's Kitchen",
     dailyCalorieGoal: 2000,
+    subscriptionTier: 'free',
+    credits: 5,
     householdMembers: [
         { id: 1, name: 'Chef', dietaryRestrictions: 'None' },
         { id: 2, name: 'Partner', dietaryRestrictions: 'Vegetarian' }
@@ -141,6 +143,7 @@ export const MOCK_PROFILE: UserProfile = {
     preferences: {
         enableConfetti: true,
         confettiIntensity: 'medium',
-        themeColor: 'blue'
+        themeColor: 'blue',
+        showSousChef: true
     }
 };

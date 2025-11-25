@@ -1,13 +1,25 @@
 
 import React, { useState } from 'react';
 import type { UserProfile, HouseholdMember, GroceryStore } from '../types';
+import { manageSubscription } from '../services/stripeService';
+import { Link } from 'react-router-dom';
 
 interface ProfileProps {
     userProfile: UserProfile;
     setUserProfile: React.Dispatch<React.SetStateAction<UserProfile>>;
 }
 
-const AVATARS = ['👨‍🍳', '👩‍🍳', '🧙‍♂️', '🦸‍♀️', '🥗', '🥘', '🌮', '🧁', '🍕', '🥑'];
+const AVATARS = [
+    '👨‍🍳', '👩‍🍳', 
+    '👨🏿‍🍳', '👩🏿‍🍳', 
+    '👨🏾‍🍳', '👩🏾‍🍳', 
+    '👨🏽‍🍳', '👩🏽‍🍳', 
+    '👨🏼‍🍳', '👩🏼‍🍳', 
+    '👨🏻‍🍳', '👩🏻‍🍳',
+    '🧙‍♂️', '🦸‍♀️', 
+    '🥗', '🥘', '🌮', '🧁', '🍕', '🥑'
+];
+
 const THEMES = ['blue', 'green', 'purple', 'slate', 'orange', 'rose'] as const;
 
 const Profile: React.FC<ProfileProps> = ({ userProfile, setUserProfile }) => {
@@ -27,6 +39,7 @@ const Profile: React.FC<ProfileProps> = ({ userProfile, setUserProfile }) => {
     const [enableConfetti, setEnableConfetti] = useState(userProfile.preferences?.enableConfetti ?? true);
     const [confettiIntensity, setConfettiIntensity] = useState<'low'|'medium'|'high'>(userProfile.preferences?.confettiIntensity || 'medium');
     const [themeColor, setThemeColor] = useState(userProfile.preferences?.themeColor || 'blue');
+    const [showSousChef, setShowSousChef] = useState(userProfile.preferences?.showSousChef ?? true);
     
     const [isSavingGoals, setIsSavingGoals] = useState(false);
 
@@ -100,7 +113,8 @@ const Profile: React.FC<ProfileProps> = ({ userProfile, setUserProfile }) => {
             preferences: {
                 enableConfetti,
                 confettiIntensity,
-                themeColor
+                themeColor,
+                showSousChef
             }
         }));
         setTimeout(() => setIsSavingGoals(false), 1000);
@@ -109,6 +123,39 @@ const Profile: React.FC<ProfileProps> = ({ userProfile, setUserProfile }) => {
     return (
         <div className="max-w-4xl mx-auto space-y-8 pb-12">
             <h1 className="text-3xl font-bold text-gray-800">Profile & Settings</h1>
+
+            {/* Subscription Section */}
+            <div className={`bg-white p-6 rounded-lg shadow-md border-l-4 ${userProfile.subscriptionTier === 'pro' ? 'border-yellow-400' : 'border-gray-300'}`}>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h2 className="text-xl font-bold mb-1 flex items-center">
+                            <i className="fas fa-crown text-yellow-500 mr-2"></i> Subscription Status
+                        </h2>
+                        <div className="flex items-center mt-2">
+                            <span className={`px-3 py-1 rounded-full text-sm font-bold uppercase tracking-wider ${userProfile.subscriptionTier === 'pro' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-600'}`}>
+                                {userProfile.subscriptionTier === 'pro' ? 'Executive Chef (Pro)' : 'Line Cook (Free)'}
+                            </span>
+                        </div>
+                    </div>
+                    <div>
+                        {userProfile.subscriptionTier === 'pro' ? (
+                            <button 
+                                onClick={manageSubscription}
+                                className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-semibold hover:bg-gray-200 transition-colors"
+                            >
+                                <i className="fas fa-cog mr-2"></i> Manage Billing
+                            </button>
+                        ) : (
+                            <Link 
+                                to="/subscription"
+                                className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-6 py-2 rounded-lg font-bold shadow-md hover:scale-105 transition-transform"
+                            >
+                                Upgrade Now
+                            </Link>
+                        )}
+                    </div>
+                </div>
+            </div>
 
             {/* Personal Details */}
             <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-blue-500">
@@ -187,34 +234,50 @@ const Profile: React.FC<ProfileProps> = ({ userProfile, setUserProfile }) => {
                     </div>
                     
                     <div className="border-t border-gray-100 pt-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-3">Celebration Settings</label>
-                        <div className="flex items-center gap-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-3">Experience Settings</label>
+                        <div className="space-y-4">
+                            {/* Confetti Toggle */}
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-6">
+                                    <div className="flex items-center">
+                                        <button 
+                                            onClick={() => setEnableConfetti(!enableConfetti)}
+                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${enableConfetti ? 'bg-purple-600' : 'bg-gray-200'}`}
+                                        >
+                                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enableConfetti ? 'translate-x-6' : 'translate-x-1'}`} />
+                                        </button>
+                                        <span className="ml-3 text-sm text-gray-700">Enable Celebration Confetti</span>
+                                    </div>
+
+                                    {enableConfetti && (
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-gray-500">Intensity:</span>
+                                            <div className="flex bg-gray-100 rounded-lg p-1">
+                                                {(['low', 'medium', 'high'] as const).map((level) => (
+                                                    <button
+                                                        key={level}
+                                                        onClick={() => setConfettiIntensity(level)}
+                                                        className={`px-3 py-1 text-xs rounded-md capitalize transition-colors ${confettiIntensity === level ? 'bg-white shadow-sm text-purple-700 font-semibold' : 'text-gray-500 hover:text-gray-700'}`}
+                                                    >
+                                                        {level}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            {/* Sous Chef Toggle */}
                             <div className="flex items-center">
                                 <button 
-                                    onClick={() => setEnableConfetti(!enableConfetti)}
-                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${enableConfetti ? 'bg-purple-600' : 'bg-gray-200'}`}
+                                    onClick={() => setShowSousChef(!showSousChef)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showSousChef ? 'bg-blue-600' : 'bg-gray-200'}`}
                                 >
-                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enableConfetti ? 'translate-x-6' : 'translate-x-1'}`} />
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showSousChef ? 'translate-x-6' : 'translate-x-1'}`} />
                                 </button>
-                                <span className="ml-3 text-sm text-gray-700">Enable Confetti</span>
+                                <span className="ml-3 text-sm text-gray-700">Show Sous Chef AI</span>
                             </div>
-
-                            {enableConfetti && (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm text-gray-600">Intensity:</span>
-                                    <div className="flex bg-gray-100 rounded-lg p-1">
-                                        {(['low', 'medium', 'high'] as const).map((level) => (
-                                            <button
-                                                key={level}
-                                                onClick={() => setConfettiIntensity(level)}
-                                                className={`px-3 py-1 text-xs rounded-md capitalize transition-colors ${confettiIntensity === level ? 'bg-white shadow-sm text-purple-700 font-semibold' : 'text-gray-500 hover:text-gray-700'}`}
-                                            >
-                                                {level}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>

@@ -14,7 +14,9 @@ import MealPrep from './pages/MealPrep';
 import RecipeForm from './pages/RecipeForm';
 import CookingMode from './pages/CookingMode';
 import Profile from './pages/Profile';
+import Subscription from './pages/Subscription';
 import SousChef from './components/SousChef';
+import UpgradeModal from './components/UpgradeModal';
 
 interface NavItemDef {
     path: string;
@@ -71,6 +73,7 @@ const App: React.FC = () => {
     });
 
     const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
     // Persistence Effects
     useEffect(() => {
@@ -113,6 +116,32 @@ const App: React.FC = () => {
         setRecipes(prev => prev.map(r => r.id === updatedRecipe.id ? updatedRecipe : r));
     };
 
+    // Credit Logic
+    const consumeCredits = (cost: number): boolean => {
+        if (userProfile.subscriptionTier === 'pro') return true;
+        
+        if (userProfile.credits >= cost) {
+            setUserProfile(prev => ({ ...prev, credits: prev.credits - cost }));
+            return true;
+        } else {
+            setShowUpgradeModal(true);
+            return false;
+        }
+    };
+
+    const toggleSousChef = (show: boolean) => {
+        setUserProfile(prev => ({
+            ...prev,
+            preferences: {
+                enableConfetti: true,
+                confettiIntensity: 'medium',
+                themeColor: 'blue',
+                ...prev.preferences,
+                showSousChef: show
+            }
+        }));
+    };
+
     // Theme Logic
     const themeColor = userProfile.preferences?.themeColor || 'blue';
     const themeClasses = {
@@ -128,7 +157,6 @@ const App: React.FC = () => {
     const handleDragStart = (e: React.DragEvent, index: number) => {
         setDraggedItemIndex(index);
         e.dataTransfer.effectAllowed = "move";
-        // Optional: Set ghost image or style
         e.currentTarget.classList.add('opacity-50');
     };
 
@@ -168,7 +196,7 @@ const App: React.FC = () => {
                 }
             >
                 <div className={`w-6 flex justify-center flex-shrink-0 transition-all ${isSidebarCollapsed ? 'mx-auto' : 'mr-3'}`}>
-                    <i className={`fas ${item.icon} text-lg`}></i>
+                    <i className={`fas ${item.icon} text-lg ${item.path === '/ai-architect' ? 'text-purple-400' : ''}`}></i>
                 </div>
                 <span className={`transition-all duration-300 ${isSidebarCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
                     {item.name}
@@ -177,7 +205,6 @@ const App: React.FC = () => {
         </div>
     );
 
-    // Hide sidebar on Cooking Mode
     const isCookingMode = location.pathname.includes('/cook');
 
     return (
@@ -198,10 +225,24 @@ const App: React.FC = () => {
                         )}
                     </div>
                     
+                    {/* Credit Display in Sidebar */}
+                    <div className={`mx-4 mt-2 mb-4 bg-black/20 rounded-xl p-3 flex flex-col items-center border border-white/10 ${isSidebarCollapsed ? 'px-1' : ''}`}>
+                        <div className="flex items-center gap-2 mb-1">
+                            <i className="fas fa-bolt text-yellow-400"></i>
+                            {!isSidebarCollapsed && <span className="text-xs font-bold uppercase tracking-wider text-gray-300">AI Credits</span>}
+                        </div>
+                        <span className={`font-mono font-bold text-white ${isSidebarCollapsed ? 'text-xs' : 'text-xl'}`}>
+                            {userProfile.subscriptionTier === 'pro' ? '∞' : userProfile.credits}
+                        </span>
+                        {!isSidebarCollapsed && userProfile.subscriptionTier !== 'pro' && (
+                             <NavLink to="/subscription" className="text-[10px] text-blue-300 hover:text-blue-100 mt-1">Get More</NavLink>
+                        )}
+                    </div>
+                    
                     <nav className="p-2 space-y-2 flex-grow">
                         {navItems.map((item, index) => <NavItem key={item.path} item={item} index={index} />)}
                     </nav>
-
+                    
                     <div className="p-4 border-t border-white/10 flex justify-center">
                         <button 
                             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} 
@@ -217,22 +258,32 @@ const App: React.FC = () => {
 
             <main className={`flex-1 overflow-y-auto bg-gray-100 text-gray-800 ${isCookingMode ? 'p-0' : 'p-4 sm:p-6 lg:p-8'}`}>
                 <Routes>
-                    <Route path="/" element={<Dashboard recipes={recipes} pantry={pantry} mealPlan={mealPlan} setPantry={setPantry} setMealPlan={setMealPlan} userProfile={userProfile} />} />
-                    <Route path="/recipes" element={<Recipes recipes={recipes} pantry={pantry} addRecipe={addRecipe} setRecipes={setRecipes} />} />
+                    <Route path="/" element={<Dashboard recipes={recipes} pantry={pantry} mealPlan={mealPlan} setPantry={setPantry} setMealPlan={setMealPlan} userProfile={userProfile} consumeCredits={consumeCredits} />} />
+                    <Route path="/recipes" element={<Recipes recipes={recipes} pantry={pantry} addRecipe={addRecipe} setRecipes={setRecipes} consumeCredits={consumeCredits} />} />
                     <Route path="/recipes/new" element={<RecipeForm addRecipe={addRecipe} />} />
-                    <Route path="/recipes/:id" element={<RecipeDetail recipes={recipes} updateRecipe={updateRecipe} />} />
+                    <Route path="/recipes/:id" element={<RecipeDetail recipes={recipes} updateRecipe={updateRecipe} consumeCredits={consumeCredits} />} />
                     <Route path="/recipes/:id/cook" element={<CookingMode recipes={recipes} />} />
                     <Route path="/planner" element={<MealPlanner recipes={recipes} mealPlan={mealPlan} setMealPlan={setMealPlan} pantry={pantry} setPantry={setPantry} userProfile={userProfile} />} />
                     <Route path="/meal-prep" element={<MealPrep recipes={recipes} />} />
-                    <Route path="/ai-architect" element={<AiArchitect recipes={recipes} setMealPlan={setMealPlan} userProfile={userProfile} />} />
-                    <Route path="/pantry" element={<Pantry pantry={pantry} setPantry={setPantry} recipes={recipes} />} />
+                    <Route path="/ai-architect" element={<AiArchitect recipes={recipes} setMealPlan={setMealPlan} userProfile={userProfile} consumeCredits={consumeCredits} />} />
+                    <Route path="/pantry" element={<Pantry pantry={pantry} setPantry={setPantry} recipes={recipes} consumeCredits={consumeCredits} />} />
                     <Route path="/shopping-list" element={<ShoppingList mealPlan={mealPlan} pantry={pantry} recipes={recipes} userProfile={userProfile} />} />
                     <Route path="/profile" element={<Profile userProfile={userProfile} setUserProfile={setUserProfile} />} />
+                    <Route path="/subscription" element={<Subscription userProfile={userProfile} setUserProfile={setUserProfile} />} />
                 </Routes>
             </main>
 
-            {/* Global Assistants */}
-            {!isCookingMode && <SousChef recipes={recipes} pantry={pantry} />}
+            {/* Global Assistants - Conditional Render */}
+            {!isCookingMode && userProfile.preferences?.showSousChef !== false && (
+                <SousChef 
+                    recipes={recipes} 
+                    pantry={pantry} 
+                    consumeCredits={consumeCredits} 
+                    onDisable={() => toggleSousChef(false)}
+                />
+            )}
+            
+            <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
         </div>
     );
 };

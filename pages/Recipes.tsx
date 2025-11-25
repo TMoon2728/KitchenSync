@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { Recipe, PantryItem } from '../types';
 import RecipeCard from '../components/RecipeCard';
 import Spinner from '../components/Spinner';
@@ -11,11 +11,19 @@ interface RecipesProps {
   pantry: PantryItem[];
   addRecipe: (newRecipe: Omit<Recipe, 'id' | 'is_favorite' | 'rating'>) => void;
   setRecipes: React.Dispatch<React.SetStateAction<Recipe[]>>;
+  consumeCredits: (cost: number) => boolean;
 }
 
-const Recipes: React.FC<RecipesProps> = ({ recipes, pantry, addRecipe, setRecipes }) => {
+const Recipes: React.FC<RecipesProps> = ({ recipes, pantry, addRecipe, setRecipes, consumeCredits }) => {
+    const location = useLocation();
     const [searchTerm, setSearchTerm] = useState('');
-    const [filter, setFilter] = useState<'all' | 'favorites' | 'canMake'>('all');
+    
+    // Initialize filter from location state if available (e.g. coming from Dashboard tiles)
+    const [filter, setFilter] = useState<'all' | 'favorites' | 'canMake'>(() => {
+        const state = location.state as { filter?: 'all' | 'favorites' | 'canMake' } | null;
+        return state?.filter || 'all';
+    });
+
     const [sort, setSort] = useState<'asc' | 'desc' | 'rating'>('asc');
     const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
     
@@ -41,6 +49,9 @@ const Recipes: React.FC<RecipesProps> = ({ recipes, pantry, addRecipe, setRecipe
             setAddError("Please describe the recipe you want to create.");
             return;
         }
+
+        if (!consumeCredits(1)) return;
+
         setIsAdding(true);
         setAddError(null);
         try {
@@ -70,6 +81,8 @@ const Recipes: React.FC<RecipesProps> = ({ recipes, pantry, addRecipe, setRecipe
             setImportError("Please enter a valid URL.");
             return;
         }
+
+        if (!consumeCredits(1)) return;
 
         setIsImporting(true);
         setImportError(null);
@@ -177,7 +190,7 @@ const Recipes: React.FC<RecipesProps> = ({ recipes, pantry, addRecipe, setRecipe
                         <div className="absolute top-0 right-0 p-4 opacity-5 transform rotate-12 transition-transform group-hover:scale-110">
                             <i className="fas fa-magic text-8xl text-purple-600"></i>
                         </div>
-                        <h2 className="text-xl font-bold mb-2 flex items-center text-gray-800"><i className="fas fa-magic mr-2 text-purple-500"></i>AI Quick Add</h2>
+                        <h2 className="text-xl font-bold mb-2 flex items-center text-gray-800"><i className="fas fa-magic mr-2 text-purple-500"></i>AI Quick Add <span className="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded ml-2">1 Credit</span></h2>
                         <p className="text-sm text-gray-500 mb-4 relative z-10">Describe a dish and let AI write the recipe.</p>
                         <form onSubmit={handleAiQuickAdd} className="flex items-start gap-3 relative z-10">
                             <textarea
@@ -198,7 +211,7 @@ const Recipes: React.FC<RecipesProps> = ({ recipes, pantry, addRecipe, setRecipe
                          <div className="absolute top-0 right-0 p-4 opacity-5 transform -rotate-12 transition-transform group-hover:scale-110">
                             <i className="fas fa-link text-8xl text-green-600"></i>
                         </div>
-                        <h2 className="text-xl font-bold mb-2 flex items-center text-gray-800"><i className="fas fa-cloud-download-alt mr-2 text-green-500"></i>Import from Web</h2>
+                        <h2 className="text-xl font-bold mb-2 flex items-center text-gray-800"><i className="fas fa-cloud-download-alt mr-2 text-green-500"></i>Import URL <span className="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded ml-2">1 Credit</span></h2>
                         <p className="text-sm text-gray-500 mb-4 relative z-10">Paste a URL to extract recipe details.</p>
                         <form onSubmit={handleImportFromUrl} className="flex items-start gap-3 relative z-10">
                              <input
