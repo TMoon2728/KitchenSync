@@ -207,7 +207,7 @@ const MealPlanner: React.FC<MealPlannerProps> = ({ recipes, mealPlan, setMealPla
 
     return (
         <div className="flex flex-col lg:flex-row h-full gap-6 relative animate-fade-in">
-            <aside className="w-full lg:w-1/4 bg-white p-5 rounded-2xl shadow-lg border border-gray-100 flex flex-col gap-4 max-h-[calc(100vh-100px)] sticky top-6">
+            <aside className="w-full lg:w-1/4 bg-white p-5 rounded-2xl shadow-lg border border-gray-100 flex flex-col gap-4 max-h-[calc(100vh-100px)] sticky top-6 z-10">
                 {/* Recipe Tray */}
                 <div className="flex flex-col flex-grow min-h-0">
                      <div className="flex justify-between items-center mb-4">
@@ -281,7 +281,7 @@ const MealPlanner: React.FC<MealPlannerProps> = ({ recipes, mealPlan, setMealPla
             </aside>
 
             {/* Calendar */}
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col min-w-0">
                 <div className="flex flex-col md:flex-row justify-between items-center mb-6 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 gap-4">
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
@@ -306,69 +306,73 @@ const MealPlanner: React.FC<MealPlannerProps> = ({ recipes, mealPlan, setMealPla
                     </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-7 gap-3 flex-grow overflow-y-auto">
-                    {days.map(day => {
-                        const dateStr = formatDate(day);
-                        const dayPlan = mealPlan[dateStr] || { Breakfast: [], Lunch: [], Dinner: [], Snack: [] };
-                        const isToday = formatDate(new Date()) === dateStr;
-                        
-                        return (
-                            <div key={dateStr} className={`rounded-2xl flex flex-col p-3 space-y-3 min-h-[400px] border ${isToday ? 'bg-blue-50/50 border-blue-200 shadow-md ring-2 ring-blue-100' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                <div className="text-center pb-2 border-b border-gray-100/50">
-                                    <h3 className={`font-black uppercase tracking-wider text-xs ${isToday ? 'text-blue-600' : 'text-gray-400'}`}>{day.toLocaleDateString('en-US', { weekday: 'short' })}</h3>
-                                    <p className={`text-xl font-bold ${isToday ? 'text-blue-800' : 'text-gray-800'}`}>{day.getDate()}</p>
-                                </div>
-                                
-                                {['Breakfast', 'Lunch', 'Dinner', 'Snack'].map(slot => (
-                                    <div
-                                        key={slot}
-                                        onDragOver={(e) => e.preventDefault()}
-                                        onDrop={(e) => handleDrop(dateStr, slot, e)}
-                                        className="flex-grow flex flex-col gap-2 transition-colors rounded-xl p-1 relative group/slot"
-                                    >
-                                        <div className="flex justify-between items-center px-1">
-                                             <h4 className="font-bold text-[10px] text-gray-400 uppercase tracking-wide">{slot}</h4>
-                                             {dayPlan[slot]?.length === 0 && (
-                                                <i className="fas fa-plus text-[10px] text-gray-300 opacity-0 group-hover/slot:opacity-100 transition-opacity"></i>
-                                             )}
-                                        </div>
-                                        
-                                        <div className={`flex-grow rounded-xl transition-all border-2 border-transparent space-y-2 ${dayPlan[slot]?.length === 0 ? 'bg-gray-50/50 border-dashed border-gray-200 group-hover/slot:bg-blue-50/30 group-hover/slot:border-blue-200' : ''} min-h-[60px] p-1`}>
-                                            {dayPlan[slot]?.map((item, index) => {
-                                                const recipe = item.recipeId ? recipes.find(r => r.id === item.recipeId) : null;
-                                                const isCompleted = item.completed;
-
-                                                return (
-                                                     <div key={index} className={`relative p-2 rounded-lg shadow-sm border text-xs group transition-all hover:scale-105 hover:z-10 ${recipe ? (isCompleted ? 'bg-green-50 text-green-800 border-green-200 opacity-70' : 'bg-white text-gray-800 border-gray-100 hover:border-blue-300') : 'bg-yellow-50 text-yellow-800 border-yellow-100'}`}>
-                                                        <span className={`font-bold line-clamp-2 leading-tight ${isCompleted ? 'line-through' : ''}`}>
-                                                            {recipe ? recipe.name : item.custom_item_name}
-                                                        </span>
-                                                        
-                                                        {recipe && (
-                                                            <button 
-                                                                onClick={() => initiateToggleStatus(dateStr, slot, index, recipe.id)}
-                                                                className={`mt-2 w-full py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition-colors ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500 hover:bg-green-500 hover:text-white'}`}
-                                                            >
-                                                                {isCompleted ? 'Done' : 'Cook'}
-                                                            </button>
-                                                        )}
-                                                        
-                                                         <button 
-                                                            onClick={() => removeItemFromPlan(dateStr, slot, index)} 
-                                                            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-red-600 scale-75 group-hover:scale-100"
-                                                            title="Remove"
-                                                        >
-                                                            &times;
-                                                        </button>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
+                {/* Responsive Calendar Grid */}
+                {/* Mobile: Vertical List | Desktop: Horizontal Kanban Board */}
+                <div className="flex-grow overflow-y-auto md:overflow-y-hidden md:overflow-x-auto custom-scrollbar">
+                    <div className="flex flex-col md:flex-row gap-4 h-full pb-4">
+                        {days.map(day => {
+                            const dateStr = formatDate(day);
+                            const dayPlan = mealPlan[dateStr] || { Breakfast: [], Lunch: [], Dinner: [], Snack: [] };
+                            const isToday = formatDate(new Date()) === dateStr;
+                            
+                            return (
+                                <div key={dateStr} className={`flex-shrink-0 w-full md:w-[300px] rounded-2xl flex flex-col p-3 space-y-3 border transition-all md:h-full md:overflow-y-auto custom-scrollbar md:snap-center ${isToday ? 'bg-blue-50/50 border-blue-200 shadow-md ring-2 ring-blue-100' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                    <div className="text-center pb-2 border-b border-gray-100/50 sticky top-0 bg-inherit z-10 backdrop-blur-sm">
+                                        <h3 className={`font-black uppercase tracking-wider text-xs ${isToday ? 'text-blue-600' : 'text-gray-400'}`}>{day.toLocaleDateString('en-US', { weekday: 'short' })}</h3>
+                                        <p className={`text-xl font-bold ${isToday ? 'text-blue-800' : 'text-gray-800'}`}>{day.getDate()}</p>
                                     </div>
-                                ))}
-                            </div>
-                        );
-                    })}
+                                    
+                                    {['Breakfast', 'Lunch', 'Dinner', 'Snack'].map(slot => (
+                                        <div
+                                            key={slot}
+                                            onDragOver={(e) => e.preventDefault()}
+                                            onDrop={(e) => handleDrop(dateStr, slot, e)}
+                                            className="flex-grow flex flex-col gap-2 transition-colors rounded-xl p-1 relative group/slot min-h-[80px]"
+                                        >
+                                            <div className="flex justify-between items-center px-1">
+                                                <h4 className="font-bold text-[10px] text-gray-400 uppercase tracking-wide">{slot}</h4>
+                                                {dayPlan[slot]?.length === 0 && (
+                                                    <i className="fas fa-plus text-[10px] text-gray-300 opacity-0 group-hover/slot:opacity-100 transition-opacity"></i>
+                                                )}
+                                            </div>
+                                            
+                                            <div className={`flex-grow rounded-xl transition-all border-2 border-transparent space-y-2 ${dayPlan[slot]?.length === 0 ? 'bg-gray-50/50 border-dashed border-gray-200 group-hover/slot:bg-blue-50/30 group-hover/slot:border-blue-200' : ''} p-1`}>
+                                                {dayPlan[slot]?.map((item, index) => {
+                                                    const recipe = item.recipeId ? recipes.find(r => r.id === item.recipeId) : null;
+                                                    const isCompleted = item.completed;
+
+                                                    return (
+                                                        <div key={index} className={`relative p-2 rounded-lg shadow-sm border text-xs group transition-all hover:scale-105 hover:z-10 ${recipe ? (isCompleted ? 'bg-green-50 text-green-800 border-green-200 opacity-70' : 'bg-white text-gray-800 border-gray-100 hover:border-blue-300') : 'bg-yellow-50 text-yellow-800 border-yellow-100'}`}>
+                                                            <span className={`font-bold line-clamp-2 leading-tight ${isCompleted ? 'line-through' : ''}`}>
+                                                                {recipe ? recipe.name : item.custom_item_name}
+                                                            </span>
+                                                            
+                                                            {recipe && (
+                                                                <button 
+                                                                    onClick={() => initiateToggleStatus(dateStr, slot, index, recipe.id)}
+                                                                    className={`mt-2 w-full py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition-colors ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500 hover:bg-green-500 hover:text-white'}`}
+                                                                >
+                                                                    {isCompleted ? 'Done' : 'Cook'}
+                                                                </button>
+                                                            )}
+                                                            
+                                                            <button 
+                                                                onClick={() => removeItemFromPlan(dateStr, slot, index)} 
+                                                                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-red-600 scale-75 group-hover:scale-100"
+                                                                title="Remove"
+                                                            >
+                                                                &times;
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
 

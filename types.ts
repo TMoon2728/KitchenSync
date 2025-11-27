@@ -65,6 +65,12 @@ export interface UserPreferences {
     confettiIntensity: 'low' | 'medium' | 'high';
     themeColor: 'blue' | 'green' | 'purple' | 'slate' | 'orange' | 'rose';
     showSousChef?: boolean;
+    hiddenNavItems?: string[]; // List of paths to hide from sidebar
+    stripeConfig?: {
+        starterLink?: string;
+        proLink?: string;
+        portalLink?: string;
+    };
 }
 
 export interface UserProfile {
@@ -77,4 +83,5 @@ export interface UserProfile {
     preferences?: UserPreferences;
     subscriptionTier: 'free' | 'starter' | 'pro';
     credits: number;
+    hasUsedFreeImageGeneration?: boolean;
 }

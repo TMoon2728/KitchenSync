@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import type { Recipe } from '../types';
+import type { Recipe, UserProfile } from '../types';
 import { remixRecipe, generateRecipeImage } from '../services/geminiService';
 import Spinner from '../components/Spinner';
 
@@ -9,9 +9,11 @@ interface RecipeDetailProps {
     recipes: Recipe[];
     updateRecipe: (updatedRecipe: Recipe) => void;
     consumeCredits: (cost: number) => boolean;
+    userProfile: UserProfile;
+    setUserProfile: React.Dispatch<React.SetStateAction<UserProfile>>;
 }
 
-const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipes, updateRecipe, consumeCredits }) => {
+const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipes, updateRecipe, consumeCredits, userProfile, setUserProfile }) => {
     const { id } = useParams();
     const navigate = useNavigate();
     const recipe = useMemo(() => recipes.find(r => r.id === Number(id)), [id, recipes]);
@@ -72,7 +74,11 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipes, updateRecipe, cons
     };
 
     const handleGenerateImage = async () => {
-        if (!consumeCredits(1)) return;
+        const isFree = !userProfile.hasUsedFreeImageGeneration;
+
+        if (!isFree) {
+            if (!consumeCredits(1)) return;
+        }
 
         setIsImageLoading(true);
         try {
@@ -80,6 +86,9 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipes, updateRecipe, cons
             const imageUrl = await generateRecipeImage(recipe.name, context);
             if (imageUrl) {
                 updateRecipe({ ...recipe, imageUrl });
+                if (isFree) {
+                    setUserProfile(prev => ({ ...prev, hasUsedFreeImageGeneration: true }));
+                }
             } else {
                 setError("Could not generate an image. Please try again.");
             }
@@ -120,7 +129,11 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipes, updateRecipe, cons
                             disabled={isImageLoading}
                             className="mt-4 bg-purple-600 text-white px-6 py-2 rounded-full font-semibold hover:bg-purple-700 transition-all shadow-md z-10 flex items-center"
                         >
-                            {isImageLoading ? <><Spinner size="sm"/> Generating...</> : <><i className="fas fa-magic mr-2"></i>Generate Photo <span className="text-[10px] ml-2 bg-yellow-400 text-black px-1.5 rounded-full font-bold">1⚡</span></>}
+                            {isImageLoading ? <><Spinner size="sm"/> Generating...</> : <><i className="fas fa-magic mr-2"></i>Generate Photo 
+                            <span className={`text-[10px] ml-2 ${!userProfile.hasUsedFreeImageGeneration ? 'bg-green-400 text-white' : 'bg-yellow-400 text-black'} px-1.5 rounded-full font-bold`}>
+                                {!userProfile.hasUsedFreeImageGeneration ? 'FREE' : '1⚡'}
+                            </span>
+                            </>}
                         </button>
                     </div>
                 )}

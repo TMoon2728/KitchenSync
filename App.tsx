@@ -17,6 +17,7 @@ import Profile from './pages/Profile';
 import Subscription from './pages/Subscription';
 import SousChef from './components/SousChef';
 import UpgradeModal from './components/UpgradeModal';
+import confetti from 'canvas-confetti';
 
 interface NavItemDef {
     path: string;
@@ -34,6 +35,9 @@ const DEFAULT_NAV_ITEMS: NavItemDef[] = [
     { path: '/shopping-list', name: 'Shopping List', icon: 'fa-cart-shopping' },
     { path: '/profile', name: 'Profile', icon: 'fa-user-cog' },
 ];
+
+const KONAMI_CODE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+const SPACE_NAMES = ['iss', 'nasa', 'the enterprise', 'enterprise', 'voyager', 'deep space 9', 'zero g', 'orbit'];
 
 const App: React.FC = () => {
     const [recipes, setRecipes] = useState<Recipe[]>(() => {
@@ -55,6 +59,10 @@ const App: React.FC = () => {
         const saved = localStorage.getItem('ks_user_profile');
         return saved ? JSON.parse(saved) : MOCK_PROFILE;
     });
+
+    // Easter Egg States
+    const [retroMode, setRetroMode] = useState(false);
+    const [konamiIndex, setKonamiIndex] = useState(0);
 
     // Sidebar & Navigation State
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -100,6 +108,33 @@ const App: React.FC = () => {
         localStorage.setItem('ks_nav_order', JSON.stringify(navItems));
     }, [navItems]);
 
+    // Konami Code Listener
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === KONAMI_CODE[konamiIndex]) {
+                const nextIndex = konamiIndex + 1;
+                if (nextIndex === KONAMI_CODE.length) {
+                    // Activate Cheat
+                    setRetroMode(prev => !prev);
+                    setKonamiIndex(0);
+                    confetti({
+                        particleCount: 500,
+                        spread: 200,
+                        shapes: ['square'],
+                        colors: ['#33ff00', '#000000', '#ffffff']
+                    });
+                } else {
+                    setKonamiIndex(nextIndex);
+                }
+            } else {
+                setKonamiIndex(0);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [konamiIndex]);
+
 
     const location = useLocation();
 
@@ -118,6 +153,9 @@ const App: React.FC = () => {
 
     // Credit Logic
     const consumeCredits = (cost: number): boolean => {
+        // CHEAT CODE: If Retro Mode is on, infinite credits
+        if (retroMode) return true;
+
         if (userProfile.subscriptionTier === 'pro') return true;
         
         if (userProfile.credits >= cost) {
@@ -136,6 +174,7 @@ const App: React.FC = () => {
                 enableConfetti: true,
                 confettiIntensity: 'medium',
                 themeColor: 'blue',
+                hiddenNavItems: [],
                 ...prev.preferences,
                 showSousChef: show
             }
@@ -206,9 +245,13 @@ const App: React.FC = () => {
     );
 
     const isCookingMode = location.pathname.includes('/cook');
+    const isSpaceMode = userProfile.kitchenName && SPACE_NAMES.some(name => userProfile.kitchenName!.toLowerCase().includes(name));
+
+    // Filter hidden items
+    const hiddenItems = userProfile.preferences?.hiddenNavItems || [];
 
     return (
-        <div className="flex h-screen bg-gray-900 text-white">
+        <div className={`flex h-screen bg-gray-900 text-white ${retroMode ? 'retro-mode' : ''} ${isSpaceMode ? 'zero-g-mode' : ''}`}>
             {!isCookingMode && (
                 <aside 
                     className={`flex-shrink-0 ${themeClasses.sidebar} overflow-y-auto transition-all duration-300 ease-in-out flex flex-col border-r border-white/10 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}
@@ -217,7 +260,7 @@ const App: React.FC = () => {
                         {!isSidebarCollapsed && (
                             <h1 className="text-2xl font-bold flex items-center truncate">
                                 <i className="fas fa-utensils mr-2"></i>
-                                KitchenSync
+                                {retroMode ? '8-BIT KITCHEN' : 'KitchenSync'}
                             </h1>
                         )}
                         {isSidebarCollapsed && (
@@ -232,15 +275,21 @@ const App: React.FC = () => {
                             {!isSidebarCollapsed && <span className="text-xs font-bold uppercase tracking-wider text-gray-300">AI Credits</span>}
                         </div>
                         <span className={`font-mono font-bold text-white ${isSidebarCollapsed ? 'text-xs' : 'text-xl'}`}>
-                            {userProfile.subscriptionTier === 'pro' ? '∞' : userProfile.credits}
+                            {retroMode ? '∞' : (userProfile.subscriptionTier === 'pro' ? '∞' : userProfile.credits)}
                         </span>
-                        {!isSidebarCollapsed && userProfile.subscriptionTier !== 'pro' && (
+                        {!isSidebarCollapsed && userProfile.subscriptionTier !== 'pro' && !retroMode && (
                              <NavLink to="/subscription" className="text-[10px] text-blue-300 hover:text-blue-100 mt-1">Get More</NavLink>
+                        )}
+                        {retroMode && !isSidebarCollapsed && (
+                             <span className="text-[10px] text-green-400 mt-1 uppercase">God Mode</span>
                         )}
                     </div>
                     
                     <nav className="p-2 space-y-2 flex-grow">
-                        {navItems.map((item, index) => <NavItem key={item.path} item={item} index={index} />)}
+                        {navItems.map((item, index) => {
+                            if (hiddenItems.includes(item.path)) return null;
+                            return <NavItem key={item.path} item={item} index={index} />;
+                        })}
                     </nav>
                     
                     <div className="p-4 border-t border-white/10 flex justify-center">
@@ -261,7 +310,7 @@ const App: React.FC = () => {
                     <Route path="/" element={<Dashboard recipes={recipes} pantry={pantry} mealPlan={mealPlan} setPantry={setPantry} setMealPlan={setMealPlan} userProfile={userProfile} consumeCredits={consumeCredits} />} />
                     <Route path="/recipes" element={<Recipes recipes={recipes} pantry={pantry} addRecipe={addRecipe} setRecipes={setRecipes} consumeCredits={consumeCredits} />} />
                     <Route path="/recipes/new" element={<RecipeForm addRecipe={addRecipe} />} />
-                    <Route path="/recipes/:id" element={<RecipeDetail recipes={recipes} updateRecipe={updateRecipe} consumeCredits={consumeCredits} />} />
+                    <Route path="/recipes/:id" element={<RecipeDetail recipes={recipes} updateRecipe={updateRecipe} consumeCredits={consumeCredits} userProfile={userProfile} setUserProfile={setUserProfile} />} />
                     <Route path="/recipes/:id/cook" element={<CookingMode recipes={recipes} />} />
                     <Route path="/planner" element={<MealPlanner recipes={recipes} mealPlan={mealPlan} setMealPlan={setMealPlan} pantry={pantry} setPantry={setPantry} userProfile={userProfile} />} />
                     <Route path="/meal-prep" element={<MealPrep recipes={recipes} />} />

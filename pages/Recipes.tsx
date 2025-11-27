@@ -37,6 +37,9 @@ const Recipes: React.FC<RecipesProps> = ({ recipes, pantry, addRecipe, setRecipe
     const [isImporting, setIsImporting] = useState(false);
     const [importError, setImportError] = useState<string | null>(null);
 
+    // EASTER EGG: Quantum Physics
+    const isQuantumMode = searchTerm.toLowerCase() === 'schrodinger';
+
     const allTags = useMemo(() => {
         const tags = new Set<string>();
         recipes.forEach(r => r.tags?.forEach(t => tags.add(t)));
@@ -134,6 +137,9 @@ const Recipes: React.FC<RecipesProps> = ({ recipes, pantry, addRecipe, setRecipe
                         return false;
                     }
                 }
+                // Allow "Schrodinger" to match everything to show effect
+                if (searchTerm.toLowerCase() === 'schrodinger') return true;
+                
                 return recipe.name.toLowerCase().includes(searchTerm.toLowerCase());
             })
             .sort((a, b) => {
@@ -232,7 +238,7 @@ const Recipes: React.FC<RecipesProps> = ({ recipes, pantry, addRecipe, setRecipe
 
                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-4 md:space-y-0 md:flex justify-between items-center sticky top-0 z-20 backdrop-blur-md bg-white/90">
                     <div className="relative w-full md:w-1/3">
-                        <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                        <i className={`fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 ${isQuantumMode ? 'text-blue-500 animate-spin' : 'text-gray-400'}`}></i>
                         <input
                             type="search"
                             placeholder="Search recipes..."
@@ -257,7 +263,11 @@ const Recipes: React.FC<RecipesProps> = ({ recipes, pantry, addRecipe, setRecipe
                 {filteredAndSortedRecipes.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
                         {filteredAndSortedRecipes.map((recipe, index) => (
-                            <div key={recipe.id} className="animate-slide-up" style={{ animationDelay: `${index * 50}ms` }}>
+                            <div 
+                                key={recipe.id} 
+                                className={`animate-slide-up ${isQuantumMode ? 'quantum-flux' : ''}`} 
+                                style={{ animationDelay: `${index * 50}ms` }}
+                            >
                                 <RecipeCard recipe={recipe} onToggleFavorite={toggleFavorite} />
                             </div>
                         ))}

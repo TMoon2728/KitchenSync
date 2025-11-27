@@ -22,6 +22,16 @@ const AVATARS = [
 
 const THEMES = ['blue', 'green', 'purple', 'slate', 'orange', 'rose'] as const;
 
+// Items that can be toggled (excluding Dashboard and Profile which are mandatory)
+const TOGGLEABLE_NAV_ITEMS = [
+    { path: '/recipes', name: 'Recipes', icon: 'fa-book-open' },
+    { path: '/planner', name: 'Planner', icon: 'fa-calendar-alt' },
+    { path: '/meal-prep', name: 'Meal Prep', icon: 'fa-layer-group' },
+    { path: '/ai-architect', name: 'AI Architect', icon: 'fa-magic' },
+    { path: '/pantry', name: 'Pantry', icon: 'fa-box-open' },
+    { path: '/shopping-list', name: 'Shopping List', icon: 'fa-cart-shopping' },
+];
+
 const Profile: React.FC<ProfileProps> = ({ userProfile, setUserProfile }) => {
     // Household State
     const [newMemberName, setNewMemberName] = useState('');
@@ -40,7 +50,8 @@ const Profile: React.FC<ProfileProps> = ({ userProfile, setUserProfile }) => {
     const [confettiIntensity, setConfettiIntensity] = useState<'low'|'medium'|'high'>(userProfile.preferences?.confettiIntensity || 'medium');
     const [themeColor, setThemeColor] = useState(userProfile.preferences?.themeColor || 'blue');
     const [showSousChef, setShowSousChef] = useState(userProfile.preferences?.showSousChef ?? true);
-    
+    const [hiddenNavItems, setHiddenNavItems] = useState<string[]>(userProfile.preferences?.hiddenNavItems || []);
+
     const [isSavingGoals, setIsSavingGoals] = useState(false);
 
     // Handlers for Household
@@ -101,6 +112,17 @@ const Profile: React.FC<ProfileProps> = ({ userProfile, setUserProfile }) => {
         }));
     };
 
+    // Handler for Nav Toggles
+    const toggleNavItem = (path: string) => {
+        setHiddenNavItems(prev => {
+            if (prev.includes(path)) {
+                return prev.filter(p => p !== path); // Unhide (Show)
+            } else {
+                return [...prev, path]; // Hide
+            }
+        });
+    };
+
     // Handlers for Goals & Preferences
     const handleSaveSettings = () => {
         setIsSavingGoals(true);
@@ -114,7 +136,9 @@ const Profile: React.FC<ProfileProps> = ({ userProfile, setUserProfile }) => {
                 enableConfetti,
                 confettiIntensity,
                 themeColor,
-                showSousChef
+                showSousChef,
+                hiddenNavItems,
+                stripeConfig: prev.preferences?.stripeConfig // Preserve existing config if any, but don't modify from UI
             }
         }));
         setTimeout(() => setIsSavingGoals(false), 1000);
@@ -122,7 +146,11 @@ const Profile: React.FC<ProfileProps> = ({ userProfile, setUserProfile }) => {
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 pb-12">
-            <h1 className="text-3xl font-bold text-gray-800">Profile & Settings</h1>
+            <div className="flex items-center gap-3">
+                <h1 className="text-3xl font-bold text-gray-800">
+                    Profile & Settings
+                </h1>
+            </div>
 
             {/* Subscription Section */}
             <div className={`bg-white p-6 rounded-lg shadow-md border-l-4 ${userProfile.subscriptionTier === 'pro' ? 'border-yellow-400' : 'border-gray-300'}`}>
@@ -278,6 +306,34 @@ const Profile: React.FC<ProfileProps> = ({ userProfile, setUserProfile }) => {
                                 </button>
                                 <span className="ml-3 text-sm text-gray-700">Show Sous Chef AI</span>
                             </div>
+                        </div>
+                    </div>
+
+                    <div className="border-t border-gray-100 pt-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-3">Sidebar Visibility</label>
+                        <p className="text-xs text-gray-500 mb-4">Hide features you don't use (like Meal Prep or AI Architect) to declutter your workspace.</p>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                            {TOGGLEABLE_NAV_ITEMS.map((item) => {
+                                const isVisible = !hiddenNavItems.includes(item.path);
+                                return (
+                                    <div 
+                                        key={item.path} 
+                                        onClick={() => toggleNavItem(item.path)}
+                                        className={`flex items-center p-3 rounded-lg border-2 cursor-pointer transition-all ${isVisible ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white opacity-60 grayscale'}`}
+                                    >
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 transition-colors ${isVisible ? 'bg-blue-200 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>
+                                            <i className={`fas ${item.icon}`}></i>
+                                        </div>
+                                        <span className={`font-medium text-sm ${isVisible ? 'text-gray-800' : 'text-gray-500'}`}>{item.name}</span>
+                                        <div className="ml-auto">
+                                             <div className={`w-10 h-6 rounded-full p-1 transition-colors ${isVisible ? 'bg-blue-500' : 'bg-gray-300'}`}>
+                                                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${isVisible ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                                             </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
