@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
 import { UserProfile, UserPreferences } from '../types';
 import { MOCK_PROFILE } from '../mockData';
+import { authFetch } from '../utils/api';
 
 interface UserContextType {
     userProfile: UserProfile;
@@ -9,32 +11,45 @@ interface UserContextType {
     consumeCredits: (cost: number) => boolean;
     setRetroMode: React.Dispatch<React.SetStateAction<boolean>>;
     retroMode: boolean;
-    login: (email: string, pass: string) => Promise<void>;
-    register: (name: string, email: string, pass: string) => Promise<void>;
+    login: () => Promise<void>;
+    register: () => Promise<void>;
     logout: () => void;
     isAuthenticated: boolean;
 }
 
-import { authFetch } from '../utils/api';
-
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [token, setToken] = useState<string | null>(localStorage.getItem('ks_token'));
-    const [userProfile, setUserProfile] = useState<UserProfile>(MOCK_PROFILE); // Fallback to mock for initial render if needed, but should be overwritten
+    const {
+        loginWithRedirect,
+        logout: auth0Logout,
+        user,
+        isAuthenticated,
+        isLoading: auth0Loading,
+        getAccessTokenSilently
+    } = useAuth0();
+
+    const [userProfile, setUserProfile] = useState<UserProfile>(MOCK_PROFILE);
     const [retroMode, setRetroMode] = useState(false);
     const [loading, setLoading] = useState(true);
 
+    // Fetch backend profile (credits, tier)
     const refreshProfile = async () => {
+        if (!isAuthenticated || !user) return;
+
         try {
-            const res = await authFetch('/api/auth/me');
+            const token = await getAccessTokenSilently();
+            // Pass token explicitly to authFetch
+            const res = await authFetch('/api/auth/me', { token });
+
             if (res.ok) {
                 const data = await res.json();
-                // Normalize backend user to UserProfile
+
+                // Merge Auth0 user data with Backend data
                 const profile: UserProfile = {
-                    name: data.user.username || data.user.name || 'Chef',
-                    email: data.user.email,
-                    avatar: data.user.avatar || '👨‍🍳',
+                    name: user.name || user.nickname || 'Chef',
+                    email: user.email || '',
+                    avatar: user.picture || '👨‍🍳',
                     kitchenName: data.user.kitchenName,
                     dailyCalorieGoal: data.user.dailyCalorieGoal || 2000,
                     householdMembers: data.user.householdMembers || [],
@@ -45,9 +60,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     hasUsedFreeImageGeneration: data.user.hasUsedFreeImageGeneration
                 };
                 setUserProfile(profile);
-            } else {
-                // Token invalid
-                logout();
             }
         } catch (e) {
             console.error("Profile fetch failed", e);
@@ -56,110 +68,27 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
-    // Initialize
     useEffect(() => {
-        if (token) {
-            refreshProfile();
-        } else {
-            setLoading(false);
-        }
-    }, [token]);
-
-    const login = async (email: string, pass: string) => {
-        const res = await authFetch('/api/auth/login', {
-            method: 'POST',
-            body: JSON.stringify({ email, password: pass })
-        });
-
-        const text = await res.text();
-
-        if (!res.ok) {
-            let errMsg = 'Login failed';
-            try {
-                const err = JSON.parse(text);
-                errMsg = err.error || errMsg;
-            } catch (e) {
-                errMsg = `Login failed (${res.status}): ${text.slice(0, 50)}`;
+        if (!auth0Loading) {
+            if (isAuthenticated) {
+                refreshProfile();
+            } else {
+                setLoading(false);
             }
-            throw new Error(errMsg);
         }
+    }, [isAuthenticated, auth0Loading]);
 
-        let data;
-        try {
-            data = JSON.parse(text);
-        } catch (e) {
-            throw new Error(`Server Error (${res.status}): Response was not JSON. ${text.slice(0, 50)}`);
-        }
-
-        localStorage.setItem('ks_token', data.token);
-        setToken(data.token);
-
-        const profile: UserProfile = {
-            name: data.user.username || data.user.name || 'Chef',
-            email: data.user.email,
-            avatar: data.user.avatar || '👨‍🍳',
-            kitchenName: data.user.kitchenName,
-            dailyCalorieGoal: data.user.dailyCalorieGoal || 2000,
-            householdMembers: data.user.householdMembers || [],
-            groceryStores: data.user.groceryStores || [],
-            preferences: data.user.preferences || {},
-            subscriptionTier: data.user.subscription_tier || data.user.subscriptionTier || 'free',
-            credits: data.user.credits || 0,
-            hasUsedFreeImageGeneration: data.user.hasUsedFreeImageGeneration
-        };
-        setUserProfile(profile);
+    const login = async () => {
+        await loginWithRedirect();
     };
 
-    const register = async (name: string, email: string, pass: string) => {
-        const res = await authFetch('/api/auth/register', {
-            method: 'POST',
-            body: JSON.stringify({ username: name, email, password: pass })
-        });
-
-        const text = await res.text();
-
-        if (!res.ok) {
-            let errMsg = 'Registration failed';
-            try {
-                const err = JSON.parse(text);
-                errMsg = err.error || errMsg;
-            } catch (e) {
-                errMsg = `Registration failed (${res.status}): ${text.slice(0, 50)}`;
-            }
-            throw new Error(errMsg);
-        }
-
-        let data;
-        try {
-            data = JSON.parse(text);
-        } catch (e) {
-            throw new Error(`Server Error (${res.status}): Response was not JSON. ${text.slice(0, 50)}`);
-        }
-
-        localStorage.setItem('ks_token', data.token);
-        setToken(data.token);
-
-        const profile: UserProfile = {
-            name: data.user.username || data.user.name || 'Chef',
-            email: data.user.email,
-            avatar: data.user.avatar || '👨‍🍳',
-            kitchenName: data.user.kitchenName,
-            dailyCalorieGoal: data.user.dailyCalorieGoal || 2000,
-            householdMembers: data.user.householdMembers || [],
-            groceryStores: data.user.groceryStores || [],
-            preferences: data.user.preferences || {},
-            subscriptionTier: data.user.subscription_tier || data.user.subscriptionTier || 'free',
-            credits: data.user.credits || 0,
-            hasUsedFreeImageGeneration: data.user.hasUsedFreeImageGeneration
-        };
-        setUserProfile(profile);
+    const register = async () => {
+        await loginWithRedirect({ authorizationParams: { screen_hint: 'signup' } });
     };
 
     const logout = () => {
-        localStorage.removeItem('ks_token');
-        setToken(null);
-        setUserProfile(MOCK_PROFILE); // Reset to something safe or empty
-        window.location.href = '/login'; // Force redirect
+        auth0Logout({ logoutParams: { returnTo: window.location.origin } });
+        setUserProfile(MOCK_PROFILE);
     };
 
     const updateProfile = (updates: Partial<UserProfile>) => {
@@ -183,12 +112,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUserProfile(prev => ({ ...prev, credits: prev.credits - cost }));
 
             // Sync with backend
-            authFetch('/api/credits/consume', {
-                method: 'POST',
-                body: JSON.stringify({ amount: cost })
-            }).catch(e => {
-                console.error("Credit sync failed", e);
-                // Revert?
+            getAccessTokenSilently().then(token => {
+                authFetch('/api/credits/consume', {
+                    method: 'POST',
+                    body: JSON.stringify({ amount: cost }),
+                    token
+                }).catch(e => {
+                    console.error("Credit sync failed", e);
+                });
             });
             return true;
         }
@@ -203,10 +134,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             consumeCredits,
             retroMode,
             setRetroMode,
-            login,
-            register,
+            login: login as any, // Cast to match interface if signatures differ for now
+            register: register as any,
             logout,
-            isAuthenticated: !!token
+            isAuthenticated
         }}>
             {children}
         </UserContext.Provider>

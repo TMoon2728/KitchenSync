@@ -1,27 +1,34 @@
-const jwt = require('jsonwebtoken');
+const { auth } = require('express-oauth2-jwt-bearer');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-do-not-use-in-prod';
+// Configured via Envs or defaults
+const jwtCheck = auth({
+    audience: process.env.AUTH0_AUDIENCE,
+    issuerBaseURL: process.env.AUTH0_ISSUER_BASE_URL,
+    tokenSigningAlg: 'RS256'
+});
 
+// Middleware that attaches user to req.auth
+// Note: express-oauth2-jwt-bearer attaches payload to req.auth, not req.user
 const authenticateToken = (req, res, next) => {
+    // If we want to allow public access but parse token if present:
+    // This library throws 401 if token is invalid/missing by default if used as middleware.
+    // For "optional" auth, we'd need a wrapper. For now, let's assume global protection or per-route.
+
+    // We'll wrap it to not crash if no token, assuming we want optional global middleware?
+    // Actually, usually we mount it on specific routes. 
+    // But the app uses it globally. Let's make it pass if no header, but verify if header exists.
+
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    if (!authHeader) return next();
 
-    if (!token) {
-        // Allow public access for some routes? Or strict?
-        // For now, if no token, req.user remains undefined. 
-        // Routes needing protection should check !req.user
-        return next();
-    }
-
-    jwt.verify(token, JWT_SECRET, (err, user) => {
+    jwtCheck(req, res, (err) => {
         if (err) {
-            console.warn("Invalid Token:", err.message);
-            // Don't block here, let route decide if it needs auth. 
-            // Or typically 403.
+            // Token invalid - allow public but log warn? Or fail?
+            console.warn("Auth0 Token Invalid:", err.message);
+            return next();
         }
-        if (user) {
-            req.user = user;
-        }
+        // Success - req.auth is populated
+        req.user = req.auth; // Map for compatibility
         next();
     });
 };
@@ -31,4 +38,4 @@ const requireAuth = (req, res, next) => {
     next();
 };
 
-module.exports = { authenticateToken, requireAuth };
+module.exports = { authenticateToken, requireAuth, jwtCheck };

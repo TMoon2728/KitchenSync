@@ -1,96 +1,73 @@
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
 const db = require('../db');
+const { requireAuth } = require('../middleware/auth');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-do-not-use-in-prod';
+// Helper to get or create user based on Auth0 Token
+const syncUser = (auth0User) => {
+    // auth0User comes from the JWT payload.
+    // It usually has 'sub' (auth0|123456).
+    // We might not have email in the access token unless we added a rule/action in Auth0.
+    // But we need to link them. For now, let's assume we use 'sub' as username or a new column 'auth0_id'.
+    // OR, we blindly trust the email if the token has it (requires scope 'email').
 
-// Helper
-const getUser = (email) => {
-    return db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-};
+    // For simplicity in this migration without changing DB schema too much:
+    // We will try to match by 'sub' (stored in password_hash temporarily?) OR just create a new one.
+    // Actually, let's use the 'username' column for the Auth0 ID ('sub').
 
-const createUser = (username, email, hash) => {
-    const stmt = db.prepare('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)');
-    return stmt.run(username, email, hash);
-};
+    const auth0Id = auth0User.sub;
 
-// POST /api/auth/register
-router.post('/register', async (req, res) => {
-    const { username, email, password } = req.body;
+    // Check if user exists by Auth0 ID (which we'll store in username or a new column check)
+    // Legacy users: we can't easily auto-link unless we match email.
+    // Let's matching by username = auth0Id for new users.
 
-    if (!username || !email || !password) {
-        return res.status(400).json({ error: "Missing fields" });
-    }
+    let user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
 
-    const existing = getUser(email);
-    if (existing) {
-        return res.status(409).json({ error: "Email already exists" });
-    }
-
-    try {
-        const hash = await bcrypt.hash(password, 10);
-        const info = createUser(username, email, hash);
-
-        // Auto-login
-        const token = jwt.sign({ id: info.lastInsertRowid, email }, JWT_SECRET, { expiresIn: '7d' });
-
-        // Return profile
-        const user = db.prepare('SELECT id, username, email, subscription_tier, credits, preferences FROM users WHERE id = ?').get(info.lastInsertRowid);
-
-        res.json({ token, user: { ...user, preferences: JSON.parse(user.preferences) } });
-    } catch (e) {
-        console.error("Register Error:", e);
-        res.status(500).json({ error: "Registration failed", details: e.message });
-    }
-});
-
-// POST /api/auth/login
-router.post('/login', async (req, res) => {
-    const { email, password } = req.body;
-
-    const user = getUser(email);
     if (!user) {
-        return res.status(401).json({ error: "Invalid credentials" });
+        // Create new
+        const stmt = db.prepare('INSERT INTO users (username, email, password_hash, preferences) VALUES (?, ?, ?, ?)');
+        // email might be missing if not invalid scope, fallback to sub
+        const email = auth0User.email || `${auth0Id}@auth0.placeholder`;
+        try {
+            // We store Auth0 ID in password_hash as a marker (hacky but works for no-schema-change)
+            // And username = Auth0 ID
+            stmt.run(auth0Id, email, 'auth0-linked', JSON.stringify({}));
+            user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
+        } catch (e) {
+            // Unlikely collision unless email taken by legacy user
+            console.error("Sync Create Error", e);
+            return null;
+        }
     }
 
-    const match = await bcrypt.compare(password, user.password_hash);
-    if (!match) {
-        return res.status(401).json({ error: "Invalid credentials" });
+    return user;
+};
+
+// GET /api/auth/me (Sync & Return Profile)
+router.get('/me', requireAuth, (req, res) => {
+    // req.user is the Auth0 payload (sub, aud, iat, etc.)
+    // If we configured Auth0 to include email, it's here.
+
+    const user = syncUser(req.user);
+
+    if (!user) {
+        return res.status(500).json({ error: "Failed to sync user" });
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-
+    // Return the local DB profile (permissions, credits, tier)
+    // We merge this with Auth0 profile on frontend
     res.json({
-        token,
         user: {
             id: user.id,
             username: user.username,
             email: user.email,
             subscription_tier: user.subscription_tier,
             credits: user.credits,
-            preferences: JSON.parse(user.preferences)
+            kitchenName: user.kitchen_name, // if exists
+            preferences: JSON.parse(user.preferences || '{}'),
+            payment_status: user.subscription_tier
         }
     });
-});
-
-// GET /api/auth/me (Verify Token)
-router.get('/me', (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: "No token" });
-
-    const token = authHeader.split(' ')[1];
-    try {
-        const payload = jwt.verify(token, JWT_SECRET);
-        const user = db.prepare('SELECT id, username, email, subscription_tier, credits, preferences FROM users WHERE id = ?').get(payload.id);
-
-        if (!user) return res.status(404).json({ error: "User not found" });
-
-        res.json({ user: { ...user, preferences: JSON.parse(user.preferences) } });
-    } catch (e) {
-        res.status(401).json({ error: "Invalid token" });
-    }
 });
 
 module.exports = router;

@@ -1,7 +1,7 @@
 export const API_BASE = '/api';
 
-export const authFetch = async (url: string, options: RequestInit = {}) => {
-    const token = localStorage.getItem('ks_token');
+export const authFetch = async (url: string, options: RequestInit & { token?: string } = {}) => {
+    const token = options.token || localStorage.getItem('ks_token');
     const headers = {
         'Content-Type': 'application/json',
         ...options.headers,
