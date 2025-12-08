@@ -33,23 +33,42 @@ const authenticateToken = (req, res, next) => {
         const auth0Id = req.auth.sub;
 
         if (auth0Id) {
-            // Try to resolve local user context immediately
+            // 1. Try to find by Auth0 ID (Username)
             let user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
 
             if (!user) {
-                // JIT Provisioning: Create user if they don't exist yet
-                // This handles race conditions where /api/auth/me hasn't run yet
-                try {
-                    const email = req.auth.email || `${auth0Id}@auth0.placeholder`;
-                    db.prepare('INSERT INTO users (username, email, password_hash, preferences) VALUES (?, ?, ?, ?)')
-                        .run(auth0Id, email, 'auth0-linked', JSON.stringify({}));
+                // 2. User not found by ID. Check if they exist by Email (Legacy Account Linking)
+                // Note: Auth0 token might not have email depending on scope, hence fallback
+                const email = req.auth.email;
 
-                    user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
-                    console.log(`[AuthMiddleware] JIT Provisioned user: ${auth0Id}`);
-                } catch (e) {
-                    // Handle race condition: Unique constraint failed if created by another request in parallel
-                    console.warn("[AuthMiddleware] User creation race condition, retrying fetch");
-                    user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
+                if (email) {
+                    user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+                    if (user) {
+                        // Found legacy user! Link them by updating username to Auth0 ID
+                        console.log(`[AuthMiddleware] Linking legacy user ${email} to ${auth0Id}`);
+                        try {
+                            db.prepare('UPDATE users SET username = ? WHERE id = ?').run(auth0Id, user.id);
+                            user.username = auth0Id; // Update local object
+                        } catch (e) {
+                            console.error("[AuthMiddleware] Linking failed", e);
+                        }
+                    }
+                }
+
+                // 3. Still not found? Create new user (JIT Provisioning)
+                if (!user) {
+                    try {
+                        const newEmail = email || `${auth0Id}@auth0.placeholder`;
+                        db.prepare('INSERT INTO users (username, email, password_hash, preferences) VALUES (?, ?, ?, ?)')
+                            .run(auth0Id, newEmail, 'auth0-linked', JSON.stringify({}));
+
+                        user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
+                        console.log(`[AuthMiddleware] JIT Provisioned user: ${auth0Id}`);
+                    } catch (e) {
+                        // Handle race condition: Unique constraint failed if created by another request in parallel
+                        console.warn("[AuthMiddleware] User creation race condition, retrying fetch");
+                        user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
+                    }
                 }
             }
 
