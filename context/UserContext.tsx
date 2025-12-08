@@ -69,7 +69,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             throw new Error(errMsg);
         }
 
-        const data = await res.json();
+        let data;
+        try {
+            data = await res.json();
+        } catch (e) {
+            const text = await res.text();
+            throw new Error(`Server Error (${res.status}): Response was not JSON. ${text.slice(0, 50)}`);
+        }
+
         localStorage.setItem('ks_token', data.token);
         setToken(data.token);
         setUserProfile(data.user);
@@ -93,7 +100,13 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             throw new Error(errMsg);
         }
 
-        const data = await res.json();
+        try {
+            data = await res.json();
+        } catch (e) {
+            const text = await res.text();
+            throw new Error(`Server Error (${res.status}): Response was not JSON. ${text.slice(0, 50)}`);
+        }
+
         localStorage.setItem('ks_token', data.token);
         setToken(data.token);
         setUserProfile(data.user);
