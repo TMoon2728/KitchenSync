@@ -52,9 +52,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, [token]);
 
     const login = async (email: string, pass: string) => {
-        const res = await fetch('/api/auth/login', {
+        const res = await authFetch('/api/auth/login', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password: pass })
         });
 
@@ -70,9 +69,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const register = async (name: string, email: string, pass: string) => {
-        const res = await fetch('/api/auth/register', {
+        const res = await authFetch('/api/auth/register', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username: name, email, password: pass })
         });
 
