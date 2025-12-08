@@ -100,6 +100,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             throw new Error(errMsg);
         }
 
+        let data;
         try {
             data = await res.json();
         } catch (e) {
