@@ -1,37 +1,37 @@
 
 export interface Ingredient {
-  name: string;
-  quantity: number;
-  unit: string;
-  category?: string;
+    name: string;
+    quantity: number;
+    unit: string;
+    category?: string;
 }
 
 export interface Recipe {
-  id: number;
-  name: string;
-  servings: number;
-  prep_time: string;
-  cook_time: string;
-  calories: number;
-  protein: number;
-  fat: number;
-  carbs: number;
-  ingredients: Ingredient[];
-  instructions: string;
-  is_favorite: boolean;
-  rating: number; // 0-5
-  meal_type: 'Main Course' | 'Side Dish' | 'Dessert' | 'Snack' | 'Meal Prep';
-  imageUrl?: string;
-  tags?: string[];
-  source?: string;
+    id: number;
+    name: string;
+    servings: number;
+    prep_time: string;
+    cook_time: string;
+    calories: number;
+    protein: number;
+    fat: number;
+    carbs: number;
+    ingredients: Ingredient[];
+    instructions: string;
+    is_favorite: boolean;
+    rating: number; // 0-5
+    meal_type: 'Main Course' | 'Side Dish' | 'Dessert' | 'Snack' | 'Meal Prep';
+    imageUrl?: string;
+    tags?: string[];
+    source?: string;
 }
 
 export interface PantryItem {
-  id: number;
-  name: string;
-  quantity: number;
-  unit: string;
-  category?: string;
+    id: number;
+    name: string;
+    quantity: number;
+    unit: string;
+    category?: string;
 }
 
 export interface MealPlanSlot {
@@ -75,6 +75,7 @@ export interface UserPreferences {
 
 export interface UserProfile {
     name: string;
+    email: string;
     avatar?: string;
     kitchenName?: string;
     dailyCalorieGoal: number;
