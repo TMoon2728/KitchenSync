@@ -1,4 +1,5 @@
 const { auth } = require('express-oauth2-jwt-bearer');
+const db = require('../db');
 
 // Configured via Envs or defaults
 const jwtCheck = auth({
@@ -27,8 +28,25 @@ const authenticateToken = (req, res, next) => {
             console.warn("Auth0 Token Invalid:", err.message);
             return next();
         }
-        // Success - req.auth is populated
-        req.user = req.auth; // Map for compatibility
+
+        // Success - req.auth is populated with JWT payload (e.g. sub, iss)
+        const auth0Id = req.auth.sub;
+
+        if (auth0Id) {
+            // Try to resolve local user context immediately
+            // This ensures req.user.id exists for downstream routes (api.js, data.js)
+            const user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
+            if (user) {
+                req.user = user;
+            } else {
+                // User authenticated but not yet in DB (race condition with /me or first login)
+                // Fallback to just passing the auth payload
+                req.user = req.auth;
+            }
+        } else {
+            req.user = req.auth;
+        }
+
         next();
     });
 };
