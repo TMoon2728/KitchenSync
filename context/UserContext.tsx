@@ -58,8 +58,15 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || 'Login failed');
+            let errMsg = 'Login failed';
+            try {
+                const err = await res.json();
+                errMsg = err.error || errMsg;
+            } catch (e) {
+                const text = await res.text();
+                errMsg = `Login failed (${res.status}): ${text.slice(0, 50)}`;
+            }
+            throw new Error(errMsg);
         }
 
         const data = await res.json();
@@ -75,8 +82,15 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || 'Registration failed');
+            let errMsg = 'Registration failed';
+            try {
+                const err = await res.json();
+                errMsg = err.error || errMsg;
+            } catch (e) {
+                const text = await res.text();
+                errMsg = `Registration failed (${res.status}): ${text.slice(0, 50)}`;
+            }
+            throw new Error(errMsg);
         }
 
         const data = await res.json();
