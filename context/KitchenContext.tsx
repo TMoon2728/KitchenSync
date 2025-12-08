@@ -12,6 +12,7 @@ interface KitchenContextType {
     updateRecipe: (updatedRecipe: Recipe) => void;
     deleteRecipe: (id: number) => Promise<void>;
     addPantryItem: (item: Omit<PantryItem, 'id'>) => Promise<void>;
+    batchAddPantryItems: (items: Omit<PantryItem, 'id'>[]) => Promise<void>;
     removePantryItem: (id: number) => Promise<void>;
     setRecipes: React.Dispatch<React.SetStateAction<Recipe[]>>;
     setPantry: React.Dispatch<React.SetStateAction<PantryItem[]>>;
@@ -110,6 +111,27 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 setPantry(prev => prev.map(p => p.id === tempId ? saved : p));
             }
         }
+    }
+
+
+    const batchAddPantryItems = async (items: Omit<PantryItem, 'id'>[]) => {
+        const timestampOffset = 0;
+        const fullItems = items.map((item, index) => ({
+            ...item,
+            id: Date.now() + index
+        }));
+
+        setPantry(prev => [...prev, ...fullItems]);
+
+        if (isAuthenticated) {
+            // We'll just loop for now since we don't have a batch API endpoint yet
+            for (const item of items) {
+                authFetch('/api/data/pantry', {
+                    method: 'POST',
+                    body: JSON.stringify(item)
+                }).catch(e => console.error("Batch add failed for item", item.name));
+            }
+        }
     };
 
     const removePantryItem = async (id: number) => {
@@ -123,7 +145,7 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
         <KitchenContext.Provider value={{
             recipes, pantry, mealPlan,
             addRecipe, updateRecipe, deleteRecipe,
-            addPantryItem, removePantryItem,
+            addPantryItem, batchAddPantryItems, removePantryItem,
             setRecipes, setPantry, setMealPlan,
             isLoading
         }}>

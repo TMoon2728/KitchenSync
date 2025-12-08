@@ -10,10 +10,17 @@ import Spinner from '../components/Spinner';
 const INGREDIENT_CATEGORIES = ['Produce', 'Meat', 'Seafood', 'Dairy & Eggs', 'Pantry Staples', 'Spices & Seasonings', 'Bakery', 'Frozen', 'Other'];
 
 const Pantry: React.FC = () => {
-    const { pantry, setPantry, recipes } = useKitchen();
-    const { consumeCredits } = useUser();
+    const { pantry, setPantry, recipes, batchAddPantryItems } = useKitchen();
+    const { consumeCredits, userProfile, setUserProfile } = useUser();
     const [view, setView] = useState<'inPantry' | 'all'>('inPantry');
     const [isLoading, setIsLoading] = useState(false);
+    const [isScanning, setIsScanning] = useState(false);
+    const [showAddModal, setShowAddModal] = useState(false); // Adding missing state for modal if needed, or just reusing view logic? 
+    // Wait, the original code doesn't have showAddModal, it uses 'view'.
+    // The previous failed edit tried to use showAddModal in the UI but I didn't verify if it existed. 
+    // The current file uses `view` state ('inPantry' | 'all'). 
+    // My previous failed edit introduced `setShowAddModal(true)` in the button, which was wrong because that state didn't exist in the file I read!
+    // I should adapt the UI to use `setView('all')` instead of `setShowAddModal`.
 
     interface Suggestion {
         recipeName: string;
@@ -41,6 +48,43 @@ const Pantry: React.FC = () => {
     }, [recipes]);
 
     const pantryMap = useMemo(() => new Set(pantry.map(item => item.name.toLowerCase())), [pantry]);
+
+    const handleReceiptCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsScanning(true);
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+            const base64 = reader.result as string;
+            try {
+                const { authFetch } = await import('../utils/api');
+                const res = await authFetch('/api/ai/analyze-receipt', {
+                    method: 'POST',
+                    body: JSON.stringify({ image: base64, currentShoppingList: [] })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    const newItems = data.result.extra || [];
+                    if (newItems.length > 0) {
+                        await batchAddPantryItems(newItems);
+                        alert(`Added ${newItems.length} items from receipt!`);
+                    } else {
+                        alert("No items identified on receipt.");
+                    }
+                } else {
+                    alert("Receipt analysis failed.");
+                }
+            } catch (error) {
+                console.error("Scan failed", error);
+                alert("Error scanning receipt.");
+            } finally {
+                setIsScanning(false);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
 
     const handleSuggestRecipes = async () => {
         if (!consumeCredits(1)) return;
@@ -175,9 +219,30 @@ const Pantry: React.FC = () => {
         <div className="max-w-5xl mx-auto space-y-8 animate-fade-in">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                 <h1 className="text-3xl font-extrabold text-gray-800">My Pantry</h1>
-                <div className="flex bg-gray-100 p-1 rounded-2xl w-full md:w-auto">
-                    <ViewButton value="inPantry">Inventory</ViewButton>
-                    <ViewButton value="all">Add Items</ViewButton>
+                <div className="flex gap-2 items-center">
+                    <div className="relative">
+                        <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            id="pantry-receipt-upload"
+                            className="hidden"
+                            onChange={handleReceiptCapture}
+                            disabled={isScanning}
+                        />
+                        <label
+                            htmlFor="pantry-receipt-upload"
+                            className={`cursor-pointer bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-xl font-bold hover:bg-gray-50 transition-colors flex items-center shadow-sm ${isScanning ? 'opacity-50 cursor-wait' : ''}`}
+                        >
+                            {isScanning ? <i className="fas fa-spinner fa-spin mr-2"></i> : <i className="fas fa-camera mr-2"></i>}
+                            <span className="hidden sm:inline ml-1">{isScanning ? 'Scanning...' : 'Scan Receipt'}</span>
+                        </label>
+                    </div>
+
+                    <div className="flex bg-gray-100 p-1 rounded-2xl w-full md:w-auto">
+                        <ViewButton value="inPantry">Inventory</ViewButton>
+                        <ViewButton value="all">Add Items</ViewButton>
+                    </div>
                 </div>
             </div>
 
@@ -264,10 +329,10 @@ const Pantry: React.FC = () => {
                                                 key={ing.name}
                                                 onClick={() => !isInPantry && toggleSelection(ing.name)}
                                                 className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${isInPantry
-                                                        ? 'bg-gray-50 border-gray-100 opacity-60 cursor-default'
-                                                        : isSelected
-                                                            ? 'bg-blue-50 border-blue-200 shadow-inner'
-                                                            : 'bg-white border-gray-100 hover:border-blue-300 hover:shadow-sm'
+                                                    ? 'bg-gray-50 border-gray-100 opacity-60 cursor-default'
+                                                    : isSelected
+                                                        ? 'bg-blue-50 border-blue-200 shadow-inner'
+                                                        : 'bg-white border-gray-100 hover:border-blue-300 hover:shadow-sm'
                                                     }`}
                                             >
                                                 <div className="flex items-center gap-3">

@@ -5,6 +5,9 @@ const { GoogleGenAI } = require("@google/genai");
 
 const db = require('../db');
 
+// Initialize Gemini
+const genAI = new GoogleGenAI(process.env.GEMINI_API_KEY);
+
 // --- Helpers ---
 const getUser = (req) => {
     if (!req.user) return null;
@@ -142,6 +145,80 @@ router.post('/chat', async (req, res) => {
     } catch (error) {
         console.error("Chat Error:", error);
         res.status(500).json({ error: "Chat Failed" });
+    }
+});
+
+// 5. Gemini Proxy: Analyze Receipt
+router.post('/ai/analyze-receipt', async (req, res) => {
+    if (!genAI) {
+        return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
+    }
+
+    const { image, currentShoppingList } = req.body; // image as base64
+    const user = getUser(req);
+
+    // Auth Check
+    if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
+
+    // Validate Credits
+    if (user.subscriptionTier !== 'pro' && user.credits < 1) {
+        return res.status(402).json({ error: "Insufficient credits" });
+    }
+
+    try {
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Use 1.5 Flash for vision
+
+        const prompt = `
+        You are a smart shopping assistant. Compare this receipt image with the user's current shopping list.
+        
+        Current Shopping List:
+        ${JSON.stringify(currentShoppingList)}
+        
+        Task:
+        1. Identify clear matches between the receipt and the shopping list (ignore minor name variations like "Eggs" vs "Dozen Eggs").
+        2. Identify extra items on the receipt that are NOT on the list.
+        3. Ignore non-food items like tax, total, or generic store IDs.
+        4. For 'extra' items, guess the category and unit.
+        
+        Output JSON:
+        {
+          "matched": ["Item Name From List"],
+          "extra": [
+             { "name": "Item Name", "quantity": 1, "unit": "unit", "category": "Produce" }
+          ]
+        }
+        `;
+
+        // Prepare image part
+        const imagePart = {
+            inlineData: {
+                data: image.split(',')[1], // Remove "data:image/jpeg;base64," prefix if present
+                mimeType: "image/jpeg"
+            }
+        };
+
+        const result = await model.generateContent([prompt, imagePart]);
+        const responseText = result.response.text();
+
+        // Parse JSON safely
+        const cleanedText = responseText.replace(/```json|```/g, '').trim();
+        const data = JSON.parse(cleanedText);
+
+        // Deduct Credit only on success
+        if (user.subscriptionTier !== 'pro') {
+            db.prepare('UPDATE users SET credits = credits - 1 WHERE id = ?').run(user.id);
+        }
+
+        const finalCredit = user.subscriptionTier === 'pro' ? '∞' : (user.credits - 1);
+
+        res.json({
+            result: data,
+            creditsRemaining: finalCredit
+        });
+
+    } catch (error) {
+        console.error("Receipt Analysis Failed:", error);
+        res.status(500).json({ error: "Analysis Failed", details: error.message });
     }
 });
 

@@ -32,6 +32,7 @@ export interface PantryItem {
     quantity: number;
     unit: string;
     category?: string;
+    expiryDate?: string;
 }
 
 export interface MealPlanSlot {

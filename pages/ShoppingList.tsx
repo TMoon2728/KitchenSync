@@ -15,11 +15,13 @@ interface NeededIngredient {
 }
 
 const ShoppingList: React.FC = () => {
-    const { mealPlan, pantry, recipes } = useKitchen();
-    const { userProfile } = useUser();
+    const { mealPlan, pantry, recipes, batchAddPantryItems } = useKitchen();
+    const { userProfile, isAuthenticated } = useUser();
     const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
 
     const [showStoreLinks, setShowStoreLinks] = useState(false);
+    const [isScanning, setIsScanning] = useState(false);
+    const [scanResult, setScanResult] = useState<{ matched: string[]; extra: any[] } | null>(null);
 
     const shoppingList: { [category: string]: NeededIngredient[] } = useMemo(() => {
         const needed: { [key: string]: NeededIngredient } = {};
@@ -105,6 +107,81 @@ const ShoppingList: React.FC = () => {
         });
     };
 
+    const handleFinishShopping = async () => {
+        if (checkedItems.size === 0) return;
+
+        const itemsToAdd: Omit<PantryItem, 'id'>[] = [];
+        const flatList = Object.values(shoppingList).flat();
+
+        flatList.forEach(item => {
+            if (checkedItems.has(item.name)) {
+                itemsToAdd.push({
+                    name: item.name,
+                    quantity: item.quantity,
+                    unit: item.unit,
+                    category: item.category,
+                    expiryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // Default 7 days
+                });
+            }
+        });
+
+        await batchAddPantryItems(itemsToAdd);
+        setCheckedItems(new Set());
+        // Trigger confetti again? Or a different success toast?
+        alert(`Moved ${itemsToAdd.length} items to your Pantry!`);
+    };
+
+    const handleReceiptCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsScanning(true);
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+            const base64 = reader.result as string;
+
+            // Current flat list for context
+            const currentList = Object.values(shoppingList).flat().map(i => i.name);
+
+            try {
+                // We need to use authFetch or similar that handles the token automatically
+                // But authFetch is in utils/api.ts. Let's assume it's available or imported.
+                // Wait, useKitchen uses it, but we can import it directly.
+                const { authFetch } = await import('../utils/api');
+
+                const res = await authFetch('/api/ai/analyze-receipt', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        image: base64,
+                        currentShoppingList: currentList
+                    })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    setScanResult(data.result);
+
+                    // Auto-check matched items
+                    if (data.result.matched) {
+                        setCheckedItems(prev => {
+                            const newSet = new Set(prev);
+                            data.result.matched.forEach((m: string) => newSet.add(m));
+                            return newSet;
+                        });
+                    }
+                } else {
+                    alert("Receipt analysis failed. Please try again.");
+                }
+            } catch (error) {
+                console.error("Scan failed", error);
+                alert("Error scanning receipt.");
+            } finally {
+                setIsScanning(false);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
     const listHasItems = Object.keys(shoppingList).length > 0;
 
     return (
@@ -115,14 +192,44 @@ const ShoppingList: React.FC = () => {
                     <p className="text-gray-500 text-sm">Gather supplies for the week ahead.</p>
                 </div>
 
-                <div className="flex gap-2 relative">
+                <div className="flex gap-2 relative items-center">
+                    {/* Scan Receipt Button */}
+                    <div className="relative">
+                        <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            id="receipt-upload"
+                            className="hidden"
+                            onChange={handleReceiptCapture}
+                            disabled={isScanning}
+                        />
+                        <label
+                            htmlFor="receipt-upload"
+                            className={`cursor-pointer bg-indigo-100 text-indigo-700 px-4 py-2 rounded-xl font-bold hover:bg-indigo-200 transition-colors flex items-center shadow-sm ${isScanning ? 'opacity-50 cursor-wait' : ''}`}
+                        >
+                            {isScanning ? <i className="fas fa-spinner fa-spin mr-2"></i> : <i className="fas fa-camera mr-2"></i>}
+                            {isScanning ? 'Analyzing...' : 'Scan Receipt'}
+                        </label>
+                    </div>
+
+                    {/* Finish Shopping Button (Visible when items checked) */}
+                    {checkedItems.size > 0 && (
+                        <button
+                            onClick={handleFinishShopping}
+                            className="bg-green-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-green-700 transition-colors shadow-md hover:shadow-lg animate-fade-in"
+                        >
+                            <i className="fas fa-check-circle mr-2"></i> Finish ({checkedItems.size})
+                        </button>
+                    )}
+
                     {/* Store Links Dropdown/Button */}
                     <div className="relative">
                         <button
                             onClick={() => setShowStoreLinks(!showStoreLinks)}
                             className="bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-xl font-bold hover:bg-gray-50 transition-colors flex items-center shadow-sm"
                         >
-                            <i className="fas fa-shopping-cart mr-2 text-green-500"></i> Stores <i className="fas fa-chevron-down ml-2 text-xs"></i>
+                            <i className="fas fa-shopping-cart mr-2 text-green-500"></i> <span className="hidden sm:inline">Stores</span> <i className="fas fa-chevron-down ml-2 text-xs"></i>
                         </button>
 
                         {showStoreLinks && (
@@ -130,7 +237,7 @@ const ShoppingList: React.FC = () => {
                                 <div className="px-4 py-2 text-xs text-gray-400 font-bold uppercase tracking-wider">
                                     Your Stores
                                 </div>
-                                {userProfile.groceryStores.length > 0 ? (
+                                {userProfile?.groceryStores?.length > 0 ? (
                                     userProfile.groceryStores.map(store => (
                                         <a
                                             key={store.id}
@@ -154,11 +261,68 @@ const ShoppingList: React.FC = () => {
                         )}
                     </div>
 
-                    <button onClick={() => window.print()} className="bg-blue-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg">
+                    <button onClick={() => window.print()} className="bg-blue-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg hidden sm:flex">
                         <i className="fas fa-print mr-2"></i> Print
                     </button>
                 </div>
             </div>
+
+            {/* Receipt Scan Results */}
+            {scanResult && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-6 animate-fade-in relative">
+                    <button
+                        onClick={() => setScanResult(null)}
+                        className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                    >
+                        <i className="fas fa-times"></i>
+                    </button>
+                    <h3 className="text-xl font-bold text-indigo-900 mb-4 flex items-center">
+                        <i className="fas fa-receipt mr-3"></i> Receipt Analysis
+                    </h3>
+
+                    <div className="grid md:grid-cols-2 gap-6">
+                        <div>
+                            <h4 className="font-bold text-green-700 mb-2">Matched & Checked ({scanResult.matched?.length || 0})</h4>
+                            <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                                {scanResult.matched?.map((item, idx) => (
+                                    <li key={idx}>{item}</li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-orange-700 mb-2">Extras Found ({scanResult.extra?.length || 0})</h4>
+                            {scanResult.extra?.length > 0 ? (
+                                <div className="space-y-3">
+                                    {scanResult.extra.map((item, idx) => (
+                                        <div key={idx} className="flex items-center justify-between bg-white p-2 rounded-lg border border-orange-100">
+                                            <div>
+                                                <span className="font-bold block text-gray-800">{item.name}</span>
+                                                <span className="text-xs text-gray-500">{item.quantity} {item.unit} ({item.category})</span>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    // Quick add extra item
+                                                    batchAddPantryItems([item]);
+                                                    // Remove from UI
+                                                    setScanResult(prev => prev ? ({
+                                                        ...prev,
+                                                        extra: prev.extra.filter((_, i) => i !== idx)
+                                                    }) : null);
+                                                }}
+                                                className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded hover:bg-orange-200 font-bold"
+                                            >
+                                                Add
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-gray-500 italic">No extra items detected.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Gamified Progress Bar */}
             {listHasItems && (
