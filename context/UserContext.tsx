@@ -57,13 +57,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             body: JSON.stringify({ email, password: pass })
         });
 
+        const text = await res.text();
+
         if (!res.ok) {
             let errMsg = 'Login failed';
             try {
-                const err = await res.json();
+                const err = JSON.parse(text);
                 errMsg = err.error || errMsg;
             } catch (e) {
-                const text = await res.text();
                 errMsg = `Login failed (${res.status}): ${text.slice(0, 50)}`;
             }
             throw new Error(errMsg);
@@ -71,9 +72,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         let data;
         try {
-            data = await res.json();
+            data = JSON.parse(text);
         } catch (e) {
-            const text = await res.text();
             throw new Error(`Server Error (${res.status}): Response was not JSON. ${text.slice(0, 50)}`);
         }
 
