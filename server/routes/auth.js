@@ -48,7 +48,14 @@ router.get('/me', requireAuth, (req, res) => {
     // req.user is the Auth0 payload (sub, aud, iat, etc.)
     // If we configured Auth0 to include email, it's here.
 
-    const user = syncUser(req.user);
+    // If middleware already resolved the user, skip sync
+    let user = null;
+    if (req.user && req.user.id) {
+        user = req.user;
+    } else {
+        // Fallback if middleware passed raw auth payload
+        user = syncUser(req.user);
+    }
 
     if (!user) {
         return res.status(500).json({ error: "Failed to sync user" });
