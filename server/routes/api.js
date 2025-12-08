@@ -71,7 +71,7 @@ router.post('/generate-recipe', async (req, res) => {
 
     try {
         const result = await genAI.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-1.5-pro",
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -79,7 +79,7 @@ router.post('/generate-recipe', async (req, res) => {
             }
         });
 
-        const responseText = result.text;
+        const responseText = typeof result.text === 'function' ? result.text() : result.text;
 
         // Deduct Credit only on success
         if (user.subscriptionTier !== 'pro') {
@@ -132,14 +132,16 @@ router.post('/chat', async (req, res) => {
     const { history, message, systemInstruction } = req.body;
 
     try {
+        // Chat not directly supported in genAI.models? 
+        // In new SDK: client.chats.create({ model: ..., ... })
         const chat = genAI.chats.create({
-            model: "gemini-2.5-flash",
+            model: "gemini-1.5-pro",
             config: { systemInstruction },
             history: history || []
         });
 
         const result = await chat.sendMessage(message);
-        const responseText = result.text;
+        const responseText = typeof result.text === 'function' ? result.text() : result.text;
 
         res.json({ result: responseText });
     } catch (error) {
@@ -166,8 +168,6 @@ router.post('/ai/analyze-receipt', async (req, res) => {
     }
 
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Use 1.5 Flash for vision
-
         const prompt = `
         You are a smart shopping assistant. Compare this receipt image with the user's current shopping list.
         
@@ -197,8 +197,16 @@ router.post('/ai/analyze-receipt', async (req, res) => {
             }
         };
 
-        const result = await model.generateContent([prompt, imagePart]);
-        const responseText = result.response.text();
+        const result = await genAI.models.generateContent({
+            model: "gemini-1.5-pro",
+            contents: [prompt, imagePart],
+            config: {
+                responseMimeType: "application/json"
+                // schema could be added here for strictness
+            }
+        });
+
+        const responseText = typeof result.text === 'function' ? result.text() : result.text;
 
         // Parse JSON safely
         const cleanedText = responseText.replace(/```json|```/g, '').trim();
