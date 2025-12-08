@@ -34,13 +34,29 @@ const authenticateToken = (req, res, next) => {
 
         if (auth0Id) {
             // Try to resolve local user context immediately
-            // This ensures req.user.id exists for downstream routes (api.js, data.js)
-            const user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
+            let user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
+
+            if (!user) {
+                // JIT Provisioning: Create user if they don't exist yet
+                // This handles race conditions where /api/auth/me hasn't run yet
+                try {
+                    const email = req.auth.email || `${auth0Id}@auth0.placeholder`;
+                    db.prepare('INSERT INTO users (username, email, password_hash, preferences) VALUES (?, ?, ?, ?)')
+                        .run(auth0Id, email, 'auth0-linked', JSON.stringify({}));
+
+                    user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
+                    console.log(`[AuthMiddleware] JIT Provisioned user: ${auth0Id}`);
+                } catch (e) {
+                    // Handle race condition: Unique constraint failed if created by another request in parallel
+                    console.warn("[AuthMiddleware] User creation race condition, retrying fetch");
+                    user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
+                }
+            }
+
             if (user) {
                 req.user = user;
             } else {
-                // User authenticated but not yet in DB (race condition with /me or first login)
-                // Fallback to just passing the auth payload
+                console.error(`[AuthMiddleware] Failed to resolve user for ${auth0Id}`);
                 req.user = req.auth;
             }
         } else {
