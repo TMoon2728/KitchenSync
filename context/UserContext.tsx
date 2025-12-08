@@ -30,7 +30,21 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const res = await authFetch('/api/auth/me');
             if (res.ok) {
                 const data = await res.json();
-                setUserProfile(data.user);
+                // Normalize backend user to UserProfile
+                const profile: UserProfile = {
+                    name: data.user.username || data.user.name || 'Chef',
+                    email: data.user.email,
+                    avatar: data.user.avatar || '👨‍🍳',
+                    kitchenName: data.user.kitchenName,
+                    dailyCalorieGoal: data.user.dailyCalorieGoal || 2000,
+                    householdMembers: data.user.householdMembers || [],
+                    groceryStores: data.user.groceryStores || [],
+                    preferences: data.user.preferences || {},
+                    subscriptionTier: data.user.subscription_tier || data.user.subscriptionTier || 'free',
+                    credits: data.user.credits || 0,
+                    hasUsedFreeImageGeneration: data.user.hasUsedFreeImageGeneration
+                };
+                setUserProfile(profile);
             } else {
                 // Token invalid
                 logout();
