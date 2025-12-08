@@ -27,8 +27,15 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         isAuthenticated,
         isLoading: auth0Loading,
-        getAccessTokenSilently
+        getAccessTokenSilently,
+        error
     } = useAuth0();
+
+    useEffect(() => {
+        if (error) {
+            console.error("Auth0 Error:", error);
+        }
+    }, [error]);
 
     const [userProfile, setUserProfile] = useState<UserProfile>(MOCK_PROFILE);
     const [retroMode, setRetroMode] = useState(false);
