@@ -33,7 +33,7 @@ const SPACE_NAMES = ['iss', 'nasa', 'the enterprise', 'enterprise', 'voyager', '
 
 const AppContent: React.FC = () => {
     // --- PUBLIC ROUTING ---
-    const { userProfile, updatePreferences, retroMode, setRetroMode, isAuthenticated, isLoading } = useUser();
+    const { userProfile, updatePreferences, retroMode, setRetroMode, isAuthenticated, isLoading, logout } = useUser();
     const { isSidebarCollapsed, toggleSidebar, navItems, setNavItems } = useUI();
 
     if (isLoading) {
@@ -188,6 +188,21 @@ const AppContent: React.FC = () => {
                             );
                         })}
                     </nav>
+
+                    <div className="px-2 mb-2">
+                        <button
+                            onClick={() => logout()}
+                            className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all whitespace-nowrap overflow-hidden text-gray-300 hover:text-white hover:bg-red-900/30 group`}
+                            title="Logout"
+                        >
+                            <div className={`w-6 flex justify-center flex-shrink-0 transition-all ${isSidebarCollapsed ? 'mx-auto' : 'mr-3'}`}>
+                                <i className="fas fa-sign-out-alt text-lg text-red-400 group-hover:text-red-300"></i>
+                            </div>
+                            <span className={`transition-all duration-300 ${isSidebarCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
+                                Logout
+                            </span>
+                        </button>
+                    </div>
 
                     <div className="p-4 border-t border-white/10 flex justify-center">
                         <button
