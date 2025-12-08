@@ -32,10 +32,26 @@ const KONAMI_CODE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft'
 const SPACE_NAMES = ['iss', 'nasa', 'the enterprise', 'enterprise', 'voyager', 'deep space 9', 'zero g', 'orbit'];
 
 const AppContent: React.FC = () => {
-    const { userProfile, updatePreferences, retroMode, setRetroMode, isAuthenticated } = useUser();
+    // --- PUBLIC ROUTING ---
+    const { userProfile, updatePreferences, retroMode, setRetroMode, isAuthenticated, isLoading } = useUser();
     const { isSidebarCollapsed, toggleSidebar, navItems, setNavItems } = useUI();
 
-    // Easter Egg Logic
+    if (isLoading) {
+        return <div className="flex h-screen items-center justify-center bg-gray-900 text-white"><Spinner size="lg" /></div>;
+    }
+
+    if (!isAuthenticated) {
+        return (
+            <Routes>
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+        );
+    }
+
+    // --- PROTECTED ROUTING ---
     const [konamiIndex, setKonamiIndex] = useState(0);
 
     useEffect(() => {
@@ -107,19 +123,6 @@ const AppContent: React.FC = () => {
     const isSpaceMode = userProfile.kitchenName && SPACE_NAMES.some(name => userProfile.kitchenName!.toLowerCase().includes(name));
     const hiddenItems = userProfile.preferences?.hiddenNavItems || [];
 
-    // --- PUBLIC ROUTING ---
-    if (!isAuthenticated) {
-        return (
-            <Routes>
-                <Route path="/" element={<LandingPage />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-        );
-    }
-
-    // --- PROTECTED ROUTING ---
     return (
         <div className={`flex h-screen bg-gray-900 text-white ${retroMode ? 'retro-mode' : ''} ${isSpaceMode ? 'zero-g-mode' : ''}`}>
             {!isCookingMode && (

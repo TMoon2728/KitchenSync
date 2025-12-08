@@ -15,6 +15,7 @@ interface UserContextType {
     register: () => Promise<void>;
     logout: () => void;
     isAuthenticated: boolean;
+    isLoading: boolean;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -93,7 +94,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const updateProfile = (updates: Partial<UserProfile>) => {
         setUserProfile(prev => ({ ...prev, ...updates }));
-        // TODO: Sync to backend here using authFetch PUT /api/user/profile
     };
 
     const updatePreferences = (updates: Partial<UserPreferences>) => {
@@ -134,10 +134,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             consumeCredits,
             retroMode,
             setRetroMode,
-            login: login as any, // Cast to match interface if signatures differ for now
+            login: login as any,
             register: register as any,
             logout,
-            isAuthenticated
+            isAuthenticated,
+            isLoading: loading || auth0Loading
         }}>
             {children}
         </UserContext.Provider>
