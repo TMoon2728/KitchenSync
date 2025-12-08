@@ -1,0 +1,166 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+body {
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes pulse-glow {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+@keyframes bounce-slow {
+  0%, 100% { transform: translateY(-5%); }
+  50% { transform: translateY(5%); }
+}
+
+/* Utility Classes for Animations */
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.5s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s ease-out forwards;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+.animate-bounce-slow {
+  animation: bounce-slow 2s infinite;
+}
+
+/* Staggered Delays */
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.5);
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(107, 114, 128, 0.8);
+}
+
+
+/* --- EASTER EGGS --- */
+
+/* 1. Space Mode (Zero G) */
+.zero-g-mode main {
+    background-image: radial-gradient(circle at center, #1a202c 0%, #000000 100%);
+    color: white;
+}
+.zero-g-mode .bg-white {
+    background-color: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(4px);
+}
+/* Make everything float gently */
+.zero-g-mode div[class*="rounded"], 
+.zero-g-mode button, 
+.zero-g-mode a {
+    animation: float 6s ease-in-out infinite reverse;
+}
+.zero-g-mode aside {
+    animation: none; /* Sidebar stays anchored */
+}
+
+/* 2. Retro Mode (Konami Code) */
+.retro-mode {
+    font-family: 'Courier New', Courier, monospace !important;
+    background-color: #000 !important;
+}
+.retro-mode main, .retro-mode aside {
+    background-color: #000 !important;
+    border-color: #33ff00 !important;
+}
+.retro-mode * {
+    color: #33ff00 !important;
+    border-radius: 0 !important; /* No rounded corners in the 80s */
+    box-shadow: none !important;
+}
+.retro-mode .bg-white, .retro-mode .bg-gray-100, .retro-mode .bg-blue-50, .retro-mode .bg-green-50, .retro-mode .bg-purple-50 {
+    background-color: #111 !important;
+    border: 1px solid #33ff00 !important;
+}
+.retro-mode img {
+    filter: grayscale(100%) contrast(150%) pixelate(4px);
+}
+.retro-mode ::placeholder {
+    color: #005500 !important;
+}
+.retro-mode button:hover {
+    background-color: #33ff00 !important;
+    color: #000 !important;
+}
+
+/* 3. Quantum Flux (Schrodinger Search) */
+@keyframes quantum-jitter {
+    0% { transform: translate(1px, 1px) skewX(0deg); filter: blur(0px); opacity: 1; }
+    20% { transform: translate(-1px, -2px) skewX(-2deg); filter: blur(1px); opacity: 0.8; }
+    40% { transform: translate(-3px, 0px) skewX(1deg); filter: blur(0px); opacity: 1; }
+    60% { transform: translate(3px, 2px) skewX(0deg); filter: blur(2px); opacity: 0.6; }
+    80% { transform: translate(1px, -1px) skewX(2deg); filter: blur(0px); opacity: 1; }
+    100% { transform: translate(0px, 0px) skewX(0deg); filter: blur(0px); opacity: 1; }
+}
+
+.quantum-flux {
+    animation: quantum-jitter 0.8s infinite steps(10);
+}
+/* Collapse the wave function on hover */
+.quantum-flux:hover {
+    animation: none;
+    filter: none;
+    opacity: 1;
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+    z-index: 50;
+    background-color: white;
+}

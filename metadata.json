@@ -1,0 +1,5 @@
+{
+  "name": "KitchenSync",
+  "description": "KitchenSync: An intelligent, AI-powered application to plan your meals, manage your pantry, and simplify your shopping. Rebuilt in React with Gemini API integration.",
+  "requestFramePermissions": []
+}
