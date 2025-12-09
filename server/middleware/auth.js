@@ -29,6 +29,8 @@ const authenticateToken = (req, res, next) => {
             return next();
         }
 
+        console.log("[AuthMiddleware] Token payload:", req.auth);
+
         // Success - req.auth is populated with JWT payload (e.g. sub, iss)
         const auth0Id = req.auth.sub;
 
