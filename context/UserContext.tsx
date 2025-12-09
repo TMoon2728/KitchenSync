@@ -129,10 +129,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const logout = () => {
-        // auth0Logout({ logoutParams: { returnTo: window.location.origin } });
         localStorage.removeItem('ks_token');
         setDevToken(null);
         setUserProfile(MOCK_PROFILE);
+        auth0Logout({ logoutParams: { returnTo: window.location.origin } });
     };
 
     const updateProfile = (updates: Partial<UserProfile>) => {
