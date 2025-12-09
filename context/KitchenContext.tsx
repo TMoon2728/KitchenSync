@@ -23,7 +23,7 @@ interface KitchenContextType {
 const KitchenContext = createContext<KitchenContextType | undefined>(undefined);
 
 export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { isAuthenticated } = useUser();
+    const { isAuthenticated, getAccessToken } = useUser();
     const [isLoading, setIsLoading] = useState(true);
 
     const [recipes, setRecipes] = useState<Recipe[]>(MOCK_RECIPES);
@@ -36,9 +36,10 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
             // Fallback to local if not auth
             if (isAuthenticated) {
                 try {
+                    const token = await getAccessToken();
                     const [resRecipes, resPantry] = await Promise.all([
-                        authFetch('/api/data/recipes'),
-                        authFetch('/api/data/pantry')
+                        authFetch('/api/data/recipes', { token }),
+                        authFetch('/api/data/pantry', { token })
                     ]);
 
                     if (resRecipes.ok) setRecipes(await resRecipes.json());
@@ -69,9 +70,11 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         if (isAuthenticated) {
             try {
+                const token = await getAccessToken();
                 const res = await authFetch('/api/data/recipes', {
                     method: 'POST',
-                    body: JSON.stringify(recipe)
+                    body: JSON.stringify(recipe),
+                    token
                 });
                 if (res.ok) {
                     const saved = await res.json();
@@ -92,7 +95,8 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const deleteRecipe = async (id: number) => {
         setRecipes(prev => prev.filter(r => r.id !== id));
         if (isAuthenticated) {
-            authFetch(`/api/data/recipes/${id}`, { method: 'DELETE' });
+            const token = await getAccessToken();
+            authFetch(`/api/data/recipes/${id}`, { method: 'DELETE', token });
         }
     };
 
@@ -102,9 +106,11 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setPantry(prev => [...prev, fullItem]);
 
         if (isAuthenticated) {
+            const token = await getAccessToken();
             const res = await authFetch('/api/data/pantry', {
                 method: 'POST',
-                body: JSON.stringify(item)
+                body: JSON.stringify(item),
+                token
             });
             if (res.ok) {
                 const saved = await res.json();
@@ -124,11 +130,13 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setPantry(prev => [...prev, ...fullItems]);
 
         if (isAuthenticated) {
+            const token = await getAccessToken();
             // We'll just loop for now since we don't have a batch API endpoint yet
             for (const item of items) {
                 authFetch('/api/data/pantry', {
                     method: 'POST',
-                    body: JSON.stringify(item)
+                    body: JSON.stringify(item),
+                    token
                 }).catch(e => console.error("Batch add failed for item", item.name));
             }
         }
@@ -137,7 +145,8 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const removePantryItem = async (id: number) => {
         setPantry(prev => prev.filter(p => p.id !== id));
         if (isAuthenticated) {
-            authFetch(`/api/data/pantry/${id}`, { method: 'DELETE' });
+            const token = await getAccessToken();
+            authFetch(`/api/data/pantry/${id}`, { method: 'DELETE', token });
         }
     };
 

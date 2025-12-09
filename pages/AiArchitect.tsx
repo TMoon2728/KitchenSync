@@ -9,7 +9,7 @@ import Spinner from '../components/Spinner';
 
 const AiArchitect: React.FC = () => {
     const { recipes, setMealPlan } = useKitchen();
-    const { userProfile, consumeCredits } = useUser();
+    const { userProfile, consumeCredits, getAccessToken } = useUser();
     // Core Directives
     const [theme, setTheme] = useState('A Balanced and Varied Plan');
     const [usePantry, setUsePantry] = useState(false);
@@ -59,6 +59,7 @@ const AiArchitect: React.FC = () => {
         setError(null);
         setGeneratedPlan(null);
         try {
+            const token = await getAccessToken();
             const plan = await generateMealPlan(
                 recipes,
                 theme,
@@ -69,6 +70,7 @@ const AiArchitect: React.FC = () => {
                 startDate,
                 duration,
                 Array.from(includedSlots),
+                token,
                 complexity,
                 customDiet
             );

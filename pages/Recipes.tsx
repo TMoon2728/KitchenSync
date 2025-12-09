@@ -10,7 +10,7 @@ import { generateRecipeFromIngredients, generateRecipeFromUrl } from '../service
 
 const Recipes: React.FC = () => {
     const { recipes, pantry, addRecipe, setRecipes } = useKitchen();
-    const { consumeCredits } = useUser();
+    const { consumeCredits, getAccessToken } = useUser();
     const location = useLocation();
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -53,8 +53,10 @@ const Recipes: React.FC = () => {
 
         setIsAdding(true);
         setAddError(null);
+        setAddError(null);
         try {
-            const result = await generateRecipeFromIngredients(aiRequest);
+            const token = await getAccessToken();
+            const result = await generateRecipeFromIngredients(aiRequest, token);
             if (result && result.name && result.ingredients && result.instructions) {
                 addRecipe(result as Omit<Recipe, 'id' | 'is_favorite' | 'rating'>);
                 setAiRequest('');
@@ -85,8 +87,10 @@ const Recipes: React.FC = () => {
 
         setIsImporting(true);
         setImportError(null);
+        setImportError(null);
         try {
-            const result = await generateRecipeFromUrl(importUrl);
+            const token = await getAccessToken();
+            const result = await generateRecipeFromUrl(importUrl, token);
             if (result && result.name && result.ingredients && result.instructions) {
                 addRecipe(result as Omit<Recipe, 'id' | 'is_favorite' | 'rating'>);
                 setImportUrl('');

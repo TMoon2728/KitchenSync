@@ -16,6 +16,7 @@ interface UserContextType {
     logout: () => void;
     isAuthenticated: boolean;
     isLoading: boolean;
+    getAccessToken: () => Promise<string>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -133,6 +134,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
     };
 
+    const getAccessToken = async () => {
+        return await getAccessTokenSilently();
+    };
+
     return (
         <UserContext.Provider value={{
             userProfile,
@@ -145,7 +150,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             register: register as any,
             logout,
             isAuthenticated,
-            isLoading: loading || auth0Loading
+            isLoading: loading || auth0Loading,
+            getAccessToken
         }}>
             {children}
         </UserContext.Provider>

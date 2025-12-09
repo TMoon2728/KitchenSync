@@ -60,14 +60,15 @@ const handleApiResponse = async <T>(response: Response): Promise<T | null> => {
     return data.result as T;
 };
 
-export const generateRecipeFromIngredients = async (ingredients: string): Promise<Partial<Recipe> | null> => {
+export const generateRecipeFromIngredients = async (ingredients: string, token: string): Promise<Partial<Recipe> | null> => {
     const prompt = `You are a creative chef. Invent a recipe using the following ingredients: ${ingredients}. Be creative and fill in any gaps with common pantry staples. Provide a complete recipe. Include useful tags (e.g., 'Vegetarian', 'Gluten-Free') in the response.`;
 
     try {
         const response = await authFetch(`${API_BASE}/generate-recipe`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, schema: recipeSchema })
+            body: JSON.stringify({ prompt, schema: recipeSchema }),
+            token
         });
         return handleApiResponse<Partial<Recipe>>(response);
     } catch (error) {
@@ -76,7 +77,7 @@ export const generateRecipeFromIngredients = async (ingredients: string): Promis
     }
 };
 
-export const generateRecipeFromUrl = async (url: string): Promise<Partial<Recipe> | null> => {
+export const generateRecipeFromUrl = async (url: string, token: string): Promise<Partial<Recipe> | null> => {
     const prompt = `You are an expert recipe parser. Based on the likely content of a recipe page at this URL, generate a full recipe.
     URL: ${url}
     
@@ -86,7 +87,8 @@ export const generateRecipeFromUrl = async (url: string): Promise<Partial<Recipe
         const response = await authFetch(`${API_BASE}/generate-recipe`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, schema: recipeSchema })
+            body: JSON.stringify({ prompt, schema: recipeSchema }),
+            token
         });
         return handleApiResponse<Partial<Recipe>>(response);
     } catch (error) {
@@ -95,7 +97,7 @@ export const generateRecipeFromUrl = async (url: string): Promise<Partial<Recipe
     }
 };
 
-export const remixRecipe = async (recipe: Recipe, remixType: string): Promise<Partial<Recipe> | null> => {
+export const remixRecipe = async (recipe: Recipe, remixType: string, token: string): Promise<Partial<Recipe> | null> => {
     const prompt = `You are a recipe modification expert. Take the following recipe and modify it to "${remixType}". Adjust ingredients, instructions, and tags accordingly.
     
     Original Recipe:
@@ -107,7 +109,8 @@ export const remixRecipe = async (recipe: Recipe, remixType: string): Promise<Pa
         const response = await authFetch(`${API_BASE}/generate-recipe`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, schema: recipeSchema })
+            body: JSON.stringify({ prompt, schema: recipeSchema }),
+            token
         });
         return handleApiResponse<Partial<Recipe>>(response);
     } catch (error) {
@@ -126,6 +129,7 @@ export const generateMealPlan = async (
     startDate: string,
     durationDays: number,
     includedSlots: string[],
+    token: string,
     complexity: string = 'Moderate',
     dietaryRestrictions: string = ''
 ): Promise<any | null> => {
@@ -183,7 +187,8 @@ export const generateMealPlan = async (
         const response = await authFetch(`${API_BASE}/generate-recipe`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, schema: mealPlanSchema })
+            body: JSON.stringify({ prompt, schema: mealPlanSchema }),
+            token
         });
         return handleApiResponse<any>(response);
     } catch (error) {
@@ -194,7 +199,8 @@ export const generateMealPlan = async (
 
 export const suggestRecipesFromPantry = async (
     pantryItems: PantryItem[],
-    existingRecipes: Recipe[]
+    existingRecipes: Recipe[],
+    token: string
 ): Promise<Array<{ recipeName: string; reason: string }> | null> => {
 
     const pantryList = pantryItems.map(item => `${item.name} (${item.quantity} ${item.unit})`).join(', ');
@@ -231,7 +237,8 @@ export const suggestRecipesFromPantry = async (
         const response = await authFetch(`${API_BASE}/generate-recipe`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, schema: suggestionSchema })
+            body: JSON.stringify({ prompt, schema: suggestionSchema }),
+            token
         });
         return handleApiResponse<Array<{ recipeName: string; reason: string }>>(response);
     } catch (error) {
@@ -255,7 +262,7 @@ export interface ChatMessage {
     text: string;
 }
 
-export const chatWithSousChef = async (history: ChatMessage[], context: string): Promise<string | null> => {
+export const chatWithSousChef = async (history: ChatMessage[], context: string, token: string): Promise<string | null> => {
     const systemInstruction = `You are a professional, witty, and helpful Sous Chef AI assistant called "KitchenSync AI".
     
     CURRENT CONTEXT:
@@ -277,7 +284,8 @@ export const chatWithSousChef = async (history: ChatMessage[], context: string):
                 history,
                 message: history[history.length - 1].text, // Redundant but explicit for backend
                 systemInstruction
-            })
+            }),
+            token
         });
         if (!response.ok) return "Chef is currently offline.";
         const data = await response.json();

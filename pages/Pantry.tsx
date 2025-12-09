@@ -11,7 +11,7 @@ const INGREDIENT_CATEGORIES = ['Produce', 'Meat', 'Seafood', 'Dairy & Eggs', 'Pa
 
 const Pantry: React.FC = () => {
     const { pantry, setPantry, recipes, batchAddPantryItems } = useKitchen();
-    const { consumeCredits, userProfile, setUserProfile } = useUser();
+    const { consumeCredits, userProfile, setUserProfile, getAccessToken } = useUser();
     const [view, setView] = useState<'inPantry' | 'all'>('inPantry');
     const [isLoading, setIsLoading] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
@@ -59,9 +59,11 @@ const Pantry: React.FC = () => {
             const base64 = reader.result as string;
             try {
                 const { authFetch } = await import('../utils/api');
+                const token = await getAccessToken();
                 const res = await authFetch('/api/ai/analyze-receipt', {
                     method: 'POST',
-                    body: JSON.stringify({ image: base64, currentShoppingList: [] })
+                    body: JSON.stringify({ image: base64, currentShoppingList: [] }),
+                    token
                 });
 
                 if (res.ok) {
@@ -92,8 +94,10 @@ const Pantry: React.FC = () => {
         setIsLoading(true);
         setError(null);
         setSuggestions(null);
+        setSuggestions(null);
         try {
-            const results = await suggestRecipesFromPantry(pantry, recipes);
+            const token = await getAccessToken();
+            const results = await suggestRecipesFromPantry(pantry, recipes, token);
             if (results) {
                 const enhancedSuggestions = results.map(suggestion => {
                     const existingRecipe = recipes.find(r => r.name.toLowerCase() === suggestion.recipeName.toLowerCase());

@@ -16,7 +16,7 @@ interface NeededIngredient {
 
 const ShoppingList: React.FC = () => {
     const { mealPlan, pantry, recipes, batchAddPantryItems } = useKitchen();
-    const { userProfile, isAuthenticated } = useUser();
+    const { userProfile, isAuthenticated, getAccessToken } = useUser();
     const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
 
     const [showStoreLinks, setShowStoreLinks] = useState(false);
@@ -148,13 +148,15 @@ const ShoppingList: React.FC = () => {
                 // But authFetch is in utils/api.ts. Let's assume it's available or imported.
                 // Wait, useKitchen uses it, but we can import it directly.
                 const { authFetch } = await import('../utils/api');
+                const token = await getAccessToken();
 
                 const res = await authFetch('/api/ai/analyze-receipt', {
                     method: 'POST',
                     body: JSON.stringify({
                         image: base64,
                         currentShoppingList: currentList
-                    })
+                    }),
+                    token
                 });
 
                 if (res.ok) {

@@ -9,7 +9,7 @@ import Spinner from '../components/Spinner';
 
 const RecipeDetail: React.FC = () => {
     const { recipes, updateRecipe } = useKitchen();
-    const { userProfile, updateProfile, consumeCredits } = useUser();
+    const { userProfile, updateProfile, consumeCredits, getAccessToken } = useUser();
 
     // Helper adapter for setUserProfile to match old signature if needed, 
     // but better to just use updateProfile directly in the component logic.
@@ -42,7 +42,8 @@ const RecipeDetail: React.FC = () => {
         setError(null);
         setRemixResult(null);
         try {
-            const result = await remixRecipe(recipe, remixType);
+            const token = await getAccessToken();
+            const result = await remixRecipe(recipe, remixType, token);
             if (result) {
                 setRemixResult(result);
             } else {

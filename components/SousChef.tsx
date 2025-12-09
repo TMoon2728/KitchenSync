@@ -13,7 +13,7 @@ interface SousChefProps {
 
 const SousChef: React.FC<SousChefProps> = ({ onDisable }) => {
     const { recipes, pantry } = useKitchen();
-    const { consumeCredits } = useUser();
+    const { consumeCredits, getAccessToken } = useUser();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
@@ -92,7 +92,8 @@ const SousChef: React.FC<SousChefProps> = ({ onDisable }) => {
         setIsLoading(true);
 
         const context = getContext();
-        const response = await chatWithSousChef(newMessages, context);
+        const token = await getAccessToken();
+        const response = await chatWithSousChef(newMessages, context, token);
 
         if (response) {
             setMessages(prev => [...prev, { role: 'model', text: response }]);
@@ -166,8 +167,8 @@ const SousChef: React.FC<SousChefProps> = ({ onDisable }) => {
                         {messages.map((msg, i) => (
                             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.role === 'user'
-                                        ? 'bg-blue-600 text-white rounded-tr-none'
-                                        : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
+                                    ? 'bg-blue-600 text-white rounded-tr-none'
+                                    : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
                                     }`}>
                                     {msg.text}
                                 </div>

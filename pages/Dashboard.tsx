@@ -34,7 +34,7 @@ const FOOD_FACTS = [
 
 const Dashboard: React.FC = () => {
     const { recipes, pantry, mealPlan, setPantry, setMealPlan } = useKitchen();
-    const { userProfile, consumeCredits } = useUser();
+    const { userProfile, consumeCredits, getAccessToken } = useUser();
 
     const [aiIngredients, setAiIngredients] = useState('');
     const [generatedRecipe, setGeneratedRecipe] = useState<string | null>(null);
@@ -100,7 +100,8 @@ const Dashboard: React.FC = () => {
         setError(null);
         setGeneratedRecipe(null);
         try {
-            const result = await generateRecipeFromIngredients(aiIngredients);
+            const token = await getAccessToken();
+            const result = await generateRecipeFromIngredients(aiIngredients, token);
             if (result) {
                 const displayText = `**${result.name}**\n\n**Ingredients:**\n${result.ingredients?.map(ing => `- ${ing.quantity} ${ing.unit} ${ing.name}`).join('\n')}\n\n**Instructions:**\n${result.instructions}`;
                 setGeneratedRecipe(displayText);
