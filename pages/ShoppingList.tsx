@@ -6,6 +6,7 @@ import type { MealPlan, PantryItem, Recipe, UserProfile } from '../types'; // Ke
 import { useKitchen } from '../context/KitchenContext';
 import { useUser } from '../context/UserContext';
 import confetti from 'canvas-confetti';
+import { convertQuantity } from '../utils/unitConversion';
 
 interface NeededIngredient {
     name: string;
@@ -23,19 +24,30 @@ const ShoppingList: React.FC = () => {
     const [isScanning, setIsScanning] = useState(false);
     const [scanResult, setScanResult] = useState<{ matched: string[]; extra: any[] } | null>(null);
 
+
+
     const shoppingList: { [category: string]: NeededIngredient[] } = useMemo(() => {
         const needed: { [key: string]: NeededIngredient } = {};
 
-        // Aggregate all ingredients from the meal plan
+        // 1. Aggregate all ingredients from the meal plan (without subtracting pantry yet)
         Object.values(mealPlan).forEach(dayPlan => {
             Object.values(dayPlan).forEach(slotItems => {
                 slotItems.forEach(item => {
+                    if (item.completed) return; // Skip completed items
+
                     const recipe = recipes.find(r => r.id === item.recipeId);
                     if (recipe) {
                         recipe.ingredients.forEach(ing => {
+                            // Use a unique key based on name + unit to initially group EXACT matches from recipes
+                            // But for the final calculation, we will match against pantry more broadly
                             const key = `${ing.name.toLowerCase()}-${ing.unit.toLowerCase()}`;
                             if (!needed[key]) {
-                                needed[key] = { name: ing.name, quantity: 0, unit: ing.unit, category: ing.category || 'Other' };
+                                needed[key] = {
+                                    name: ing.name,
+                                    quantity: 0,
+                                    unit: ing.unit,
+                                    category: ing.category || 'Other'
+                                };
                             }
                             needed[key].quantity += ing.quantity;
                         });
@@ -44,16 +56,49 @@ const ShoppingList: React.FC = () => {
             });
         });
 
-        // Subtract pantry items
+        // 2. Subtract Pantry Items using Smart Conversion
         pantry.forEach(pantryItem => {
-            const key = `${pantryItem.name.toLowerCase()}-${pantryItem.unit.toLowerCase()}`;
-            if (needed[key]) {
-                needed[key].quantity -= pantryItem.quantity;
+            let availableQty = pantryItem.quantity;
+            const pantryUnit = pantryItem.unit;
+
+            // Find all needed items that match the pantry item name (case-insensitive)
+            const matches = Object.keys(needed).filter(key =>
+                needed[key].name.toLowerCase() === pantryItem.name.toLowerCase()
+            );
+
+            // Iterate through matches and deduct
+            for (const key of matches) {
+                if (availableQty <= 0) break; // Exhausted pantry item
+
+                const neededItem = needed[key];
+                const conversion = convertQuantity(1, pantryUnit, neededItem.unit);
+
+                if (conversion !== null) {
+                    // We can convert! 
+                    // Calculate how much we can cover
+                    const amountCanCover = availableQty * conversion;
+
+                    if (amountCanCover >= neededItem.quantity) {
+                        // We have enough to fully cover this need
+                        const neededAmountInPantryUnits = neededItem.quantity / conversion;
+                        availableQty -= neededAmountInPantryUnits;
+                        delete needed[key]; // Fully verified/covered
+                    } else {
+                        // We can only partially cover it
+                        neededItem.quantity -= amountCanCover;
+                        availableQty = 0; // Pantry item used up
+                    }
+                } else {
+                    // Units don't match and can't be converted (e.g. 'pieces' vs 'kg'). 
+                    // We cannot safely deduct.
+                    // Fallback: If strings strictly match? No, convertQuantity handles strict match too.
+                    console.warn(`Cannot convert ${pantryUnit} to ${neededItem.unit} for ${pantryItem.name}`);
+                }
             }
         });
 
-        // Filter out items we have enough of and group by category
-        const filteredList = Object.values(needed).filter(item => item.quantity > 0);
+        // 3. Filter and Group
+        const filteredList = Object.values(needed).filter(item => item.quantity > 0.01); // Float tolerance
 
         const groupedList = filteredList.reduce((acc, item) => {
             const category = item.category || 'Other';
@@ -64,7 +109,7 @@ const ShoppingList: React.FC = () => {
             return acc;
         }, {} as { [category: string]: NeededIngredient[] });
 
-        // Sort categories for consistent order
+        // Sort categories
         return Object.keys(groupedList).sort().reduce((acc, key) => {
             acc[key] = groupedList[key];
             return acc;

@@ -26,11 +26,15 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginWithRedirect,
         logout: auth0Logout,
         user,
-        isAuthenticated,
+        isAuthenticated: isAuth0Authenticated,
         isLoading: auth0Loading,
         getAccessTokenSilently,
         error
     } = useAuth0();
+
+    // Dev Auth State (since we are replacing Auth0 for this phase)
+    const [devToken, setDevToken] = useState<string | null>(localStorage.getItem('ks_token'));
+    const isAuthenticated = !!devToken; // Override Auth0 for now
 
     useEffect(() => {
         if (error) {
@@ -87,16 +91,45 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, [isAuthenticated, auth0Loading]);
 
+
+
     const login = async () => {
-        await loginWithRedirect();
+        // Dev Login Flow
+        try {
+            const username = prompt("Enter Dev Username (e.g. chef1):", "chef1");
+            if (!username) return;
+
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                const token = data.access_token;
+                localStorage.setItem('ks_token', token);
+                setDevToken(token);
+                // Trigger profile refresh
+                setTimeout(refreshProfile, 100);
+            } else {
+                alert("Login failed");
+            }
+        } catch (e) {
+            console.error("Login Error", e);
+            alert("Login System Error");
+        }
     };
 
     const register = async () => {
-        await loginWithRedirect({ authorizationParams: { screen_hint: 'signup' } });
+        // Re-use login for dev since JIT handles creation
+        await login();
     };
 
     const logout = () => {
-        auth0Logout({ logoutParams: { returnTo: window.location.origin } });
+        // auth0Logout({ logoutParams: { returnTo: window.location.origin } });
+        localStorage.removeItem('ks_token');
+        setDevToken(null);
         setUserProfile(MOCK_PROFILE);
     };
 
@@ -137,7 +170,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const getAccessToken = async () => {
-        return await getAccessTokenSilently();
+        return devToken || "";
     };
 
     return (

@@ -12,6 +12,26 @@ const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     if (!authHeader) return next();
 
+    // Check for Dev Token (alg=none)
+    if (process.env.NODE_ENV !== 'production' && authHeader && authHeader.startsWith('Bearer eyJhbGciOiJub25lIi')) {
+        // "eyJhbGciOiJub25lIi" matches base64 '{"alg":"none"'
+        // Bypass Auth0 check for local dev tokens
+        const token = authHeader.split(' ')[1];
+        try {
+            const parts = token.split('.');
+            const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+            req.auth = payload;
+
+            // Re-use logic for populating req.user
+            // We need to trigger the same user-lookup logic as below
+            // Since the code below is inside jwtCheck callback, we need to extract it or wrap jwtCheck.
+            // For simplicity, let's just chain into the user lookup.
+            return populateUser(req, res, next);
+        } catch (e) {
+            console.error("Dev Token Parse Error", e);
+        }
+    }
+
     jwtCheck(req, res, async (err) => {
         if (err) {
             console.warn("Auth0 Token Invalid:", err.message);
