@@ -71,7 +71,7 @@ router.post('/generate-recipe', async (req, res) => {
 
     try {
         const result = await genAI.models.generateContent({
-            model: "gemini-1.5-pro",
+            model: "gemini-1.5-flash",
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -135,7 +135,7 @@ router.post('/chat', async (req, res) => {
         // Chat not directly supported in genAI.models? 
         // In new SDK: client.chats.create({ model: ..., ... })
         const chat = genAI.chats.create({
-            model: "gemini-1.5-pro",
+            model: "gemini-1.5-flash",
             config: { systemInstruction },
             history: history || []
         });
@@ -198,7 +198,7 @@ router.post('/ai/analyze-receipt', async (req, res) => {
         };
 
         const result = await genAI.models.generateContent({
-            model: "gemini-1.5-pro",
+            model: "gemini-1.5-flash",
             contents: [prompt, imagePart],
             config: {
                 responseMimeType: "application/json"
