@@ -128,7 +128,46 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     getAccessTokenSilently().then(token => {
                         authFetch('/api/credits/consume', {
                             method: 'POST',
-                            const context = useContext(UserContext);
-                            if(!context) throw new Error('useUser must be used within a UserProvider');
-                            return context;
-                        };
+                            body: JSON.stringify({ amount: cost }),
+                            token
+                        }).catch(e => {
+                            console.error("Credit sync failed", e);
+                        });
+                    });
+                }
+                return true;
+            }
+            return false;
+        };
+
+        const getAccessToken = async () => {
+            if (devToken) return devToken;
+            return await getAccessTokenSilently();
+        };
+
+        return (
+            <UserContext.Provider value={{
+                userProfile,
+                updateProfile,
+                updatePreferences,
+                consumeCredits,
+                retroMode,
+                setRetroMode,
+                devLogin,
+                login: login as any,
+                register: register as any,
+                logout,
+                isAuthenticated,
+                isLoading: loading || auth0Loading,
+                getAccessToken
+            }}>
+                {children}
+            </UserContext.Provider>
+        );
+    };
+
+    export const useUser = () => {
+        const context = useContext(UserContext);
+        if (!context) throw new Error('useUser must be used within a UserProvider');
+        return context;
+    };
