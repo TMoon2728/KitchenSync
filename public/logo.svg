@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Whisk Handle -->
+  <rect x="45" y="15" width="10" height="20" rx="2" fill="#E2E8F0" />
+  
+  <!-- Whisk Wires -->
+  <path d="M50 35 C 30 35, 25 75, 50 85 C 75 75, 70 35, 50 35" stroke="#E2E8F0" stroke-width="3" fill="none"/>
+  <path d="M50 35 C 40 35, 38 70, 50 78 C 62 70, 60 35, 50 35" stroke="#E2E8F0" stroke-width="3" fill="none"/>
+  <path d="M50 35 L 50 70" stroke="#E2E8F0" stroke-width="3" />
+
+  <!-- Sync Arrows -->
+  <path d="M85 50 A 35 35 0 0 0 50 15" stroke="#3B82F6" stroke-width="5" stroke-dasharray="10 5" />
+  <path d="M15 50 A 35 35 0 0 0 50 85" stroke="#3B82F6" stroke-width="5" stroke-dasharray="10 5" />
+  
+  <!-- Arrow Heads -->
+  <path d="M85 50 L 80 40 L 90 40 Z" fill="#3B82F6" />
+  <path d="M15 50 L 10 60 L 20 60 Z" fill="#3B82F6" />
+</svg>
