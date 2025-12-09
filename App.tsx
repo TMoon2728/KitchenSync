@@ -132,12 +132,12 @@ const AppContent: React.FC = () => {
                     <div className={`p-4 flex items-center h-16 ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
                         {!isSidebarCollapsed && (
                             <h1 className="text-2xl font-bold flex items-center truncate">
-                                <i className="fas fa-utensils mr-2"></i>
+                                <img src="/logo.png" alt="Logo" className="h-8 w-8 mr-2 object-contain" />
                                 {retroMode ? '8-BIT KITCHEN' : 'KitchenSync'}
                             </h1>
                         )}
                         {isSidebarCollapsed && (
-                            <i className="fas fa-utensils text-2xl"></i>
+                            <img src="/logo.png" alt="Logo" className="h-8 w-8 object-contain" />
                         )}
                     </div>
 
