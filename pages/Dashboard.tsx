@@ -186,9 +186,17 @@ const Dashboard: React.FC = () => {
                 <div className="flex items-center gap-6">
                     {userProfile.avatar && (
                         <div className="relative group">
-                            <div className="text-6xl animate-float cursor-default select-none filter drop-shadow-lg transition-transform hover:scale-110">
-                                {userProfile.avatar}
-                            </div>
+                            {userProfile.avatar.startsWith('http') ? (
+                                <img
+                                    src={userProfile.avatar}
+                                    alt="User Avatar"
+                                    className="w-16 h-16 rounded-full object-cover shadow-lg border-2 border-white animate-float"
+                                />
+                            ) : (
+                                <div className="text-6xl animate-float cursor-default select-none filter drop-shadow-lg transition-transform hover:scale-110">
+                                    {userProfile.avatar}
+                                </div>
+                            )}
                             <div className="absolute -bottom-2 -right-2 bg-white rounded-full p-1 shadow-md">
                                 <i className={`fas ${xpStats.currentLevel.icon} ${xpStats.currentLevel.color} text-sm`}></i>
                             </div>
