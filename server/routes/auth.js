@@ -12,7 +12,6 @@ router.get('/me', requireAuth, (req, res) => {
 
     if (!user || !user.id) {
         // Should catch cases where JIT failed
-        // Should catch cases where JIT failed
         console.error("User resolution failed in middleware for /me", req.authLog);
         return res.status(500).json({ error: "Failed to sync user", trace: req.authLog });
     }
