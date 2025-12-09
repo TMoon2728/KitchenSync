@@ -90,7 +90,38 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             } else {
                 setLoading(false);
             }
-        }, [auth0Loading, isAuthenticated]);
+        }
+    }, [auth0Loading, isAuthenticated]);
+
+    const login = async () => {
+        await loginWithRedirect();
+    };
+
+    const devLogin = async (usernameArg?: string) => {
+        try {
+            const username = usernameArg || prompt("Enter Username:", "chef1");
+            if (!username) return;
+
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                const token = data.access_token;
+                localStorage.setItem('ks_token', token);
+                setDevToken(token);
+                setTimeout(refreshProfile, 100);
+            } else {
+                alert("Login failed");
+            }
+        } catch (e) {
+            console.error("Login Error", e);
+            alert("Login System Error");
+        }
+    };
 
     const register = async () => {
         // Re-use login for dev since JIT handles creation
