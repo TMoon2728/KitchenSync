@@ -53,7 +53,8 @@ const AiArchitect: React.FC = () => {
         }
 
         // Cost is 3 credits for a full plan
-        if (!consumeCredits(3)) return;
+        // Deduct 2 here (optimistic + sync) + 1 on backend = 3 Total
+        if (!consumeCredits(2)) return;
 
         setIsLoading(true);
         setError(null);

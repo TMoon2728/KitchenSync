@@ -151,7 +151,10 @@ router.post('/generate-recipe', async (req, res) => {
 
         // Deduct Credit only on success
         if (user.subscriptionTier !== 'pro') {
-            db.prepare('UPDATE users SET credits = credits - 1 WHERE id = ?').run(user.id);
+            const info = db.prepare('UPDATE users SET credits = credits - 1 WHERE id = ?').run(user.id);
+            console.log(`[CreditAudit] Deducted 1 credit from User ${user.id}. Changes: ${info.changes}, Previous Credits: ${user.credits}`);
+        } else {
+            console.log(`[CreditAudit] User ${user.id} is PRO. No deduction.`);
         }
 
         // Refetch credit count
@@ -201,6 +204,14 @@ router.post('/subscription/upgrade', (req, res) => {
 router.post('/chat', async (req, res) => {
     if (!genAI) return res.status(503).json({ error: "AI Service Unavailable" });
 
+    // 1. Auth & Credit Check
+    const user = getUser(req);
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+    if (user.subscriptionTier !== 'pro' && user.credits < 1) {
+        return res.status(402).json({ error: "Insufficient credits" });
+    }
+
     const { history, message, systemInstruction } = req.body;
 
     try {
@@ -215,6 +226,14 @@ router.post('/chat', async (req, res) => {
 
         const result = await chat.sendMessage(message);
         const responseText = typeof result.text === 'function' ? result.text() : result.text;
+
+        // 2. Deduct Credit
+        if (user.subscriptionTier !== 'pro') {
+            const info = db.prepare('UPDATE users SET credits = credits - 1 WHERE id = ?').run(user.id);
+            console.log(`[CreditAudit] Deducted 1 credit from User ${user.id} (Chat). Changes: ${info.changes}, Previous: ${user.credits}`);
+        } else {
+            console.log(`[CreditAudit] User ${user.id} is PRO. No deduction.`);
+        }
 
         res.json({ result: responseText });
     } catch (error) {
@@ -288,7 +307,10 @@ router.post('/ai/analyze-receipt', async (req, res) => {
 
         // Deduct Credit only on success
         if (user.subscriptionTier !== 'pro') {
-            db.prepare('UPDATE users SET credits = credits - 1 WHERE id = ?').run(user.id);
+            const info = db.prepare('UPDATE users SET credits = credits - 1 WHERE id = ?').run(user.id);
+            console.log(`[CreditAudit] Deducted 1 credit from User ${user.id}. Changes: ${info.changes}, Previous Credits: ${user.credits}`);
+        } else {
+            console.log(`[CreditAudit] User ${user.id} is PRO. No deduction.`);
         }
 
         const finalCredit = user.subscriptionTier === 'pro' ? '∞' : (user.credits - 1);

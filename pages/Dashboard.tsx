@@ -94,7 +94,7 @@ const Dashboard: React.FC = () => {
             return;
         }
 
-        if (!consumeCredits(1)) return;
+        if (!consumeCredits(1, true)) return;
 
         setIsLoading(true);
         setError(null);

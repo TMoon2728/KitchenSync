@@ -84,7 +84,7 @@ const SousChef: React.FC<SousChefProps> = ({ onDisable }) => {
         if (!text.trim()) return;
 
         // Check credits (1 credit per message)
-        if (!consumeCredits(1)) return;
+        if (!consumeCredits(1, true)) return;
 
         const newMessages: ChatMessage[] = [...messages, { role: 'user', text }];
         setMessages(newMessages);

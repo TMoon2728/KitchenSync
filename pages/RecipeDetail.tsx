@@ -36,7 +36,7 @@ const RecipeDetail: React.FC = () => {
     }
 
     const handleRemix = async () => {
-        if (!consumeCredits(1)) return;
+        if (!consumeCredits(1, true)) return;
 
         setIsLoading(true);
         setError(null);
@@ -84,7 +84,7 @@ const RecipeDetail: React.FC = () => {
         const isFree = !userProfile.hasUsedFreeImageGeneration;
 
         if (!isFree) {
-            if (!consumeCredits(1)) return;
+            if (!consumeCredits(1, true)) return;
         }
 
         setIsImageLoading(true);

@@ -49,7 +49,7 @@ const Recipes: React.FC = () => {
             return;
         }
 
-        if (!consumeCredits(1)) return;
+        if (!consumeCredits(1, true)) return;
 
         setIsAdding(true);
         setAddError(null);
@@ -83,7 +83,7 @@ const Recipes: React.FC = () => {
             return;
         }
 
-        if (!consumeCredits(1)) return;
+        if (!consumeCredits(1, true)) return;
 
         setIsImporting(true);
         setImportError(null);

@@ -111,7 +111,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }));
     };
 
-    const consumeCredits = (cost: number): boolean => {
+    const consumeCredits = (cost: number, skipBackendSync = false): boolean => {
         if (retroMode) return true;
         if (userProfile.subscriptionTier === 'pro') return true;
 
@@ -119,16 +119,18 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Optimistic update
             setUserProfile(prev => ({ ...prev, credits: prev.credits - cost }));
 
-            // Sync with backend
-            getAccessTokenSilently().then(token => {
-                authFetch('/api/credits/consume', {
-                    method: 'POST',
-                    body: JSON.stringify({ amount: cost }),
-                    token
-                }).catch(e => {
-                    console.error("Credit sync failed", e);
+            // Sync with backend ONLY if not skipped
+            if (!skipBackendSync) {
+                getAccessTokenSilently().then(token => {
+                    authFetch('/api/credits/consume', {
+                        method: 'POST',
+                        body: JSON.stringify({ amount: cost }),
+                        token
+                    }).catch(e => {
+                        console.error("Credit sync failed", e);
+                    });
                 });
-            });
+            }
             return true;
         }
         return false;

@@ -89,7 +89,7 @@ const Pantry: React.FC = () => {
     };
 
     const handleSuggestRecipes = async () => {
-        if (!consumeCredits(1)) return;
+        if (!consumeCredits(1, true)) return;
 
         setIsLoading(true);
         setError(null);
