@@ -37,7 +37,7 @@ The "KitchenSync" application successfully models the core product vision: **Rec
 ### 🚨 Critical Issues
 | Issue | Impact | Recommendation |
 | :--- | :--- | :--- |
-| **API Key Exposure** | **High** | `GEMINI_API_KEY` was previously injected via `vite.config.ts`. (Note: Ensure this is removed and only accessed server-side). |
+| **API Key Exposure** | **RESOLVED** | Verified: Key is accessed only in `server/routes/api.js`. Frontend uses `authFetch` proxy. |
 | **No Database** | **Critical** | App runs on `localStorage` and `mockData.ts`. Cannot scale or sync across devices. | **Implement PostgreSQL/MongoDB** immediately. |
 | **No Auth/Isolation** | **Critical** | No user separation. All users share the same "Default User" state if connected to the current basic server. | **Integrate Auth0/Firebase** or complete the JWT implementation. |
 

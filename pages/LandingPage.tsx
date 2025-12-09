@@ -18,26 +18,62 @@ const LandingPage: React.FC = () => {
             </nav>
 
             {/* Hero Section */}
-            <div className="relative pt-20 pb-32 overflow-hidden">
+            <div className="relative pt-20 pb-20 overflow-hidden">
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-blue-500/20 rounded-full blur-[100px] -z-10"></div>
 
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                    <h1 className="text-5xl md:text-7xl font-extrabold mb-8 tracking-tight">
+                    <div className="inline-block px-4 py-1.5 mb-6 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-300 text-sm font-semibold tracking-wide uppercase animate-fade-in-up">
+                        <i className="fas fa-sparkles mr-2"></i> Now with AI Receipt Scanning
+                    </div>
+                    <h1 className="text-5xl md:text-7xl font-extrabold mb-8 tracking-tight leading-tight">
                         Your Personal <br />
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-green-400 to-teal-400 animate-gradient-x">
                             AI Sous Chef
                         </span>
                     </h1>
-                    <p className="text-xl md:text-2xl text-gray-400 mb-12 max-w-3xl mx-auto">
-                        Stop wondering "What's for dinner?". Organize your pantry, generate recipes instantly, and master your meal planning with the power of AI.
+                    <p className="text-xl md:text-2xl text-gray-400 mb-10 max-w-3xl mx-auto leading-relaxed">
+                        Stop wondering "What's for dinner?". Organize your pantry, scan old receipts, and generate meal plans instantly.
                     </p>
                     <div className="flex flex-col sm:flex-row justify-center gap-4">
-                        <Link to="/register" className="px-8 py-4 bg-white text-gray-900 rounded-full font-bold text-lg hover:bg-gray-100 transition-all transform hover:scale-105 shadow-xl flex items-center justify-center">
-                            Start Cooking for Free <i className="fas fa-arrow-right ml-2"></i>
+                        <Link to="/register" className="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-full font-bold text-lg transition-all transform hover:scale-105 shadow-[0_0_20px_rgba(37,99,235,0.5)] flex items-center justify-center">
+                            Start Cooking for Free <i className="fas fa-arrow-right ml-2 opacity-80"></i>
                         </Link>
-                        <Link to="/login" className="px-8 py-4 bg-gray-800 text-white border border-gray-700 rounded-full font-bold text-lg hover:bg-gray-700 transition-all flex items-center justify-center">
-                            View Demo
-                        </Link>
+                    </div>
+                </div>
+            </div>
+
+            {/* Demo / Product Showcase Section */}
+            <div className="py-16 relative">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="relative rounded-3xl overflow-hidden border border-white/10 shadow-2xl bg-gray-900/50 backdrop-blur">
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10"></div>
+
+                        {/* Video Placeholder */}
+                        <div className="aspect-video w-full flex items-center justify-center relative group cursor-pointer hover:bg-black/20 transition-colors">
+                            {/* Decorative UI Mockup Elements */}
+                            <div className="absolute top-4 left-4 right-4 h-6 flex gap-2">
+                                <div className="w-3 h-3 rounded-full bg-red-500/50"></div>
+                                <div className="w-3 h-3 rounded-full bg-yellow-500/50"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-500/50"></div>
+                            </div>
+
+                            <div className="text-center transform transition-transform group-hover:scale-110">
+                                <div className="w-20 h-20 bg-white/10 backdrop-blur rounded-full flex items-center justify-center mb-4 mx-auto border border-white/20 shadow-[0_0_30px_rgba(255,255,255,0.1)]">
+                                    <i className="fas fa-play text-3xl text-white ml-1"></i>
+                                </div>
+                                <p className="text-gray-400 font-medium tracking-wide uppercse text-sm">Watch the Demo</p>
+                                <p className="text-gray-600 text-xs mt-2">(Coming Soon)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Social Proof / Trust Strip */}
+                    <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-8 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
+                        {/* Mock Logos */}
+                        <div className="text-center font-bold text-xl flex items-center justify-center gap-2"><i className="fas fa-carrot"></i> FreshFinds</div>
+                        <div className="text-center font-bold text-xl flex items-center justify-center gap-2"><i className="fas fa-utensil-spoon"></i> ChefDaily</div>
+                        <div className="text-center font-bold text-xl flex items-center justify-center gap-2"><i className="fas fa-leaf"></i> OrganicLife</div>
+                        <div className="text-center font-bold text-xl flex items-center justify-center gap-2"><i className="fas fa-fire"></i> HotPlate</div>
                     </div>
                 </div>
             </div>
