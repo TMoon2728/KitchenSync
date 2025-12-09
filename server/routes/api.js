@@ -52,6 +52,71 @@ router.post('/credits/consume', (req, res) => {
     }
 });
 
+// --- Model Resolution Helper ---
+let activeModel = null;
+
+const resolveModel = async () => {
+    if (activeModel) return activeModel;
+
+    // 1. Try Configured/Default
+    const preferred = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+
+    try {
+        // Test validity (lightweight check if possible, or just list)
+        const list = await genAI.models.list();
+        const available = [];
+        for await (const m of list) {
+            available.push(m);
+        }
+
+        const modelNames = available.map(m => m.name.replace('models/', ''));
+        console.log("Available Models:", modelNames);
+
+        // Check if preferred exists
+        if (modelNames.includes(preferred)) {
+            activeModel = preferred;
+            return activeModel;
+        }
+
+        // Fallback Strategy
+        // 1. Look for 'flash'
+        const flash = modelNames.find(n => n.includes('flash') && n.includes('1.5'));
+        if (flash) {
+            activeModel = flash;
+            return activeModel;
+        }
+
+        // 2. Look for 'pro'
+        const pro = modelNames.find(n => n.includes('pro') && n.includes('1.5'));
+        if (pro) {
+            activeModel = pro;
+            return activeModel;
+        }
+
+        // 3. Look for 'gemini-pro' (1.0)
+        const geminiPro = modelNames.find(n => n.includes('gemini-pro'));
+        if (geminiPro) {
+            activeModel = geminiPro;
+            return activeModel;
+        }
+
+        // 4. Any gemini
+        const anyGemini = modelNames.find(n => n.includes('gemini'));
+        if (anyGemini) {
+            activeModel = anyGemini;
+            return activeModel;
+        }
+
+        activeModel = preferred; // Hope for the best
+        return activeModel;
+
+    } catch (e) {
+        console.error("Failed to list models for resolution:", e);
+        return preferred;
+    }
+};
+
+
 // 3. Gemini Proxy: Generate Recipe
 router.post('/generate-recipe', async (req, res) => {
     if (!genAI) {
@@ -70,8 +135,11 @@ router.post('/generate-recipe', async (req, res) => {
     }
 
     try {
+        const modelName = await resolveModel();
+        console.log(`Using model: ${modelName}`);
+
         const result = await genAI.models.generateContent({
-            model: process.env.GEMINI_MODEL || "gemini-1.5-flash",
+            model: modelName,
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -96,6 +164,10 @@ router.post('/generate-recipe', async (req, res) => {
 
     } catch (error) {
         console.error("Gemini API Error:", error);
+        // Reset active model on 404 to trigger re-resolution next time
+        if (error.message.includes('404') || error.message.includes('NOT_FOUND')) {
+            activeModel = null;
+        }
         res.status(500).json({ error: "AI Generation Failed", details: error.message });
     }
 });
@@ -134,8 +206,9 @@ router.post('/chat', async (req, res) => {
     try {
         // Chat not directly supported in genAI.models? 
         // In new SDK: client.chats.create({ model: ..., ... })
+        const modelName = await resolveModel();
         const chat = genAI.chats.create({
-            model: process.env.GEMINI_MODEL || "gemini-1.5-flash",
+            model: modelName,
             config: { systemInstruction },
             history: history || []
         });
@@ -197,8 +270,9 @@ router.post('/ai/analyze-receipt', async (req, res) => {
             }
         };
 
+        const modelName = await resolveModel();
         const result = await genAI.models.generateContent({
-            model: process.env.GEMINI_MODEL || "gemini-1.5-flash",
+            model: modelName,
             contents: [prompt, imagePart],
             config: {
                 responseMimeType: "application/json"
