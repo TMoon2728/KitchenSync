@@ -186,9 +186,9 @@ const Dashboard: React.FC = () => {
                 <div className="flex items-center gap-6">
                     {userProfile.avatar && (
                         <div className="relative group">
-                            {userProfile.avatar.startsWith('http') ? (
+                            {(/^(http|https):\/\//i.test(userProfile.avatar.trim())) ? (
                                 <img
-                                    src={userProfile.avatar}
+                                    src={userProfile.avatar.trim()}
                                     alt="User Avatar"
                                     className="w-16 h-16 rounded-full object-cover shadow-lg border-2 border-white animate-float"
                                 />
