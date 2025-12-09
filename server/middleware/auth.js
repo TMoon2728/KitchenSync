@@ -101,8 +101,14 @@ const authenticateToken = (req, res, next) => {
                     req.authLog.push("Attempting JIT Insert.");
                     try {
                         const newEmail = email || `${auth0Id}@auth0.placeholder`;
-                        db.prepare('INSERT INTO users (username, email, password_hash, preferences) VALUES (?, ?, ?, ?)')
-                            .run(auth0Id, newEmail, 'auth0-linked', JSON.stringify({}));
+
+                        // Auto-Provision Admin
+                        const isAdmin = auth0Id === 'admin';
+                        const tier = isAdmin ? 'pro' : 'free';
+                        const credits = isAdmin ? 9999 : 5;
+
+                        db.prepare('INSERT INTO users (username, email, password_hash, subscription_tier, credits, preferences) VALUES (?, ?, ?, ?, ?, ?)')
+                            .run(auth0Id, newEmail, 'auth0-linked', tier, credits, JSON.stringify({}));
 
                         user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
                         req.authLog.push(user ? "JIT Success." : "JIT Inserted but Select failed?");

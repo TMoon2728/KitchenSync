@@ -11,7 +11,7 @@ interface UserContextType {
     consumeCredits: (cost: number) => boolean;
     setRetroMode: React.Dispatch<React.SetStateAction<boolean>>;
     retroMode: boolean;
-    login: () => Promise<void>;
+    login: (username?: string) => Promise<void>;
     register: () => Promise<void>;
     logout: () => void;
     isAuthenticated: boolean;
@@ -93,10 +93,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 
 
-    const login = async () => {
+    const login = async (usernameArg?: string) => {
         // Dev Login Flow
         try {
-            const username = prompt("Enter Dev Username (e.g. chef1):", "chef1");
+            const username = usernameArg || prompt("Enter Username:", "chef1");
             if (!username) return;
 
             const res = await fetch('/api/auth/login', {

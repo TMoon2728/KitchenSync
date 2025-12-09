@@ -14,12 +14,33 @@ const Login: React.FC = () => {
                 </div>
 
                 <div className="space-y-4">
-                    <button
-                        onClick={() => login()}
-                        className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                    >
-                        <i className="fas fa-sign-in-alt"></i> Sign In to Account
-                    </button>
+                    <div className="grid grid-cols-1 gap-4">
+                        <button
+                            onClick={() => login('admin')}
+                            className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-4 rounded-xl font-bold hover:from-purple-700 hover:to-indigo-700 transition-all shadow-md group text-left"
+                        >
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <span className="block text-lg">Admin Access</span>
+                                    <span className="text-purple-200 text-xs font-normal">Unlimited Credits & Pro Features</span>
+                                </div>
+                                <i className="fas fa-user-shield text-2xl opacity-50 group-hover:opacity-100 transition-opacity"></i>
+                            </div>
+                        </button>
+
+                        <button
+                            onClick={() => login('chef_demo')}
+                            className="bg-white border-2 border-gray-100 text-gray-700 p-4 rounded-xl font-bold hover:border-gray-300 hover:bg-gray-50 transition-all shadow-sm group text-left"
+                        >
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <span className="block text-lg">Demo Customer</span>
+                                    <span className="text-gray-400 text-xs font-normal">Standard Free Tier Experience</span>
+                                </div>
+                                <i className="fas fa-user text-2xl opacity-20 group-hover:opacity-100 transition-opacity"></i>
+                            </div>
+                        </button>
+                    </div>
 
                     <p className="text-sm text-gray-500 mt-4">
                         You will be redirected to our secure login page.
