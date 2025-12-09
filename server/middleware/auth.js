@@ -22,7 +22,7 @@ const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     if (!authHeader) return next();
 
-    jwtCheck(req, res, (err) => {
+    jwtCheck(req, res, async (err) => {
         if (err) {
             // Token invalid - allow public but log warn? Or fail?
             console.warn("Auth0 Token Invalid:", err.message);
@@ -39,9 +39,32 @@ const authenticateToken = (req, res, next) => {
             let user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
 
             if (!user) {
-                // 2. User not found by ID. Check if they exist by Email (Legacy Account Linking)
-                // Note: Auth0 token might not have email depending on scope, hence fallback
-                const email = req.auth.email;
+                // 2. User not found by ID. Need Email for Legacy Linking.
+                // Access Token might not have email. Fetch from Auth0 /userinfo to be sure.
+                let email = req.auth.email;
+
+                if (!email) {
+                    try {
+                        // Use the issuer URL to construct userinfo endpoint
+                        // AUTH0_ISSUER_BASE_URL usually looks like https://dev-xyz.us.auth0.com
+                        const userInfoUrl = `${process.env.AUTH0_ISSUER_BASE_URL}/userinfo`;
+
+                        // We use the same Access Token to fetch the profile
+                        const userRes = await fetch(userInfoUrl, {
+                            headers: { Authorization: req.headers['authorization'] }
+                        });
+
+                        if (userRes.ok) {
+                            const profile = await userRes.json();
+                            email = profile.email;
+                            console.log(`[AuthMiddleware] Fetched email from /userinfo: ${email}`);
+                        } else {
+                            console.warn(`[AuthMiddleware] /userinfo fetch failed: ${userRes.status}`);
+                        }
+                    } catch (fetchErr) {
+                        console.error("[AuthMiddleware] Failed to fetch /userinfo", fetchErr);
+                    }
+                }
 
                 if (email) {
                     user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
@@ -68,7 +91,7 @@ const authenticateToken = (req, res, next) => {
                         console.log(`[AuthMiddleware] JIT Provisioned user: ${auth0Id}`);
                     } catch (e) {
                         // Handle race condition: Unique constraint failed if created by another request in parallel
-                        console.warn("[AuthMiddleware] User creation race condition, retrying fetch");
+                        console.warn("[AuthMiddleware] User creation error (likely race condition or unique constraint)", e.message);
                         user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
                     }
                 }
