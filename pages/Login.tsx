@@ -24,14 +24,16 @@ const Login: React.FC = () => {
                         <span className="text-lg">Sign In / Register</span>
                     </button>
 
-                    <div className="border-t border-gray-100 pt-4">
-                        <button
-                            onClick={() => setShowDevTools(!showDevTools)}
-                            className="text-gray-400 text-sm hover:text-gray-600 transition-colors"
-                        >
-                            {showDevTools ? 'Hide Developer Options' : 'Show Developer Options'}
-                        </button>
-                    </div>
+                    {import.meta.env.DEV && (
+                        <div className="border-t border-gray-100 pt-4">
+                            <button
+                                onClick={() => setShowDevTools(!showDevTools)}
+                                className="text-gray-400 text-sm hover:text-gray-600 transition-colors"
+                            >
+                                {showDevTools ? 'Hide Developer Options' : 'Show Developer Options'}
+                            </button>
+                        </div>
+                    )}
 
                     {/* Dev Tools Section */}
                     {showDevTools && (
