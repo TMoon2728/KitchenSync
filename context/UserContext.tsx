@@ -11,7 +11,8 @@ interface UserContextType {
     consumeCredits: (cost: number) => boolean;
     setRetroMode: React.Dispatch<React.SetStateAction<boolean>>;
     retroMode: boolean;
-    login: (username?: string) => Promise<void>;
+    login: () => Promise<void>;
+    devLogin: (username?: string) => Promise<void>;
     register: () => Promise<void>;
     logout: () => void;
     isAuthenticated: boolean;
@@ -34,7 +35,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Dev Auth State (since we are replacing Auth0 for this phase)
     const [devToken, setDevToken] = useState<string | null>(localStorage.getItem('ks_token'));
-    const isAuthenticated = !!devToken; // Override Auth0 for now
+    // Hybrid Auth: True if either is valid
+    const isAuthenticated = isAuth0Authenticated || !!devToken;
 
     useEffect(() => {
         if (error) {
@@ -88,113 +90,45 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             } else {
                 setLoading(false);
             }
-        }
-    }, [isAuthenticated, auth0Loading]);
+        };
 
+        const register = async () => {
+            // Re-use login for dev since JIT handles creation
+            await login();
+        };
 
+        const logout = () => {
+            // auth0Logout({ logoutParams: { returnTo: window.location.origin } });
+            localStorage.removeItem('ks_token');
+            setDevToken(null);
+            setUserProfile(MOCK_PROFILE);
+        };
 
-    const login = async (usernameArg?: string) => {
-        // Dev Login Flow
-        try {
-            const username = usernameArg || prompt("Enter Username:", "chef1");
-            if (!username) return;
+        const updateProfile = (updates: Partial<UserProfile>) => {
+            setUserProfile(prev => ({ ...prev, ...updates }));
+        };
 
-            const res = await fetch('/api/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username })
-            });
+        const updatePreferences = (updates: Partial<UserPreferences>) => {
+            setUserProfile(prev => ({
+                ...prev,
+                preferences: { ...prev.preferences!, ...updates }
+            }));
+        };
 
-            if (res.ok) {
-                const data = await res.json();
-                const token = data.access_token;
-                localStorage.setItem('ks_token', token);
-                setDevToken(token);
-                // Trigger profile refresh
-                setTimeout(refreshProfile, 100);
-            } else {
-                alert("Login failed");
-            }
-        } catch (e) {
-            console.error("Login Error", e);
-            alert("Login System Error");
-        }
-    };
+        const consumeCredits = (cost: number, skipBackendSync = false): boolean => {
+            if (retroMode) return true;
+            if (userProfile.subscriptionTier === 'pro') return true;
 
-    const register = async () => {
-        // Re-use login for dev since JIT handles creation
-        await login();
-    };
+            if (userProfile.credits >= cost) {
+                // Optimistic update
+                setUserProfile(prev => ({ ...prev, credits: prev.credits - cost }));
 
-    const logout = () => {
-        // auth0Logout({ logoutParams: { returnTo: window.location.origin } });
-        localStorage.removeItem('ks_token');
-        setDevToken(null);
-        setUserProfile(MOCK_PROFILE);
-    };
-
-    const updateProfile = (updates: Partial<UserProfile>) => {
-        setUserProfile(prev => ({ ...prev, ...updates }));
-    };
-
-    const updatePreferences = (updates: Partial<UserPreferences>) => {
-        setUserProfile(prev => ({
-            ...prev,
-            preferences: { ...prev.preferences!, ...updates }
-        }));
-    };
-
-    const consumeCredits = (cost: number, skipBackendSync = false): boolean => {
-        if (retroMode) return true;
-        if (userProfile.subscriptionTier === 'pro') return true;
-
-        if (userProfile.credits >= cost) {
-            // Optimistic update
-            setUserProfile(prev => ({ ...prev, credits: prev.credits - cost }));
-
-            // Sync with backend ONLY if not skipped
-            if (!skipBackendSync) {
-                getAccessTokenSilently().then(token => {
-                    authFetch('/api/credits/consume', {
-                        method: 'POST',
-                        body: JSON.stringify({ amount: cost }),
-                        token
-                    }).catch(e => {
-                        console.error("Credit sync failed", e);
-                    });
-                });
-            }
-            return true;
-        }
-        return false;
-    };
-
-    const getAccessToken = async () => {
-        return devToken || "";
-    };
-
-    return (
-        <UserContext.Provider value={{
-            userProfile,
-            updateProfile,
-            updatePreferences,
-            consumeCredits,
-            retroMode,
-            setRetroMode,
-            login: login as any,
-            register: register as any,
-            logout,
-            isAuthenticated,
-            isLoading: loading || auth0Loading,
-            getAccessToken
-        }}>
-            {children}
-        </UserContext.Provider>
-    );
-};
-
-export const useUser = () => {
-    const context = useContext(UserContext);
-    if (!context) throw new Error('useUser must be used within a UserProvider');
-    return context;
-};
+                // Sync with backend ONLY if not skipped
+                if (!skipBackendSync) {
+                    getAccessTokenSilently().then(token => {
+                        authFetch('/api/credits/consume', {
+                            method: 'POST',
+                            const context = useContext(UserContext);
+                            if(!context) throw new Error('useUser must be used within a UserProvider');
+                            return context;
+                        };
