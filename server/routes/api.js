@@ -71,7 +71,7 @@ router.post('/generate-recipe', async (req, res) => {
 
     try {
         const result = await genAI.models.generateContent({
-            model: "gemini-1.5-flash",
+            model: process.env.GEMINI_MODEL || "gemini-1.5-flash",
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -135,7 +135,7 @@ router.post('/chat', async (req, res) => {
         // Chat not directly supported in genAI.models? 
         // In new SDK: client.chats.create({ model: ..., ... })
         const chat = genAI.chats.create({
-            model: "gemini-1.5-flash",
+            model: process.env.GEMINI_MODEL || "gemini-1.5-flash",
             config: { systemInstruction },
             history: history || []
         });
@@ -198,7 +198,7 @@ router.post('/ai/analyze-receipt', async (req, res) => {
         };
 
         const result = await genAI.models.generateContent({
-            model: "gemini-1.5-flash",
+            model: process.env.GEMINI_MODEL || "gemini-1.5-flash",
             contents: [prompt, imagePart],
             config: {
                 responseMimeType: "application/json"
@@ -227,6 +227,39 @@ router.post('/ai/analyze-receipt', async (req, res) => {
     } catch (error) {
         console.error("Receipt Analysis Failed:", error);
         res.status(500).json({ error: "Analysis Failed", details: error.message });
+    }
+});
+
+// 6. Debug: List Models
+router.get('/ai/models', async (req, res) => {
+    if (!genAI) return res.status(503).json({ error: "AI Service Unavailable" });
+    try {
+        // Attempt to list models. SDK dependent.
+        // Try the standard way:
+        let models = [];
+        try {
+            const list = await genAI.models.list();
+            // result might be an iterable or object with 'models'
+            for await (const model of list) {
+                models.push(model);
+            }
+        } catch (e1) {
+            console.warn("List models method 1 failed", e1);
+            try {
+                // Fallback for older/different SDK structure
+                const response = await genAI.listModels();
+                models = response;
+            } catch (e2) {
+                console.warn("List models method 2 failed", e2);
+                return res.status(500).json({ error: "Could not list models", details: [e1.message, e2.message] });
+            }
+        }
+
+        const names = Array.isArray(models) ? models.map(m => m.name) : models;
+        res.json({ models: names, current_configured: process.env.GEMINI_MODEL || "gemini-1.5-flash" });
+    } catch (error) {
+        console.error("List Models Error:", error);
+        res.status(500).json({ error: "Failed to list models" });
     }
 });
 
