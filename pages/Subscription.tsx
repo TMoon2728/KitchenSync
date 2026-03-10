@@ -36,7 +36,7 @@ const Subscription: React.FC = () => {
         try {
             const res = await authFetch('/api/subscription/upgrade', {
                 method: 'POST',
-                body: JSON.stringify({ tier })
+                body: JSON.stringify({ tier, payment_token: 'dummy_stripe_token_123' })
             });
 
             if (res.ok) {

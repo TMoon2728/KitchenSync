@@ -38,6 +38,10 @@ router.post('/credits/consume', (req, res) => {
 
     if (!user) return res.status(401).json({ error: "Unauthorized" });
 
+    if (typeof amount !== 'number' || amount <= 0) {
+        return res.status(400).json({ error: "Invalid amount. Must be a positive number." });
+    }
+
     if (user.subscriptionTier === 'pro') {
         return res.json({ success: true, remaining: '∞', tier: 'pro' });
     }
@@ -177,13 +181,18 @@ router.post('/generate-recipe', async (req, res) => {
 
 // 4. Upgrade Subscription
 router.post('/subscription/upgrade', (req, res) => {
-    const { tier } = req.body; // 'starter' or 'pro'
+    const { tier, payment_token } = req.body; // 'starter' or 'pro'
     const user = getUser(req);
 
     if (!user) return res.status(401).json({ error: "Unauthorized" });
 
     if (!['starter', 'pro'].includes(tier)) {
         return res.status(400).json({ error: "Invalid tier" });
+    }
+
+    // Prototype security: require a specific dummy token for upgrades
+    if (!payment_token || payment_token !== 'dummy_stripe_token_123') {
+        return res.status(403).json({ error: "Forbidden. Invalid payment token." });
     }
 
     try {
