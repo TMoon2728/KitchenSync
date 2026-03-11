@@ -8,6 +8,7 @@ import { generateRecipeFromIngredients } from '../services/geminiService';
 import Spinner from '../components/Spinner';
 import confetti from 'canvas-confetti';
 import { convertQuantity } from '../utils/unitConversion';
+import type { Ingredient } from '../types';
 
 const StatCard: React.FC<{ icon: string; title: string; value: string | number; color: string; delay: string; to: string; state?: any }> = ({ icon, title, value, color, delay, to, state }) => (
     <Link to={to} state={state} className={`bg-white p-4 rounded-xl shadow-lg border-b-4 border-gray-100 flex items-center transform transition-all duration-300 hover:-translate-y-1 hover:shadow-xl animate-slide-up ${delay} block`}>
@@ -41,6 +42,7 @@ const Dashboard: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [funFact, setFunFact] = useState('');
+    const [missingIngredientsPrompt, setMissingIngredientsPrompt] = useState<{ recipeName: string, missing: Ingredient[] } | null>(null);
 
     useEffect(() => {
         setFunFact(FOOD_FACTS[Math.floor(Math.random() * FOOD_FACTS.length)]);
@@ -124,18 +126,8 @@ const Dashboard: React.FC = () => {
     const handleMarkAsCooked = () => {
         if (!todaysDinnerRecipe) return;
 
-        // Trigger Confetti based on preferences
-        if (userProfile.preferences?.enableConfetti !== false) {
-            const intensity = userProfile.preferences?.confettiIntensity || 'medium';
-            const count = intensity === 'low' ? 50 : intensity === 'high' ? 300 : 150;
-
-            confetti({
-                particleCount: count,
-                spread: 70,
-                origin: { y: 0.6 },
-                colors: ['#22c55e', '#3b82f6', '#eab308'] // Green, Blue, Yellow
-            });
-        }
+        // Trigger Confetti ... wait, only confetti if NO missing ingredients!
+        const missingIngs: Ingredient[] = [];
 
         // 1. Update Meal Plan
         setMealPlan(prev => {
@@ -165,10 +157,45 @@ const Dashboard: React.FC = () => {
                     } else {
                         console.warn(`Unit mismatch for ${ing.name} in Dashboard deduction.`);
                     }
+                } else {
+                    missingIngs.push(ing);
                 }
             });
             return newPantry;
         });
+
+        if (missingIngs.length > 0) {
+            setMissingIngredientsPrompt({ recipeName: todaysDinnerRecipe.name, missing: missingIngs });
+        } else if (userProfile.preferences?.enableConfetti !== false) {
+            const intensity = userProfile.preferences?.confettiIntensity || 'medium';
+            const count = intensity === 'low' ? 50 : intensity === 'high' ? 300 : 150;
+
+            confetti({
+                particleCount: count,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#22c55e', '#3b82f6', '#eab308'] // Green, Blue, Yellow
+            });
+        }
+    };
+
+    const handleAddMissingToPantry = (ingredientsToAdd: Ingredient[]) => {
+        const itemsToAdd: Omit<PantryItem, 'id'>[] = ingredientsToAdd.map((ing) => ({
+            name: ing.name,
+            quantity: 1, 
+            unit: ing.unit || 'unit',
+            category: ing.category || 'Other',
+            expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        }));
+        
+        let newItemsWithIds = itemsToAdd.map((item, i) => ({ ...item, id: Date.now() + i }));
+        setPantry(prev => [...prev, ...newItemsWithIds]);
+        
+        setMissingIngredientsPrompt(null);
+        
+        if (userProfile.preferences?.enableConfetti !== false) {
+            confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+        }
     };
 
     // Calculate Kitchen Health (Recipes capable of making / Total Recipes)
@@ -407,6 +434,61 @@ const Dashboard: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* Workflow 2: Missing Ingredients Prompt Modal */}
+            {missingIngredientsPrompt && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+                    <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full animate-scale-in border border-gray-100">
+                        <div className="flex items-center justify-center mb-6 relative">
+                            <div className="w-16 h-16 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-500 shadow-sm border-4 border-white absolute -top-12">
+                                <i className="fas fa-lightbulb text-2xl animate-pulse"></i>
+                            </div>
+                        </div>
+                        
+                        <div className="text-center mt-4 mb-6">
+                            <h3 className="text-xl font-black text-gray-800 mb-2">Did you already have these?</h3>
+                            <p className="text-sm text-gray-600">
+                                You just cooked <strong>{missingIngredientsPrompt.recipeName}</strong>, but these ingredients weren't in your KitchenSync Pantry. 
+                                <br/><br/>If you had them in your real kitchen, add them now so we know for next time!
+                            </p>
+                        </div>
+
+                        <div className="bg-gray-50 p-4 rounded-xl mb-6 border border-gray-100 max-h-48 overflow-y-auto custom-scrollbar">
+                            <ul className="text-sm font-semibold text-gray-700 space-y-3">
+                                {missingIngredientsPrompt.missing.map((ing, i) => (
+                                    <li key={i} className="flex justify-between items-center group">
+                                        <div className="flex items-center gap-2">
+                                            <i className="fas fa-plus-circle text-green-500 opacity-50 group-hover:opacity-100 transition-opacity"></i>
+                                            <span>{ing.name}</span>
+                                        </div>
+                                        <span className="text-xs text-gray-400 font-mono bg-white px-2 py-0.5 rounded border border-gray-100">{ing.category || 'Other'}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+
+                        <div className="flex justify-center gap-3">
+                            <button
+                                onClick={() => {
+                                    setMissingIngredientsPrompt(null);
+                                    if (userProfile.preferences?.enableConfetti !== false) {
+                                        confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+                                    }
+                                }}
+                                className="px-5 py-2.5 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 font-bold text-sm transition-colors w-full"
+                            >
+                                Skip
+                            </button>
+                            <button
+                                onClick={() => handleAddMissingToPantry(missingIngredientsPrompt.missing)}
+                                className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg hover:shadow-blue-500/30 text-sm w-full flex items-center justify-center gap-2"
+                            >
+                                <i className="fas fa-check"></i> Add to Pantry
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

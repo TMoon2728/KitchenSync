@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import type { Recipe } from '../types';
+import type { Recipe, Ingredient, PantryItem } from '../types';
 import { useKitchen } from '../context/KitchenContext';
 import confetti from 'canvas-confetti';
+import { convertQuantity } from '../utils/unitConversion';
 
 const CookingMode: React.FC = () => {
-    const { recipes } = useKitchen();
+    const { recipes, pantry, setPantry } = useKitchen();
     const { id } = useParams();
     const recipe = recipes.find(r => r.id === Number(id));
 
@@ -19,6 +20,7 @@ const CookingMode: React.FC = () => {
     const [currentStep, setCurrentStep] = useState(0);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [isCompleted, setIsCompleted] = useState(false);
+    const [missingIngredients, setMissingIngredients] = useState<Ingredient[]>([]);
 
     if (!recipe) return <div className="text-white text-center mt-20">Recipe not found</div>;
 
@@ -42,7 +44,51 @@ const CookingMode: React.FC = () => {
         } else {
             setIsCompleted(true);
             fireConfetti();
+            
+            // Deduct from pantry and track missing
+            const missingIngs: Ingredient[] = [];
+            
+            setPantry(prevPantry => {
+                const newPantry = prevPantry.map(item => ({ ...item }));
+                recipe.ingredients.forEach(ing => {
+                    const pantryItemIndex = newPantry.findIndex(
+                        p => p.name.toLowerCase() === ing.name.toLowerCase()
+                    );
+
+                    if (pantryItemIndex > -1) {
+                        const pantryItem = newPantry[pantryItemIndex];
+                        const conversionResult = convertQuantity(ing.quantity, ing.unit, pantryItem.unit);
+
+                        if (conversionResult !== null) {
+                            pantryItem.quantity = Math.max(0, pantryItem.quantity - conversionResult);
+                        }
+                    } else {
+                        missingIngs.push(ing);
+                    }
+                });
+                return newPantry;
+            });
+
+            if (missingIngs.length > 0) {
+                setMissingIngredients(missingIngs);
+            }
         }
+    };
+
+    const handleAddMissingToPantry = () => {
+        const itemsToAdd: Omit<PantryItem, 'id'>[] = missingIngredients.map((ing) => ({
+            name: ing.name,
+            quantity: 1, // Default
+            unit: ing.unit || 'unit',
+            category: ing.category || 'Other',
+            expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        }));
+
+        let newItemsWithIds = itemsToAdd.map((item, i) => ({ ...item, id: Date.now() + i }));
+        setPantry(prev => [...prev, ...newItemsWithIds]);
+        
+        setMissingIngredients([]);
+        fireConfetti();
     };
 
     const handlePrev = () => {
@@ -129,8 +175,30 @@ const CookingMode: React.FC = () => {
                         <h2 className="text-4xl font-bold text-white mb-4">Dish Completed!</h2>
                         <p className="text-xl text-gray-300 mb-8">Great job, Chef! You've successfully cooked {recipe.name}.</p>
 
+                        {missingIngredients.length > 0 && (
+                            <div className="bg-gray-800/80 p-6 rounded-2xl border border-yellow-500/50 mb-8 w-full max-w-lg shadow-inner text-left animate-fade-in">
+                                <h3 className="text-yellow-400 font-bold mb-2 flex items-center gap-2">
+                                    <i className="fas fa-lightbulb"></i> Cook to Add
+                                </h3>
+                                <p className="text-gray-300 text-sm mb-4">We noticed these ingredients weren't in your Pantry. If you still have some left, add them to your inventory now:</p>
+                                <ul className="text-sm font-semibold text-gray-200 space-y-2 mb-4 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
+                                    {missingIngredients.map((ing, i) => (
+                                        <li key={i} className="flex justify-between items-center bg-gray-700/50 p-2 rounded-lg border border-gray-600">
+                                            <span>{ing.name} <span className="text-gray-400 ml-1 text-xs font-normal">({ing.category || 'Other'})</span></span>
+                                        </li>
+                                    ))}
+                                </ul>
+                                <button
+                                    onClick={handleAddMissingToPantry}
+                                    className="w-full bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-bold py-2 px-4 rounded-xl transition-colors shadow-lg shadow-yellow-500/20"
+                                >
+                                    Add All to Pantry
+                                </button>
+                            </div>
+                        )}
+
                         <div className="flex gap-4">
-                            <button onClick={() => { setIsCompleted(false); setCurrentStep(0); }} className="px-6 py-3 rounded-lg border border-gray-500 text-gray-300 hover:bg-gray-800 transition-colors">
+                            <button onClick={() => { setIsCompleted(false); setCurrentStep(0); setMissingIngredients([]); }} className="px-6 py-3 rounded-lg border border-gray-500 text-gray-300 hover:bg-gray-800 transition-colors">
                                 Cook Again
                             </button>
                             <Link to="/" className="px-8 py-3 rounded-lg bg-green-600 text-white font-bold hover:bg-green-500 transition-transform hover:scale-105 shadow-lg">
