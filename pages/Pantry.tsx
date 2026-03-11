@@ -219,11 +219,69 @@ const Pantry: React.FC = () => {
         <button onClick={() => setView(value)} className={`flex-1 md:flex-none px-6 py-2 text-sm font-bold rounded-xl transition-all ${view === value ? 'bg-white text-gray-800 shadow-md' : 'text-gray-500 hover:bg-gray-200/50'}`}>{children}</button>
     );
 
+    const handlePantryCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsScanning(true);
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+            const base64 = reader.result as string;
+            try {
+                const { scanPantryStorage } = await import('../services/geminiService');
+                const token = await getAccessToken();
+                const res = await scanPantryStorage(base64, token);
+
+                if (res && res.items && res.items.length > 0) {
+                    // Ask user to review before blindly adding? 
+                    // Let's just dump them into selectedIngredients to review in the 'all' view
+                    res.items.forEach((item: any) => {
+                        // Quick add them directly for now, or use batchAdd.
+                        // Let's batch add them to make it magic.
+                    });
+                    
+                    await batchAddPantryItems(res.items);
+                    alert(`Magic! Added ${res.items.length} items from your pantry photo!`);
+                } else {
+                    alert("Couldn't identify any clear items. Try getting closer!");
+                }
+            } catch (error) {
+                console.error("Pantry Scan failed", error);
+                alert("Error scanning pantry.");
+            } finally {
+                setIsScanning(false);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
     return (
         <div className="max-w-5xl mx-auto space-y-8 animate-fade-in">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                 <h1 className="text-3xl font-extrabold text-gray-800">My Pantry</h1>
                 <div className="flex gap-2 items-center">
+                    
+                    {/* Scan Pantry Button */}
+                    <div className="relative">
+                        <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            id="pantry-shelf-upload"
+                            className="hidden"
+                            onChange={handlePantryCapture}
+                            disabled={isScanning}
+                        />
+                        <label
+                            htmlFor="pantry-shelf-upload"
+                            className={`cursor-pointer bg-blue-100 border border-blue-200 text-blue-800 px-4 py-2 rounded-xl font-bold hover:bg-blue-200 transition-colors flex items-center shadow-sm ${isScanning ? 'opacity-50 cursor-wait' : ''}`}
+                            title="Take a photo of your fridge or pantry to auto-add items!"
+                        >
+                            {isScanning ? <i className="fas fa-spinner fa-spin mr-2"></i> : <i className="fas fa-camera-viewfinder mr-2"></i>}
+                            <span className="hidden sm:inline ml-1">{isScanning ? 'Scanning...' : 'Scan Fridge/Pantry'}</span>
+                        </label>
+                    </div>
+
                     <div className="relative">
                         <input
                             type="file"
@@ -238,7 +296,7 @@ const Pantry: React.FC = () => {
                             htmlFor="pantry-receipt-upload"
                             className={`cursor-pointer bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-xl font-bold hover:bg-gray-50 transition-colors flex items-center shadow-sm ${isScanning ? 'opacity-50 cursor-wait' : ''}`}
                         >
-                            {isScanning ? <i className="fas fa-spinner fa-spin mr-2"></i> : <i className="fas fa-camera mr-2"></i>}
+                            {isScanning ? <i className="fas fa-spinner fa-spin mr-2"></i> : <i className="fas fa-receipt mr-2"></i>}
                             <span className="hidden sm:inline ml-1">{isScanning ? 'Scanning...' : 'Scan Receipt'}</span>
                         </label>
                     </div>

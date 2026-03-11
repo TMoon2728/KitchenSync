@@ -256,6 +256,21 @@ export const generateRecipeImage = async (recipeName: string, description?: stri
     return null;
 };
 
+export const scanPantryStorage = async (base64Image: string, token: string): Promise<any | null> => {
+    try {
+        const response = await authFetch(`${API_BASE}/ai/scan-pantry`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: base64Image }),
+            token
+        });
+        return handleApiResponse<any>(response);
+    } catch (error) {
+        console.error("Error scanning pantry photo:", error);
+        return null;
+    }
+};
+
 // Chat with Sous Chef
 export interface ChatMessage {
     role: 'user' | 'model';

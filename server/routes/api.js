@@ -368,4 +368,69 @@ router.get('/ai/models', async (req, res) => {
     }
 });
 
+// 6. Gemini Proxy: Analyze Pantry Photo
+router.post('/ai/scan-pantry', async (req, res) => {
+    if (!genAI) {
+        return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
+    }
+
+    const { image } = req.body;
+    const user = getUser(req);
+
+    if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
+
+    if (user.subscriptionTier !== 'pro' && user.credits < 1) {
+        return res.status(402).json({ error: "Insufficient credits" });
+    }
+
+    try {
+        const prompt = `
+        You are a smart inventory assistant. Analyze this photo of a pantry shelf or refrigerator.
+        
+        Task:
+        1. Identify clearly visible food and grocery items.
+        2. Estimate the quantity (e.g. 1 jar, 10 eggs).
+        3. Guess an appropriate unit and grocery category for each item.
+        
+        Output strictly as JSON:
+        {
+          "items": [
+             { "name": "Item Name", "quantity": 1, "unit": "unit", "category": "Produce" }
+          ]
+        }
+        `;
+
+        const imagePart = {
+            inlineData: {
+                data: image.split(',')[1],
+                mimeType: "image/jpeg"
+            }
+        };
+
+        const modelName = await resolveModel();
+        const result = await genAI.models.generateContent({
+            model: modelName,
+            contents: [prompt, imagePart],
+            config: { responseMimeType: "application/json" }
+        });
+
+        const responseText = typeof result.text === 'function' ? result.text() : result.text;
+        const cleanedText = responseText.replace(/```json|```/g, '').trim();
+        const data = JSON.parse(cleanedText);
+
+        if (user.subscriptionTier !== 'pro') {
+            const info = db.prepare('UPDATE users SET credits = credits - 1 WHERE id = ?').run(user.id);
+            console.log(`[CreditAudit] Deducted 1 credit for Pantry Scan. User ${user.id}`);
+        }
+
+        const finalCredit = user.subscriptionTier === 'pro' ? '∞' : (user.credits - 1);
+
+        res.json({ result: data, creditsRemaining: finalCredit });
+
+    } catch (error) {
+        console.error("Pantry Scan Failed:", error);
+        res.status(500).json({ error: "Scan Failed", details: error.message });
+    }
+});
+
 module.exports = router;
