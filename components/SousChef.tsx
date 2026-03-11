@@ -66,11 +66,6 @@ const SousChef: React.FC<SousChefProps> = ({ onDisable }) => {
         const hasSeen = localStorage.getItem('ks_sous_chef_seen');
         if (!hasSeen) {
             setShowTooltip(true);
-            const timer = setTimeout(() => {
-                setShowTooltip(false);
-                localStorage.setItem('ks_sous_chef_seen', 'true');
-            }, 8000);
-            return () => clearTimeout(timer);
         }
     }, []);
 

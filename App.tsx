@@ -23,7 +23,6 @@ const Subscription = React.lazy(() => import('./pages/Subscription'));
 
 // Eager Load Auth Pages & Landing (Critical Path)
 import Login from './pages/Login';
-import Register from './pages/Register';
 import LandingPage from './pages/LandingPage';
 import UpgradeModal from './components/UpgradeModal';
 import SousChef from './components/SousChef';
@@ -45,7 +44,6 @@ const AppContent: React.FC = () => {
             <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         );

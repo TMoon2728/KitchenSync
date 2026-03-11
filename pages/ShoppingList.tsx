@@ -439,13 +439,21 @@ const ShoppingList: React.FC = () => {
                         ))}
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center justify-center h-96 text-center">
-                        <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mb-6">
-                            <i className="fas fa-check-double text-4xl text-green-300"></i>
+                    <div className="flex flex-col items-center justify-center h-96 text-center animate-fade-in">
+                        <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-blue-100">
+                            <i className="fas fa-shopping-basket text-4xl text-blue-400"></i>
                         </div>
-                        <h2 className="text-2xl font-bold text-gray-800 mb-2">All Clear!</h2>
-                        <p className="text-gray-500 max-w-sm">Your shopping list is empty. Plan some meals to generate your mission objectives.</p>
-                        <a href="#/planner" className="mt-6 text-blue-600 font-bold hover:underline">Go to Meal Planner</a>
+                        <h2 className="text-2xl font-bold text-gray-800 mb-3">Your List is Empty!</h2>
+                        <p className="text-gray-600 max-w-md mb-8">
+                            Your shopping list is generated automatically when you add recipes to your Meal Planner. Make planning a breeze!
+                        </p>
+                        <Link 
+                            to="/planner" 
+                            className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md hover:shadow-lg flex items-center gap-2 group"
+                        >
+                            Head to Meal Planner 
+                            <i className="fas fa-arrow-right transform group-hover:translate-x-1 transition-transform"></i>
+                        </Link>
                     </div>
                 )}
             </div>
