@@ -66,7 +66,8 @@ const populateUser = async (req, res, next) => {
             if (!user) {
                 req.authLog.push("Attempting JIT Insert.");
                 try {
-                    const newEmail = email || `${auth0Id}@auth0.placeholder`;
+                    // Sometimes email is in a custom namespace in Auth0, or directly on payload
+                    const resolvedEmail = email || payload['https://kitchensync.com/email'] || payload.email || `${auth0Id}@auth0.placeholder`;
 
                     // Auto-Provision Admin
                     const isAdmin = auth0Id === 'admin';
@@ -74,7 +75,7 @@ const populateUser = async (req, res, next) => {
                     const credits = isAdmin ? 9999 : 5;
 
                     db.prepare('INSERT INTO users (username, email, password_hash, subscription_tier, credits, preferences) VALUES (?, ?, ?, ?, ?, ?)')
-                        .run(auth0Id, newEmail, 'auth0-linked', tier, credits, JSON.stringify({}));
+                        .run(auth0Id, resolvedEmail, 'auth0-linked', tier, credits, JSON.stringify({}));
 
                     user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
                     req.authLog.push(user ? "JIT Success." : "JIT Inserted but Select failed?");

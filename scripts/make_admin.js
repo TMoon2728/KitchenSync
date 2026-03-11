@@ -9,10 +9,10 @@ if (!email) {
 }
 
 try {
-    const user = db.prepare('SELECT id, username, subscription_tier FROM users WHERE email = ?').get(email);
+    const user = db.prepare('SELECT id, username, email, subscription_tier FROM users WHERE email = ? OR username = ?').get(email, email);
 
     if (!user) {
-        console.error(`❌ User with email '${email}' not found in the database.`);
+        console.error(`❌ User with identifier '${email}' not found in the database.`);
         console.log("Please make sure the user logs into KitchenSync at least once before making them an admin.");
         process.exit(1);
     }
