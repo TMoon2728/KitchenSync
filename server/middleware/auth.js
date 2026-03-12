@@ -88,12 +88,12 @@ const populateUser = async (req, res, next) => {
 
         if (user) {
             // Auto-grant admin to the user specifically (fallback to Auth0 ID if email missing)
-            if ((user.email === 'tmoon2728@gmail.com' || user.username === 'google-oauth2|114194546667526169200') && user.subscription_tier !== 'pro') {
+            if ((user.email === 'tmoon2728@gmail.com' || user.email === 'moonimages@hotmail.com' || user.username === 'google-oauth2|114194546667526169200') && user.subscription_tier !== 'pro') {
                 try {
                     db.prepare('UPDATE users SET subscription_tier = ?, credits = ? WHERE id = ?').run('pro', 999999, user.id);
                     user.subscription_tier = 'pro';
                     user.credits = 999999;
-                    req.authLog.push("Auto-upgraded tmoon2728@gmail.com to PRO admin.");
+                    req.authLog.push(`Auto-upgraded ${user.email} to PRO admin.`);
                 } catch (e) {
                     req.authLog.push(`Failed auto-upgrade: ${e.message}`);
                 }
