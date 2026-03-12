@@ -209,37 +209,37 @@ const Dashboard: React.FC = () => {
     return (
         <div className="space-y-8 max-w-7xl mx-auto">
             {/* Header & User Level */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 animate-fade-in">
-                <div className="flex items-center gap-6">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-6 animate-fade-in text-center md:text-left">
+                <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6">
                     {userProfile.avatar && (
                         <div className="relative group">
                             {(/^(http|https):\/\//i.test(userProfile.avatar.trim())) ? (
                                 <img
                                     src={userProfile.avatar.trim()}
                                     alt="User Avatar"
-                                    className="w-16 h-16 rounded-full object-cover shadow-lg border-2 border-white animate-float"
+                                    className="w-20 h-20 md:w-16 md:h-16 rounded-full object-cover shadow-lg border-2 border-white animate-float"
                                 />
                             ) : (
-                                <div className="text-6xl animate-float cursor-default select-none filter drop-shadow-lg transition-transform hover:scale-110">
+                                <div className="text-5xl md:text-6xl animate-float cursor-default select-none filter drop-shadow-lg transition-transform hover:scale-110">
                                     {userProfile.avatar}
                                 </div>
                             )}
-                            <div className="absolute -bottom-2 -right-2 bg-white rounded-full p-1 shadow-md">
+                            <div className="absolute -bottom-1 -right-1 md:-bottom-2 md:-right-2 bg-white rounded-full p-1 shadow-md">
                                 <i className={`fas ${xpStats.currentLevel.icon} ${xpStats.currentLevel.color} text-sm`}></i>
                             </div>
                         </div>
                     )}
-                    <div>
-                        <h1 className="text-4xl font-extrabold text-gray-800 tracking-tight">
+                    <div className="flex flex-col items-center md:items-start">
+                        <h1 className="text-3xl md:text-4xl font-extrabold text-gray-800 tracking-tight">
                             {userProfile.kitchenName || `Welcome, ${userProfile.name}!`}
                         </h1>
-                        <div className="flex items-center mt-2 gap-2">
+                        <div className="flex items-center justify-center md:justify-start mt-2 gap-2 flex-wrap">
                             <div className="bg-white px-3 py-1 rounded-full shadow-sm border border-gray-100 flex items-center gap-2">
                                 <i className={`fas ${xpStats.currentLevel.icon} ${xpStats.currentLevel.color}`}></i>
                                 <span className="font-bold text-gray-700 text-sm">{xpStats.currentLevel.name}</span>
                             </div>
                             <span className="text-xs text-gray-400 font-mono">{xpStats.xp} XP</span>
-                            <Link to="/subscription" className="ml-2 text-xs bg-yellow-400 text-black px-2 py-0.5 rounded font-bold hover:bg-yellow-300 shadow-sm">
+                            <Link to="/subscription" className="text-xs bg-yellow-400 text-black px-2 py-0.5 rounded font-bold hover:bg-yellow-300 shadow-sm mt-1 sm:mt-0">
                                 {userProfile.subscriptionTier === 'pro' ? 'PRO' : userProfile.subscriptionTier === 'starter' ? 'STARTER' : 'FREE'}
                             </Link>
                         </div>
@@ -247,7 +247,7 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 {/* Level Progress Bar */}
-                <div className="w-full md:w-1/3 bg-white p-4 rounded-xl shadow-md border border-gray-100 relative overflow-hidden group">
+                <div className="w-full max-w-sm md:w-1/3 bg-white p-4 rounded-xl shadow-md border border-gray-100 relative overflow-hidden group mx-auto md:mx-0">
                     <div className="flex justify-between text-xs font-semibold text-gray-500 mb-1">
                         <span>Current Level</span>
                         <span>Next: {xpStats.nextLevel.name}</span>

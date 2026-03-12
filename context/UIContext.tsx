@@ -24,6 +24,8 @@ interface UIContextType {
     setNavItems: React.Dispatch<React.SetStateAction<NavItemDef[]>>;
     showUpgradeModal: boolean;
     setShowUpgradeModal: React.Dispatch<React.SetStateAction<boolean>>;
+    isMobileMenuOpen: boolean;
+    setIsMobileMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const UIContext = createContext<UIContextType | undefined>(undefined);
@@ -45,6 +47,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     });
 
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     useEffect(() => {
         localStorage.setItem('ks_sidebar_collapsed', String(isSidebarCollapsed));
@@ -60,7 +63,8 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         <UIContext.Provider value={{
             isSidebarCollapsed, toggleSidebar,
             navItems, setNavItems,
-            showUpgradeModal, setShowUpgradeModal
+            showUpgradeModal, setShowUpgradeModal,
+            isMobileMenuOpen, setIsMobileMenuOpen
         }}>
             {children}
         </UIContext.Provider>

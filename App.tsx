@@ -33,7 +33,7 @@ const SPACE_NAMES = ['iss', 'nasa', 'the enterprise', 'enterprise', 'voyager', '
 const AppContent: React.FC = () => {
     // --- PUBLIC ROUTING ---
     const { userProfile, updatePreferences, retroMode, setRetroMode, isAuthenticated, isLoading, logout } = useUser();
-    const { isSidebarCollapsed, toggleSidebar, navItems, setNavItems } = useUI();
+    const { isSidebarCollapsed, toggleSidebar, navItems, setNavItems, isMobileMenuOpen, setIsMobileMenuOpen } = useUI();
 
     if (isLoading) {
         return <div className="flex h-screen items-center justify-center bg-gray-900 text-white"><Spinner size="lg" /></div>;
@@ -123,10 +123,20 @@ const AppContent: React.FC = () => {
     const hiddenItems = userProfile.preferences?.hiddenNavItems || [];
 
     return (
-        <div className={`flex h-screen bg-gray-900 text-white ${retroMode ? 'retro-mode' : ''} ${isSpaceMode ? 'zero-g-mode' : ''}`}>
+        <div className={`flex h-screen bg-gray-900 text-white ${retroMode ? 'retro-mode' : ''} ${isSpaceMode ? 'zero-g-mode' : ''} overflow-hidden`}>
+            {/* Mobile Sidebar Overlay */}
+            {!isCookingMode && isMobileMenuOpen && (
+                <div 
+                    className="fixed inset-0 bg-black/50 z-40 md:hidden"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                />
+            )}
+
             {!isCookingMode && (
                 <aside
-                    className={`flex-shrink-0 ${themeClasses.sidebar} overflow-y-auto transition-all duration-300 ease-in-out flex flex-col border-r border-white/10 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}
+                    className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
+                        isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+                    } flex-shrink-0 ${themeClasses.sidebar} overflow-y-auto flex flex-col border-r border-white/10 ${isSidebarCollapsed ? 'md:w-20 w-64' : 'w-64'}`}
                 >
                     <div className={`p-4 flex items-center h-16 ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
                         {!isSidebarCollapsed && (
@@ -206,7 +216,7 @@ const AppContent: React.FC = () => {
                     <div className="p-4 border-t border-white/10 flex justify-center">
                         <button
                             onClick={toggleSidebar}
-                            className="w-full py-2 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                            className="hidden md:flex w-full py-2 items-center justify-center text-white/50 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                             title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
                         >
                             <i className={`fas ${isSidebarCollapsed ? 'fa-angle-double-right' : 'fa-angle-double-left'}`}></i>
@@ -216,8 +226,25 @@ const AppContent: React.FC = () => {
                 </aside>
             )}
 
-            <main className={`flex-1 overflow-y-auto bg-gray-100 text-gray-800 ${isCookingMode ? 'p-0' : 'p-4 sm:p-6 lg:p-8'}`}>
-                <Suspense fallback={<div className="flex h-full items-center justify-center"><Spinner size="lg" /></div>}>
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                {/* Mobile Header Block */}
+                {!isCookingMode && (
+                    <header className="md:hidden flex items-center justify-between p-4 bg-gray-900 border-b border-gray-800 z-30">
+                        <div className="flex items-center gap-3">
+                            <img src="/logo.svg" alt="Logo" className="h-8 w-8 object-contain" />
+                            <span className="font-bold text-lg">{retroMode ? '8-BIT KITCHEN' : 'KitchenSync'}</span>
+                        </div>
+                        <button 
+                            onClick={() => setIsMobileMenuOpen(true)}
+                            className="p-2 text-gray-300 hover:text-white focus:outline-none"
+                        >
+                            <i className="fas fa-bars text-xl"></i>
+                        </button>
+                    </header>
+                )}
+
+                <main className={`flex-1 overflow-y-auto bg-gray-100 text-gray-800 ${isCookingMode ? 'p-0' : 'p-4 sm:p-6 lg:p-8'}`}>
+                    <Suspense fallback={<div className="flex h-full items-center justify-center"><Spinner size="lg" /></div>}>
                     <Routes>
                         <Route path="/" element={<Dashboard />} />
                         <Route path="/recipes" element={<Recipes />} />
@@ -235,6 +262,7 @@ const AppContent: React.FC = () => {
                     </Routes>
                 </Suspense>
             </main>
+            </div>
 
             {!isCookingMode && userProfile.preferences?.showSousChef !== false && (
                 <SousChef onDisable={() => updatePreferences({ showSousChef: false })} />

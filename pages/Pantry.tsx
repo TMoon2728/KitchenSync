@@ -256,10 +256,10 @@ const Pantry: React.FC = () => {
     };
 
     return (
-        <div className="max-w-5xl mx-auto space-y-8 animate-fade-in">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                <h1 className="text-3xl font-extrabold text-gray-800">My Pantry</h1>
-                <div className="flex gap-2 items-center">
+        <div className="max-w-5xl mx-auto space-y-6 md:space-y-8 animate-fade-in">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <h1 className="text-2xl md:text-3xl font-extrabold text-gray-800">My Pantry</h1>
+                <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
                     
                     {/* Scan Pantry Button */}
                     <div className="relative">
@@ -301,7 +301,7 @@ const Pantry: React.FC = () => {
                         </label>
                     </div>
 
-                    <div className="flex bg-gray-100 p-1 rounded-2xl w-full md:w-auto">
+                    <div className="flex bg-gray-100 p-1 rounded-2xl w-full sm:w-auto mt-2 sm:mt-0">
                         <ViewButton value="inPantry">Inventory</ViewButton>
                         <ViewButton value="all">Add Items</ViewButton>
                     </div>
@@ -336,21 +336,25 @@ const Pantry: React.FC = () => {
                             pantry.length > 0 ? (
                                 <ul className="space-y-3">
                                     {pantry.map((item, index) => (
-                                        <li key={item.id} className="grid grid-cols-12 gap-3 items-center p-3 bg-white border border-gray-100 rounded-xl hover:shadow-sm transition-all animate-slide-up" style={{ animationDelay: `${index * 30}ms` }}>
-                                            <span className="font-bold text-gray-700 col-span-4 truncate" title={item.name}>{item.name}</span>
-                                            <input type="number" value={item.quantity} onChange={e => handleUpdate(item.id, 'quantity', parseFloat(e.target.value))} className="form-input p-2 text-sm rounded-lg border border-gray-200 col-span-2 bg-gray-50 text-gray-900 text-center" />
-                                            <input type="text" value={item.unit} onChange={e => handleUpdate(item.id, 'unit', e.target.value)} className="form-input p-2 text-sm rounded-lg border border-gray-200 col-span-2 bg-gray-50 text-gray-900" />
+                                        <li key={item.id} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center p-4 sm:p-3 bg-white border border-gray-100 rounded-xl hover:shadow-sm transition-all animate-slide-up" style={{ animationDelay: `${index * 30}ms` }}>
+                                            <span className="font-bold text-gray-700 sm:col-span-4 truncate text-lg sm:text-base border-b sm:border-b-0 pb-2 sm:pb-0 mb-2 sm:mb-0" title={item.name}>{item.name}</span>
+                                            
+                                            <div className="grid grid-cols-3 sm:col-span-4 gap-2">
+                                                <input type="number" value={item.quantity} onChange={e => handleUpdate(item.id, 'quantity', parseFloat(e.target.value))} className="form-input p-2 text-sm rounded-lg border border-gray-200 bg-gray-50 text-gray-900 text-center col-span-1" />
+                                                <input type="text" value={item.unit} onChange={e => handleUpdate(item.id, 'unit', e.target.value)} className="form-input p-2 text-sm rounded-lg border border-gray-200 bg-gray-50 text-gray-900 col-span-2" />
+                                            </div>
 
-                                            <input
-                                                type="text"
-                                                list="category-options"
-                                                value={item.category || ''}
-                                                onChange={e => handleUpdate(item.id, 'category', e.target.value)}
-                                                className="form-input p-2 text-xs rounded-lg border border-gray-200 col-span-3 bg-gray-50 text-gray-900"
-                                                placeholder="Category"
-                                            />
-
-                                            <button onClick={() => handleDelete(item.id)} className="text-gray-300 hover:text-red-500 col-span-1 text-center transition-colors"><i className="fas fa-trash-alt"></i></button>
+                                            <div className="flex sm:col-span-4 gap-2 items-center mt-2 sm:mt-0">
+                                                <input
+                                                    type="text"
+                                                    list="category-options"
+                                                    value={item.category || ''}
+                                                    onChange={e => handleUpdate(item.id, 'category', e.target.value)}
+                                                    className="form-input p-2 text-sm sm:text-xs rounded-lg border border-gray-200 bg-gray-50 text-gray-900 flex-1"
+                                                    placeholder="Category"
+                                                />
+                                                <button onClick={() => handleDelete(item.id)} className="text-gray-400 bg-gray-100 p-2 sm:p-0 sm:bg-transparent rounded-lg hover:text-red-500 hover:bg-red-50 text-center transition-colors w-10 sm:w-auto flex-shrink-0"><i className="fas fa-trash-alt"></i></button>
+                                            </div>
                                         </li>
                                     ))}
                                 </ul>
