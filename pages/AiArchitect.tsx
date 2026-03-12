@@ -44,6 +44,12 @@ const AiArchitect: React.FC = () => {
     const [generatedPlan, setGeneratedPlan] = useState<GeneratedDay[] | null>(null);
     const navigate = useNavigate();
 
+    const creditCost = useMemo(() => {
+        if (duration <= 5) return 1;
+        if (duration <= 14) return 3;
+        return 5;
+    }, [duration]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -52,9 +58,7 @@ const AiArchitect: React.FC = () => {
             return;
         }
 
-        // Cost is 3 credits for a full plan
-        // Deduct 2 here (optimistic + sync) + 1 on backend = 3 Total
-        if (!consumeCredits(2)) return;
+        if (!consumeCredits(creditCost)) return;
 
         setIsLoading(true);
         setError(null);
@@ -162,7 +166,7 @@ const AiArchitect: React.FC = () => {
                 </h1>
                 <p className="text-gray-500 text-lg max-w-xl mx-auto">Configure your preferences and let our advanced AI construct the perfect menu for you.</p>
                 <div className="mt-4 inline-block bg-yellow-100 text-yellow-800 px-4 py-1 rounded-full text-sm font-bold border border-yellow-200">
-                    <i className="fas fa-bolt mr-2"></i> Cost: 3 Credits per Plan
+                    <i className="fas fa-bolt mr-2"></i> Cost: {creditCost} Credit{creditCost > 1 ? 's' : ''} per Plan
                 </div>
             </div>
 
@@ -326,7 +330,7 @@ const AiArchitect: React.FC = () => {
                             disabled={isLoading}
                             className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-xl font-extrabold text-lg hover:shadow-xl hover:scale-[1.02] transition-all disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex justify-center items-center shadow-lg shadow-blue-500/20"
                         >
-                            {isLoading ? <Spinner /> : <><i className="fas fa-bolt mr-2 text-yellow-300"></i> Generate Plan (3 Credits)</>}
+                            {isLoading ? <Spinner /> : <><i className="fas fa-bolt mr-2 text-yellow-300"></i> Generate Plan ({creditCost} Credit{creditCost > 1 ? 's' : ''})</>}
                         </button>
                     </form>
                 </div>
@@ -378,22 +382,13 @@ const AiArchitect: React.FC = () => {
                                             <div className="space-y-3">
                                                 {Array.from(includedSlots).map((slot: string) => {
                                                     const mealName = dayPlan.meals[slot as keyof typeof dayPlan.meals] || '';
-                                                    const isCustom = mealName && !sortedRecipes.some(r => r.name === mealName);
 
                                                     return (
                                                         <div key={slot} className="grid grid-cols-12 gap-2 items-center text-sm group">
                                                             <span className="col-span-3 text-gray-500 font-medium text-xs uppercase group-hover:text-gray-300 transition-colors">{slot}</span>
-                                                            <select
-                                                                value={mealName}
-                                                                onChange={e => handlePlanChange(dayPlan.date as string, slot, e.target.value)}
-                                                                className="col-span-9 bg-gray-900 border border-gray-700 text-gray-300 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2"
-                                                            >
-                                                                <option value="">-- Skip --</option>
-                                                                {isCustom && <option value={mealName}>{mealName}</option>}
-                                                                {sortedRecipes.map(recipe => (
-                                                                    <option key={recipe.id} value={recipe.name}>{recipe.name}</option>
-                                                                ))}
-                                                            </select>
+                                                            <div className="col-span-9 bg-gray-900 border border-gray-700 text-gray-300 text-sm rounded-lg block w-full p-2">
+                                                                {mealName || <span className="text-gray-600 italic">-- Skip --</span>}
+                                                            </div>
                                                         </div>
                                                     );
                                                 })}

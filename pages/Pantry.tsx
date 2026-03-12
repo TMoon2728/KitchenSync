@@ -6,14 +6,16 @@ import { useKitchen } from '../context/KitchenContext';
 import { useUser } from '../context/UserContext';
 import { suggestRecipesFromPantry } from '../services/geminiService';
 import Spinner from '../components/Spinner';
+import { generateRecipeFromIngredients } from '../services/geminiService';
 
 const INGREDIENT_CATEGORIES = ['Produce', 'Meat', 'Seafood', 'Dairy & Eggs', 'Pantry Staples', 'Spices & Seasonings', 'Bakery', 'Frozen', 'Other'];
 
 const Pantry: React.FC = () => {
-    const { pantry, setPantry, recipes, batchAddPantryItems } = useKitchen();
+    const { pantry, setPantry, recipes, batchAddPantryItems, addRecipe } = useKitchen();
     const { consumeCredits, userProfile, setUserProfile, getAccessToken } = useUser();
     const [view, setView] = useState<'inPantry' | 'all'>('inPantry');
     const [isLoading, setIsLoading] = useState(false);
+    const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false); // Adding missing state for modal if needed, or just reusing view logic? 
     // Wait, the original code doesn't have showAddModal, it uses 'view'.
@@ -111,6 +113,34 @@ const Pantry: React.FC = () => {
             setError("An unexpected error occurred while getting suggestions.");
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleGenerateFromSuggestion = async (recipeName: string, reason: string) => {
+        if (!consumeCredits(1, true)) return;
+
+        setIsGeneratingRecipe(true);
+        setError(null);
+        try {
+            const token = await getAccessToken();
+            // Provide context about the current pantry and the reason it was suggested
+            const prompt = `Recipe Name: ${recipeName}\nContext: ${reason}\n\nPlease generate a full recipe for this dish using primarily ingredients I have on hand.`;
+            const result = await generateRecipeFromIngredients(prompt, token);
+            
+            if (result && result.name && result.ingredients && result.instructions) {
+                addRecipe(result as Omit<Recipe, 'id' | 'is_favorite' | 'rating'>);
+                alert(`Successfully added ${result.name} to your Recipe Book!`);
+                // Update suggestions list to show it's now an existing recipe
+                setSuggestions(prev => prev ? prev.map(s => 
+                    s.recipeName === recipeName ? { ...s, existingRecipeId: recipes.length + 1 } : s // Naive ID estimation for immediate UI update, actual ID handled by context
+                ) : null);
+            } else {
+                setError("AI failed to generate a full recipe. Please try again.");
+            }
+        } catch (e) {
+            setError("An unexpected error occurred during recipe generation.");
+        } finally {
+            setIsGeneratingRecipe(false);
         }
     };
 
@@ -473,7 +503,17 @@ const Pantry: React.FC = () => {
                                             )}
                                             {suggestion.existingRecipeId && <span className="bg-blue-100 text-blue-600 text-[10px] font-bold px-2 py-1 rounded-full uppercase">Recipe Book</span>}
                                         </div>
-                                        <p className="text-sm text-gray-600 leading-relaxed">{suggestion.reason}</p>
+                                        <p className="text-sm text-gray-600 leading-relaxed max-h-24 overflow-y-auto custom-scrollbar">{suggestion.reason}</p>
+                                        {!suggestion.existingRecipeId && (
+                                            <button 
+                                                onClick={() => handleGenerateFromSuggestion(suggestion.recipeName, suggestion.reason)}
+                                                disabled={isGeneratingRecipe}
+                                                className="mt-3 w-full bg-blue-50 text-blue-600 text-sm font-bold py-2 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 flex items-center justify-center border border-blue-200"
+                                                title="Costs 1 Credit"
+                                            >
+                                                {isGeneratingRecipe ? <Spinner size="sm" /> : <><i className="fas fa-magic mr-2"></i> Get Custom Recipe</>}
+                                            </button>
+                                        )}
                                     </div>
                                 ))
                             ) : (

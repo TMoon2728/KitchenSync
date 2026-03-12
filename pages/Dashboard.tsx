@@ -34,11 +34,11 @@ const FOOD_FACTS = [
 
 
 const Dashboard: React.FC = () => {
-    const { recipes, pantry, mealPlan, setPantry, setMealPlan } = useKitchen();
+    const { recipes, pantry, mealPlan, setPantry, setMealPlan, addRecipe } = useKitchen();
     const { userProfile, consumeCredits, getAccessToken } = useUser();
 
     const [aiIngredients, setAiIngredients] = useState('');
-    const [generatedRecipe, setGeneratedRecipe] = useState<string | null>(null);
+    const [generatedRecipe, setGeneratedRecipe] = useState<Partial<Recipe> | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [funFact, setFunFact] = useState('');
@@ -104,9 +104,8 @@ const Dashboard: React.FC = () => {
         try {
             const token = await getAccessToken();
             const result = await generateRecipeFromIngredients(aiIngredients, token);
-            if (result) {
-                const displayText = `**${result.name}**\n\n**Ingredients:**\n${result.ingredients?.map(ing => `- ${ing.quantity} ${ing.unit} ${ing.name}`).join('\n')}\n\n**Instructions:**\n${result.instructions}`;
-                setGeneratedRecipe(displayText);
+            if (result && result.name && result.ingredients && result.instructions) {
+                setGeneratedRecipe(result);
             } else {
                 setError("Failed to generate a recipe. The AI might be busy. Please try again.");
             }
@@ -422,13 +421,49 @@ const Dashboard: React.FC = () => {
                     </div>
 
                     {generatedRecipe && (
-                        <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100 shadow-md animate-scale-in max-h-96 overflow-y-auto">
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-xs font-bold text-purple-500 uppercase">AI Generated Result</span>
-                                <button onClick={() => setGeneratedRecipe(null)} className="text-purple-400 hover:text-purple-600"><i className="fas fa-times"></i></button>
+                        <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100 shadow-md animate-scale-in flex flex-col max-h-[500px]">
+                            <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                                <span className="text-xs font-bold text-purple-500 uppercase flex items-center"><i className="fas fa-sparkles mr-1"></i> AI Generated Result</span>
+                                <button onClick={() => setGeneratedRecipe(null)} className="text-purple-400 hover:text-purple-600"><i className="fas fa-times text-lg"></i></button>
                             </div>
-                            <div className="prose prose-sm prose-purple text-gray-700">
-                                <pre className="whitespace-pre-wrap font-sans text-sm bg-transparent border-0 p-0">{generatedRecipe}</pre>
+                            
+                            <div className="overflow-y-auto pr-2 custom-scrollbar flex-grow mb-4">
+                                <h3 className="text-xl font-bold text-gray-800 mb-2">{generatedRecipe.name}</h3>
+                                
+                                <div className="flex gap-2 text-xs text-purple-700 font-semibold mb-4 bg-purple-100 p-2 rounded-lg inline-block">
+                                    <span><i className="fas fa-clock mr-1"></i>Cook: {generatedRecipe.cook_time || 'N/A'}</span>
+                                    <span>•</span>
+                                    <span><i className="fas fa-fire mr-1"></i>{generatedRecipe.calories || '?'} kcal</span>
+                                </div>
+
+                                <h4 className="font-bold text-gray-700 mt-4 mb-2 border-b border-purple-200 pb-1">Ingredients</h4>
+                                <ul className="text-sm text-gray-600 space-y-1 mb-4">
+                                    {generatedRecipe.ingredients?.map((ing, idx) => (
+                                        <li key={idx} className="flex items-start">
+                                            <i className="fas fa-caret-right text-purple-400 mt-1 mr-2 text-xs"></i>
+                                            <span>{ing.quantity} {ing.unit} <strong>{ing.name}</strong></span>
+                                        </li>
+                                    ))}
+                                </ul>
+
+                                <h4 className="font-bold text-gray-700 mb-2 border-b border-purple-200 pb-1">Instructions</h4>
+                                <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
+                                    {generatedRecipe.instructions}
+                                </p>
+                            </div>
+
+                            <div className="pt-2 border-t border-purple-200 flex-shrink-0">
+                                <button 
+                                    onClick={() => {
+                                        addRecipe(generatedRecipe as Omit<Recipe, 'id' | 'is_favorite' | 'rating'>);
+                                        setGeneratedRecipe(null);
+                                        setAiIngredients('');
+                                        alert(`${generatedRecipe.name} added to your Recipe Book!`);
+                                    }}
+                                    className="w-full bg-purple-600 text-white font-bold py-3 rounded-xl hover:bg-purple-700 transition-colors shadow-md flex justify-center items-center"
+                                >
+                                    <i className="fas fa-book-open mr-2"></i> Save to Recipes
+                                </button>
                             </div>
                         </div>
                     )}

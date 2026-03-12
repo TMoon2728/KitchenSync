@@ -78,16 +78,11 @@ export const generateRecipeFromIngredients = async (ingredients: string, token: 
 };
 
 export const generateRecipeFromUrl = async (url: string, token: string): Promise<Partial<Recipe> | null> => {
-    const prompt = `You are an expert recipe parser. Based on the likely content of a recipe page at this URL, generate a full recipe.
-    URL: ${url}
-    
-    Infer the ingredients, instructions, nutritional info, and tags (like 'Easy', 'Chicken', 'Dinner') and format it as a complete recipe JSON object. If the URL is generic, create a plausible recipe that would match the URL's title.`;
-
     try {
-        const response = await authFetch(`${API_BASE}/generate-recipe`, {
+        const response = await authFetch(`${API_BASE}/ai/parse-url`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, schema: recipeSchema }),
+            body: JSON.stringify({ url, schema: recipeSchema }),
             token
         });
         return handleApiResponse<Partial<Recipe>>(response);

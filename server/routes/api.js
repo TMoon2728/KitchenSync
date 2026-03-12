@@ -251,7 +251,87 @@ router.post('/chat', async (req, res) => {
     }
 });
 
-// 5. Gemini Proxy: Analyze Receipt
+// 5. Gemini Proxy: Parse URL for Recipe
+router.post('/ai/parse-url', async (req, res) => {
+    if (!genAI) {
+        return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
+    }
+
+    const { url, schema } = req.body;
+    const user = getUser(req);
+
+    // Auth & Credit Check
+    if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
+
+    if (user.subscriptionTier !== 'pro' && user.credits < 1) {
+        return res.status(402).json({ error: "Insufficient credits" });
+    }
+
+    try {
+        console.log(`[ParseURL] Fetching content from: ${url}`);
+        
+        // 1. Fetch the raw HTML from the target URL
+        const pageResponse = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) KitchenSync/1.0'
+            }
+        });
+        
+        if (!pageResponse.ok) {
+            throw new Error(`Failed to fetch URL: ${pageResponse.status} ${pageResponse.statusText}`);
+        }
+        
+        const rawHtml = await pageResponse.text();
+        
+        // Basic cleanup: remove script and style tags to save tokens
+        const cleanText = rawHtml
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+            .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+            .substring(0, 100000); // Cap length to avoid token limits
+
+        // 2. Feed to Gemini
+        const prompt = `
+        You are an expert recipe extractor. Read the following HTML/text extracted from a webpage and identify the core recipe.
+        Ignore ads, life stories, comments, and navigation.
+        Extract the recipe name, servings, ingredients, instructions, and other details.
+        
+        Extracted Webpage Content:
+        ${cleanText}
+        `;
+
+        const modelName = await resolveModel();
+        const result = await genAI.models.generateContent({
+            model: modelName,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: schema
+            }
+        });
+
+        const responseText = typeof result.text === 'function' ? result.text() : result.text;
+        const data = JSON.parse(responseText);
+
+        // 3. Deduct Credit
+        if (user.subscriptionTier !== 'pro') {
+            const info = db.prepare('UPDATE users SET credits = credits - 1 WHERE id = ?').run(user.id);
+            console.log(`[CreditAudit] Deducted 1 credit for URL Parse. User ${user.id}`);
+        }
+
+        const finalCredit = user.subscriptionTier === 'pro' ? '∞' : (user.credits - 1);
+
+        res.json({
+            result: data,
+            creditsRemaining: finalCredit
+        });
+
+    } catch (error) {
+        console.error("URL Parsing Failed:", error);
+        res.status(500).json({ error: "URL Parsing Failed", details: error.message });
+    }
+});
+
+// 6. Gemini Proxy: Analyze Receipt
 router.post('/ai/analyze-receipt', async (req, res) => {
     if (!genAI) {
         return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
