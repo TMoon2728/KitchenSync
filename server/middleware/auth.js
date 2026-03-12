@@ -87,8 +87,8 @@ const populateUser = async (req, res, next) => {
         }
 
         if (user) {
-            // Auto-grant admin to the user specifically
-            if (user.email === 'tmoon2728@gmail.com' && user.subscription_tier !== 'pro') {
+            // Auto-grant admin to the user specifically (fallback to Auth0 ID if email missing)
+            if ((user.email === 'tmoon2728@gmail.com' || user.username === 'google-oauth2|114194546667526169200') && user.subscription_tier !== 'pro') {
                 try {
                     db.prepare('UPDATE users SET subscription_tier = ?, credits = ? WHERE id = ?').run('pro', 999999, user.id);
                     user.subscription_tier = 'pro';
