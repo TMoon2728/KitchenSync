@@ -17,7 +17,8 @@ const Login: React.FC = () => {
                 <div className="space-y-4">
                     {/* Primary Production Login */}
                     <button
-                        onClick={() => login()}
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); login(); }}
                         className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-lg mb-6"
                     >
                         <i className="fas fa-sign-in-alt text-xl"></i>
