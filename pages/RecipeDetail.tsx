@@ -43,7 +43,8 @@ const RecipeDetail: React.FC = () => {
         setRemixResult(null);
         try {
             const token = await getAccessToken();
-            const result = await remixRecipe(recipe, remixType, token);
+            const familySize = 1 + userProfile.householdMembers.length;
+            const result = await remixRecipe(recipe, remixType, token, familySize);
             if (result) {
                 setRemixResult(result);
             } else {
@@ -246,6 +247,15 @@ const RecipeDetail: React.FC = () => {
                         <i className="fas fa-robot mr-2 text-purple-600"></i>AI Recipe Remix
                         <span className="ml-3 text-[10px] bg-yellow-400 text-black px-2 py-1 rounded-full font-bold">1 Credit</span>
                     </h3>
+                    
+                    {/* Household Tip */}
+                    <div className="mb-4 p-3 bg-white/60 text-purple-800 rounded-lg border border-purple-100/50 text-xs flex items-start">
+                        <i className="fas fa-lightbulb text-yellow-500 mt-0.5 mr-2"></i>
+                        <div>
+                            <strong>Tip:</strong> The Sous Chef automatically adjusts remixed recipe serving sizes to perfectly feed your <a href="#/profile" className="underline font-bold hover:text-purple-600">Household</a> (Currently: {1 + userProfile.householdMembers.length}!).
+                        </div>
+                    </div>
+
                     <p className="text-sm text-gray-600 mb-4">Want to shake things up? Let the AI reimagine this dish.</p>
                     <div className="flex flex-col sm:flex-row items-center gap-4">
                         <select value={remixType} onChange={(e) => setRemixType(e.target.value)} className="form-select w-full sm:w-1/3 p-2.5 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500 bg-white text-gray-900">

@@ -61,8 +61,8 @@ const handleApiResponse = async <T>(response: Response): Promise<T | null> => {
     return data.result as T;
 };
 
-export const generateRecipeFromIngredients = async (request: string, token: string): Promise<Partial<Recipe> | null> => {
-    const prompt = `You are a creative chef. Based on the following user request: "${request}". 
+export const generateRecipeFromIngredients = async (request: string, token: string, familySize?: number): Promise<Partial<Recipe> | null> => {
+    const prompt = `You are a creative chef. Based on the following user request: "${request}".  
     
     CRITICAL INSTRUCTION: If the request is completely unrelated to food, cooking, meals, treats, or recipes (for example, asking for coding help, math, general chatting, or inappropriate content), you MUST invent a funny, sarcastic fake recipe that politely explains you are a Sous Chef, not a general assistant. For example, if asked to help with math homework, you could output a recipe named "Baked Math Homework with Extra Zeros". Make the instructions funny but clear that you only do food. IMPORTANT SAFETY RULE: While being sarcastic and funny, NEVER suggest eating or doing anything actually harmful, painful, or dangerous (e.g., do not suggest eating whole hot peppers, raw meat, dangerous chemicals, or engaging in unsafe activities). Keep it lighthearted and safe!
     
@@ -72,7 +72,7 @@ export const generateRecipeFromIngredients = async (request: string, token: stri
         const response = await authFetch(`${API_BASE}/generate-recipe`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, schema: recipeSchema }),
+            body: JSON.stringify({ prompt, schema: recipeSchema, familySize }),
             token
         });
         return handleApiResponse<Partial<Recipe>>(response);
@@ -82,12 +82,12 @@ export const generateRecipeFromIngredients = async (request: string, token: stri
     }
 };
 
-export const generateRecipeFromUrl = async (url: string, token: string): Promise<Partial<Recipe> | null> => {
+export const generateRecipeFromUrl = async (url: string, token: string, familySize?: number): Promise<Partial<Recipe> | null> => {
     try {
         const response = await authFetch(`${API_BASE}/ai/parse-url`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url, schema: recipeSchema }),
+            body: JSON.stringify({ url, schema: recipeSchema, familySize }),
             token
         });
         return handleApiResponse<Partial<Recipe>>(response);
@@ -97,7 +97,7 @@ export const generateRecipeFromUrl = async (url: string, token: string): Promise
     }
 };
 
-export const remixRecipe = async (recipe: Recipe, remixType: string, token: string): Promise<Partial<Recipe> | null> => {
+export const remixRecipe = async (recipe: Recipe, remixType: string, token: string, familySize?: number): Promise<Partial<Recipe> | null> => {
     const prompt = `You are a recipe modification expert. Take the following recipe and modify it to "${remixType}". Adjust ingredients, instructions, and tags accordingly.
     
     Original Recipe:
@@ -109,7 +109,7 @@ export const remixRecipe = async (recipe: Recipe, remixType: string, token: stri
         const response = await authFetch(`${API_BASE}/generate-recipe`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, schema: recipeSchema }),
+            body: JSON.stringify({ prompt, schema: recipeSchema, familySize }),
             token
         });
         return handleApiResponse<Partial<Recipe>>(response);

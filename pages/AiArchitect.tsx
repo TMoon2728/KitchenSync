@@ -65,6 +65,7 @@ const AiArchitect: React.FC = () => {
         setGeneratedPlan(null);
         try {
             const token = await getAccessToken();
+            const familySize = 1 + userProfile.householdMembers.length;
             const plan = await generateMealPlan(
                 recipes,
                 theme,
@@ -173,7 +174,15 @@ const AiArchitect: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Controls */}
                 <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-32 bg-blue-50 rounded-full opacity-50 blur-3xl -mr-16 -mt-16"></div>
+                    {/* Household Tip */}
+                    <div className="mb-6 p-4 bg-purple-50 text-purple-800 rounded-xl border border-purple-100 text-sm flex items-start">
+                        <i className="fas fa-lightbulb text-yellow-500 mt-1 mr-3 text-lg"></i>
+                        <div>
+                            <strong>Tip:</strong> Add your family members to your Household in your <a href="#/profile" className="underline font-bold hover:text-purple-600">Profile</a> to automatically adjust AI recipes for your family size!
+                        </div>
+                    </div>
+
+                    <div className="absolute top-0 right-0 p-32 bg-blue-50 rounded-full opacity-50 blur-3xl -mr-16 -mt-16 z-0 pointer-events-none"></div>
 
                     <form onSubmit={handleSubmit} className="space-y-8 relative z-10">
                         {/* Section 1: Timeframe */}

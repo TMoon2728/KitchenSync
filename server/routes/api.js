@@ -140,7 +140,7 @@ router.post('/generate-recipe', async (req, res) => {
     }
 
     try {
-        const { prompt, schema } = req.body;
+        const { prompt, schema, familySize } = req.body;
         const user = await getUser(req);
 
         // Auth Check
@@ -161,9 +161,14 @@ router.post('/generate-recipe', async (req, res) => {
             config.responseSchema = schema;
         }
 
+        let finalPrompt = prompt;
+        if (familySize) {
+             finalPrompt += `\n\nCRITICAL INSTRUCTION: You MUST scale the ingredient quantities to yield exactly ${familySize} servings. Update the 'servings' field to ${familySize}.`;
+        }
+
         const result = await genAI.models.generateContent({
             model: modelName,
-            contents: prompt,
+            contents: finalPrompt,
             config: config
         });
 
@@ -334,7 +339,7 @@ router.post('/ai/parse-url', async (req, res) => {
     }
 
     try {
-        const { url, schema } = req.body;
+        const { url, schema, familySize } = req.body;
         const user = await getUser(req);
 
         // Auth & Credit Check
@@ -371,6 +376,7 @@ router.post('/ai/parse-url', async (req, res) => {
         Ignore ads, life stories, comments, and navigation.
         Extract the recipe name, servings, ingredients, instructions, and other details.
         CRITICAL INSTRUCTION: You must try to extract the main image URL for the recipe if it is available in the content (look for image tags, source attributes, or meta og:image). This should be returned as imageUrl.
+        ${familySize ? `\nCRITICAL INSTRUCTION: You MUST scale the ingredient quantities from the web page to yield exactly ${familySize} servings instead of the website's default. Update the 'servings' field to ${familySize}.` : ''}
         
         Extracted Webpage Content:
         ${cleanText}

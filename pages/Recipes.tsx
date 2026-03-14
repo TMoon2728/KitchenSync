@@ -10,7 +10,7 @@ import { generateRecipeFromIngredients, generateRecipeFromUrl } from '../service
 
 const Recipes: React.FC = () => {
     const { recipes, pantry, addRecipe, setRecipes, deleteRecipe } = useKitchen();
-    const { consumeCredits, getAccessToken } = useUser();
+    const { userProfile, consumeCredits, getAccessToken } = useUser();
     const location = useLocation();
     const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState('');
@@ -54,10 +54,10 @@ const Recipes: React.FC = () => {
 
         setIsAdding(true);
         setAddError(null);
-        setAddError(null);
         try {
             const token = await getAccessToken();
-            const result = await generateRecipeFromIngredients(aiRequest, token);
+            const familySize = 1 + userProfile.householdMembers.length;
+            const result = await generateRecipeFromIngredients(aiRequest, token, familySize);
             if (result && result.name && result.ingredients && result.instructions) {
                 addRecipe(result as Omit<Recipe, 'id' | 'is_favorite' | 'rating'>);
                 setAiRequest('');
@@ -88,10 +88,10 @@ const Recipes: React.FC = () => {
 
         setIsImporting(true);
         setImportError(null);
-        setImportError(null);
         try {
             const token = await getAccessToken();
-            const result = await generateRecipeFromUrl(importUrl, token);
+            const familySize = 1 + userProfile.householdMembers.length;
+            const result = await generateRecipeFromUrl(importUrl, token, familySize);
             if (result && result.name && result.ingredients && result.instructions) {
                 addRecipe(result as Omit<Recipe, 'id' | 'is_favorite' | 'rating'>);
                 setImportUrl('');
@@ -133,7 +133,8 @@ const Recipes: React.FC = () => {
                 setImportError(null);
                 try {
                     const token = await getAccessToken();
-                    const result = await generateRecipeFromUrl(sharedUrl, token);
+                    const familySize = 1 + userProfile.householdMembers.length;
+                    const result = await generateRecipeFromUrl(sharedUrl, token, familySize);
                     if (result && result.name && result.ingredients && result.instructions) {
                         addRecipe(result as Omit<Recipe, 'id' | 'is_favorite' | 'rating'>);
                         setImportUrl('');
@@ -258,6 +259,15 @@ const Recipes: React.FC = () => {
 
             {/* Main Content */}
             <div className="flex-1 space-y-6">
+
+                {/* Household Tip */}
+                <div className="p-4 bg-purple-50 text-purple-800 rounded-2xl border border-purple-100 text-sm flex items-start shadow-sm">
+                    <i className="fas fa-lightbulb text-yellow-500 mt-1 mr-3 text-lg"></i>
+                    <div>
+                        <strong>Tip:</strong> Add your family members to your Household in your <a href="#/profile" className="underline font-bold hover:text-purple-600">Profile</a> to automatically adjust AI recipes for your family size!
+                    </div>
+                </div>
+
                 {/* AI Tools */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-purple-100 relative overflow-hidden group hover:shadow-md transition-shadow">
