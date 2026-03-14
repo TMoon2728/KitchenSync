@@ -268,7 +268,7 @@ const MealPlanner: React.FC = () => {
                     <div className="flex justify-between items-center mb-4">
                         <div>
                             <h2 className="text-xl font-bold text-gray-800">Plan Meals</h2>
-                            <p className="text-xs text-gray-500 md:hidden mt-1">{selectedMobileRecipe ? 'Tap a slot to add' : 'Tap a recipe to select'}</p>
+                            <p className="text-xs text-gray-500 md:hidden mt-1">{selectedMobileRecipe ? 'Tap a slot below to add' : 'Tap a recipe to select and then add it to the day below.'}</p>
                             <p className="text-xs text-gray-500 hidden md:block mt-1">Drag & Drop</p>
                         </div>
                         <button onClick={suggestRandomRecipes} title="Shuffle Recipes" className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-blue-500 hover:bg-blue-100 hover:scale-110 transition-all">
