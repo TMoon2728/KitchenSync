@@ -28,7 +28,7 @@ const recipeSchema = {
             },
             description: "An array of ingredients for the recipe.",
         },
-        instructions: { type: Type.STRING, description: "Step-by-step cooking instructions, separated by newlines." },
+        instructions: { type: Type.STRING, description: "Step-by-step cooking instructions. You MUST separate each step with a double newline (\\n\\n) and number each step (1., 2., 3., etc.) so they can be rendered as distinct paragraphs." },
         meal_type: {
             type: Type.STRING,
             enum: ['Main Course', 'Side Dish', 'Dessert', 'Snack', 'Meal Prep'],
@@ -248,7 +248,7 @@ export const suggestRecipesFromPantry = async (
 };
 
 export const generateRecipeImage = async (recipeName: string, description: string | undefined, token: string): Promise<string | null> => {
-    const prompt = `A professional, high-quality food photography top-down shot of a delicious meal called "${recipeName}". ${description || ''} The image should be brightly lit, appetizing, and suitable for a recipe blog.`;
+    const prompt = `A professional, high-quality, realistic food photography shot of the dish "${recipeName}". The image MUST precisely and accurately depict "${recipeName}" and its actual ingredients. Context: ${description || 'standard recipe ingredients'}. WARNING: Do NOT include seafood or crabs unless explicitly mentioned in the recipe name or context. The image should be cleanly plated, brightly lit, appetizing, and suitable for a high-end culinary blog.`;
 
     try {
         const response = await authFetch(`${API_BASE}/generate-image`, {

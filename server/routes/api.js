@@ -16,10 +16,31 @@ const getUser = async (req) => {
 
     // Parse JSON fields
     const preferences = typeof row.preferences === 'string' ? JSON.parse(row.preferences || '{}') : (row.preferences || {});
+    // The newer preferences payload structure nests actual preferences under `appPreferences`
+    // to make room in the JSONB for other profile fields (household, grocery stores, etc.)
+    const kitchenName = preferences.kitchenName || row.kitchen_name;
+    const dailyCalorieGoal = preferences.dailyCalorieGoal || 2000;
+    const proteinGoal = preferences.proteinGoal;
+    const carbGoal = preferences.carbGoal;
+    const fatGoal = preferences.fatGoal;
+    const householdMembers = preferences.householdMembers || [];
+    const groceryStores = preferences.groceryStores || [];
+    const appPreferences = preferences.appPreferences || preferences;
+    const avatar = preferences.avatar || '👨‍🍳';
+    const name = preferences.name || row.username;
 
     return {
         ...row,
-        preferences,
+        name,
+        avatar,
+        kitchenName,
+        dailyCalorieGoal,
+        proteinGoal,
+        carbGoal,
+        fatGoal,
+        householdMembers,
+        groceryStores,
+        preferences: appPreferences,
         subscriptionTier: row.subscription_tier // map snake_case to camelCase
     };
 };
@@ -38,7 +59,54 @@ router.get('/user/profile', async (req, res) => {
     }
 });
 
-// 2. Consume Credits
+// 2. Update User Profile
+router.put('/user/profile', async (req, res) => {
+    try {
+        const user = await getUser(req);
+        if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+        const {
+            kitchenName,
+            dailyCalorieGoal,
+            proteinGoal,
+            carbGoal,
+            fatGoal,
+            householdMembers,
+            groceryStores,
+            preferences,
+            avatar,
+            name
+        } = req.body;
+
+        // We can store all these extras inside the `preferences` JSONB column to avoid immediate schema migrations.
+        const currentPreferences = user.preferences || {};
+        const updatedPreferences = {
+            ...currentPreferences,
+            kitchenName,
+            dailyCalorieGoal,
+            proteinGoal,
+            carbGoal,
+            fatGoal,
+            householdMembers,
+            groceryStores,
+            appPreferences: preferences, // the actual preferences object (confetti, etc)
+            avatar,
+            name
+        };
+
+        await db.query(
+            'UPDATE users SET preferences = $1 WHERE id = $2',
+            [JSON.stringify(updatedPreferences), user.id]
+        );
+
+        res.json({ success: true });
+    } catch (e) {
+        console.error("Update Profile Error:", e);
+        res.status(500).json({ error: "Failed to update profile" });
+    }
+});
+
+// 3. Consume Credits
 router.post('/credits/consume', async (req, res) => {
     try {
         const { amount } = req.body;

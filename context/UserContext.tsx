@@ -140,14 +140,34 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const updateProfile = (updates: Partial<UserProfile>) => {
-        setUserProfile(prev => ({ ...prev, ...updates }));
+        setUserProfile(prev => {
+            const newProfile = { ...prev, ...updates };
+            getAccessToken().then(token => {
+                authFetch('/api/user/profile', {
+                    method: 'PUT',
+                    body: JSON.stringify(newProfile),
+                    token
+                }).catch(e => console.error("Profile sync failed:", e));
+            });
+            return newProfile;
+        });
     };
 
     const updatePreferences = (updates: Partial<UserPreferences>) => {
-        setUserProfile(prev => ({
-            ...prev,
-            preferences: { ...prev.preferences!, ...updates }
-        }));
+        setUserProfile(prev => {
+            const newProfile = {
+                ...prev,
+                preferences: { ...prev.preferences!, ...updates }
+            };
+            getAccessToken().then(token => {
+                authFetch('/api/user/profile', {
+                    method: 'PUT',
+                    body: JSON.stringify(newProfile),
+                    token
+                }).catch(e => console.error("Preferences sync failed:", e));
+            });
+            return newProfile;
+        });
     };
 
     const consumeCredits = (cost: number, skipBackendSync = false): boolean => {
@@ -160,7 +180,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             // Sync with backend ONLY if not skipped
             if (!skipBackendSync) {
-                getAccessTokenSilently().then(token => {
+                getAccessToken().then(token => {
                     authFetch('/api/credits/consume', {
                         method: 'POST',
                         body: JSON.stringify({ amount: cost }),

@@ -59,6 +59,9 @@ const Profile: React.FC = () => {
     const [name, setName] = useState(userProfile.name);
     const [avatar, setAvatar] = useState(userProfile.avatar || '👨‍🍳');
     const [calorieGoal, setCalorieGoal] = useState(userProfile.dailyCalorieGoal);
+    const [proteinGoal, setProteinGoal] = useState<number | ''>(userProfile.proteinGoal || '');
+    const [carbGoal, setCarbGoal] = useState<number | ''>(userProfile.carbGoal || '');
+    const [fatGoal, setFatGoal] = useState<number | ''>(userProfile.fatGoal || '');
     const [kitchenName, setKitchenName] = useState(userProfile.kitchenName || '');
     const [enableConfetti, setEnableConfetti] = useState(userProfile.preferences?.enableConfetti ?? true);
     const [confettiIntensity, setConfettiIntensity] = useState<'low' | 'medium' | 'high'>(userProfile.preferences?.confettiIntensity || 'medium');
@@ -174,6 +177,9 @@ const Profile: React.FC = () => {
             name: name,
             avatar: avatar,
             dailyCalorieGoal: calorieGoal,
+            proteinGoal: proteinGoal === '' ? undefined : proteinGoal,
+            carbGoal: carbGoal === '' ? undefined : carbGoal,
+            fatGoal: fatGoal === '' ? undefined : fatGoal,
             kitchenName: kitchenName,
             preferences: {
                 enableConfetti,
@@ -541,35 +547,78 @@ const Profile: React.FC = () => {
                 </div>
             </div>
 
-            {/* Goals & Calorie Settings */}
+            {/* Nutritional Goals */}
             <div className="bg-white p-6 rounded-lg shadow-md">
                 <h2 className="text-xl font-bold mb-4 flex items-center">
-                    <i className="fas fa-bullseye text-red-500 mr-2"></i> Goals & Settings
+                    <i className="fas fa-bullseye text-red-500 mr-2"></i> Nutritional Goals
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Daily Calorie Goal</label>
-                        <p className="text-xs text-gray-500 mb-2">This target helps the AI Architect build balanced meal plans.</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="col-span-2 md:col-span-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Calories</label>
                         <div className="flex items-center">
                             <input
                                 type="number"
                                 value={calorieGoal}
                                 onChange={e => setCalorieGoal(parseInt(e.target.value) || 0)}
-                                className="w-32 form-input p-2 border border-gray-300 rounded-l-md bg-white text-gray-900"
+                                className="w-24 form-input p-2 border border-gray-300 rounded-l-md bg-white text-gray-900 focus:ring-red-500"
                                 step="50"
                             />
-                            <span className="bg-gray-100 border border-l-0 border-gray-300 text-gray-600 px-3 py-2 rounded-r-md text-sm">kcal / day</span>
+                            <span className="bg-gray-100 border border-l-0 border-gray-300 text-gray-600 px-3 py-2 rounded-r-md text-sm">kcal</span>
                         </div>
                     </div>
                     <div>
-                        <button
-                            onClick={handleSaveSettings}
-                            className={`px-6 py-2 rounded-md font-semibold text-white transition-all shadow-md active:scale-95 ${isSavingGoals ? 'bg-green-500' : 'bg-blue-600 hover:bg-blue-700'}`}
-                        >
-                            {isSavingGoals ? <><i className="fas fa-check mr-2"></i>Saved</> : 'Save Settings'}
-                        </button>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Protein</label>
+                        <div className="flex items-center">
+                            <input
+                                type="number"
+                                value={proteinGoal}
+                                onChange={e => setProteinGoal(e.target.value ? parseInt(e.target.value) : '')}
+                                className="w-20 form-input p-2 border border-gray-300 rounded-l-md bg-white text-gray-900 focus:ring-blue-500"
+                                placeholder="Auto"
+                            />
+                            <span className="bg-gray-100 border border-l-0 border-gray-300 text-gray-600 px-3 py-2 rounded-r-md text-sm">g</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Carbs</label>
+                        <div className="flex items-center">
+                            <input
+                                type="number"
+                                value={carbGoal}
+                                onChange={e => setCarbGoal(e.target.value ? parseInt(e.target.value) : '')}
+                                className="w-20 form-input p-2 border border-gray-300 rounded-l-md bg-white text-gray-900 focus:ring-green-500"
+                                placeholder="Auto"
+                            />
+                            <span className="bg-gray-100 border border-l-0 border-gray-300 text-gray-600 px-3 py-2 rounded-r-md text-sm">g</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Fat</label>
+                        <div className="flex items-center">
+                            <input
+                                type="number"
+                                value={fatGoal}
+                                onChange={e => setFatGoal(e.target.value ? parseInt(e.target.value) : '')}
+                                className="w-20 form-input p-2 border border-gray-300 rounded-l-md bg-white text-gray-900 focus:ring-yellow-500"
+                                placeholder="Auto"
+                            />
+                            <span className="bg-gray-100 border border-l-0 border-gray-300 text-gray-600 px-3 py-2 rounded-r-md text-sm">g</span>
+                        </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Global Save Button */}
+            <div className="sticky bottom-4 z-40 bg-white/90 backdrop-blur-md p-4 rounded-xl shadow-2xl border border-gray-200 flex justify-between items-center transition-all">
+                <div className="hidden sm:block">
+                    <p className="text-sm text-gray-600 font-medium"><i className="fas fa-info-circle mr-2 text-blue-500"></i>Save your changes here when you're done editing.</p>
+                </div>
+                <button
+                    onClick={handleSaveSettings}
+                    className={`w-full sm:w-auto px-10 py-3 rounded-lg font-bold text-lg text-white transition-all shadow-md active:scale-95 flex items-center justify-center ${isSavingGoals ? 'bg-green-500' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl'}`}
+                >
+                    {isSavingGoals ? <><i className="fas fa-check mr-2"></i>Profile Saved</> : <><i className="fas fa-save mr-2"></i>Save All Changes</>}
+                </button>
             </div>
         </div>
     );

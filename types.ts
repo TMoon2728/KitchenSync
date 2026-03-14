@@ -88,6 +88,9 @@ export interface UserProfile {
     avatar?: string;
     kitchenName?: string;
     dailyCalorieGoal: number;
+    proteinGoal?: number;
+    carbGoal?: number;
+    fatGoal?: number;
     householdMembers: HouseholdMember[];
     groceryStores: GroceryStore[];
     preferences?: UserPreferences;
