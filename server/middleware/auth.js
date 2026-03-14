@@ -17,7 +17,8 @@ const populateUser = async (req, res, next) => {
 
     if (auth0Id) {
         // 1. Try to find by Auth0 ID
-        let user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
+        let userResult = await db.query('SELECT * FROM users WHERE username = $1', [auth0Id]);
+        let user = userResult.rows[0];
 
         if (user) {
             req.authLog.push("User found by ID.");
@@ -48,11 +49,13 @@ const populateUser = async (req, res, next) => {
 
             // 2b. Link if email found
             if (email) {
-                user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+                userResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+                user = userResult.rows[0];
+
                 if (user) {
                     req.authLog.push(`Found legacy user by email. Linking to ${auth0Id}.`);
                     try {
-                        db.prepare('UPDATE users SET username = ? WHERE id = ?').run(auth0Id, user.id);
+                        await db.query('UPDATE users SET username = $1 WHERE id = $2', [auth0Id, user.id]);
                         user.username = auth0Id;
                     } catch (e) {
                         req.authLog.push(`Linking failed: ${e.message}`);
@@ -74,14 +77,18 @@ const populateUser = async (req, res, next) => {
                     const tier = isAdmin ? 'pro' : 'free';
                     const credits = isAdmin ? 9999 : 5;
 
-                    db.prepare('INSERT INTO users (username, email, password_hash, subscription_tier, credits, preferences) VALUES (?, ?, ?, ?, ?, ?)')
-                        .run(auth0Id, resolvedEmail, 'auth0-linked', tier, credits, JSON.stringify({}));
+                    await db.query(
+                        'INSERT INTO users (username, email, password_hash, subscription_tier, credits, preferences) VALUES ($1, $2, $3, $4, $5, $6)',
+                        [auth0Id, resolvedEmail, 'auth0-linked', tier, credits, JSON.stringify({})]
+                    );
 
-                    user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
+                    userResult = await db.query('SELECT * FROM users WHERE username = $1', [auth0Id]);
+                    user = userResult.rows[0];
                     req.authLog.push(user ? "JIT Success." : "JIT Inserted but Select failed?");
                 } catch (e) {
                     req.authLog.push(`JIT Failed: ${e.message}`);
-                    user = db.prepare('SELECT * FROM users WHERE username = ?').get(auth0Id);
+                    userResult = await db.query('SELECT * FROM users WHERE username = $1', [auth0Id]);
+                    user = userResult.rows[0];
                 }
             }
         }
@@ -90,7 +97,7 @@ const populateUser = async (req, res, next) => {
             // Auto-grant admin to the user specifically (fallback to Auth0 ID if email missing)
             if ((user.email === 'tmoon2728@gmail.com' || user.email === 'moonimages@hotmail.com' || user.username === 'google-oauth2|114194546667526169200') && user.subscription_tier !== 'pro') {
                 try {
-                    db.prepare('UPDATE users SET subscription_tier = ?, credits = ? WHERE id = ?').run('pro', 999999, user.id);
+                    await db.query('UPDATE users SET subscription_tier = $1, credits = $2 WHERE id = $3', ['pro', 999999, user.id]);
                     user.subscription_tier = 'pro';
                     user.credits = 999999;
                     req.authLog.push(`Auto-upgraded ${user.email} to PRO admin.`);
