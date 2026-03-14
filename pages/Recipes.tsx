@@ -234,7 +234,7 @@ const Recipes: React.FC = () => {
                         <h2 className="text-lg font-bold text-gray-800">Filter By Tag</h2>
                         {selectedTags.size > 0 && <button onClick={() => setSelectedTags(new Set())} className="text-xs text-blue-500 hover:text-blue-700 font-semibold">Clear</button>}
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-2">
                         {allTags.length > 0 ? allTags.map(tag => (
                             <button
                                 key={tag}
