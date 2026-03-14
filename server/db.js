@@ -1,11 +1,12 @@
 const { Pool } = require('pg');
 
 // Initialize the PostgreSQL Pool
-// Render provides the DATABASE_URL environment variable
+const isLocalhost = (process.env.DATABASE_URL || '').includes('localhost');
+
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://localhost/kitchensync',
-    // In production on Render, SSL is often required
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    // Render external connections require SSL. Local Postgres usually doesn't.
+    ssl: isLocalhost ? false : { rejectUnauthorized: false }
 });
 
 pool.on('error', (err) => {
