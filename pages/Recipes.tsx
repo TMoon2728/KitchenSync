@@ -111,9 +111,15 @@ const Recipes: React.FC = () => {
         const routerParams = new URLSearchParams(location.search);
         const windowParams = new URLSearchParams(window.location.search);
         
-        const sharedUrl = routerParams.get('importUrl') || windowParams.get('importUrl');
+        let sharedUrl = routerParams.get('importUrl') || windowParams.get('importUrl');
         
         if (sharedUrl && !isImporting) {
+            // Some mobile browsers pass "Page Title https://link.com", so we extract just the URL
+            const urlMatch = sharedUrl.match(/(https?:\/\/[^\s]+)/);
+            if (urlMatch) {
+                sharedUrl = urlMatch[1];
+            }
+
             setImportUrl(sharedUrl);
             
             // Clean up the URL so it doesn't re-trigger on refresh
