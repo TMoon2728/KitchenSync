@@ -61,6 +61,18 @@ const init = async () => {
             )
         `);
 
+        // Manual Shopping List Table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS shopping_list (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                quantity REAL,
+                unit TEXT,
+                category TEXT
+            )
+        `);
+
         console.log('PostgreSQL Database initialized');
     } catch (err) {
         console.error('Failed to initialize database schema:', err);

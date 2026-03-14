@@ -13,16 +13,25 @@ interface NeededIngredient {
     quantity: number;
     unit: string;
     category: string;
+    isManual?: boolean;
+    id?: number;
 }
 
 const ShoppingList: React.FC = () => {
-    const { mealPlan, pantry, recipes, batchAddPantryItems } = useKitchen();
+    const { mealPlan, pantry, recipes, batchAddPantryItems, manualShoppingList, addManualShoppingItem, removeManualShoppingItem } = useKitchen();
     const { userProfile, isAuthenticated, getAccessToken } = useUser();
     const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
 
     const [showStoreLinks, setShowStoreLinks] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
     const [scanResult, setScanResult] = useState<{ matched: string[]; extra: any[] } | null>(null);
+
+    // Manual Entry State
+    const [newItemName, setNewItemName] = useState('');
+    const [newItemQty, setNewItemQty] = useState('1');
+    const [newItemUnit, setNewItemUnit] = useState('each');
+    const [newItemCategory, setNewItemCategory] = useState('Other');
+    const [isAdding, setIsAdding] = useState(false);
 
 
 
@@ -54,6 +63,20 @@ const ShoppingList: React.FC = () => {
                     }
                 });
             });
+        });
+
+        // Merge Manual Entries
+        manualShoppingList.forEach(manualItem => {
+            // Include ID in the key to uniquely identify it for deletion, or just merge by name
+            const key = `manual-${manualItem.id}`;
+            needed[key] = {
+                name: manualItem.name,
+                quantity: manualItem.quantity,
+                unit: manualItem.unit,
+                category: manualItem.category || 'Other',
+                isManual: true,
+                id: manualItem.id
+            };
         });
 
         // 2. Subtract Pantry Items using Smart Conversion
@@ -167,6 +190,11 @@ const ShoppingList: React.FC = () => {
                     category: item.category,
                     expiryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // Default 7 days
                 });
+
+                // Delete if it was a manual item
+                if ((item as any).isManual && (item as any).id) {
+                    removeManualShoppingItem((item as any).id);
+                }
             }
         });
 
@@ -230,6 +258,23 @@ const ShoppingList: React.FC = () => {
     };
 
     const listHasItems = Object.keys(shoppingList).length > 0;
+
+    const handleAddManualItem = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newItemName.trim()) return;
+        
+        setIsAdding(true);
+        await addManualShoppingItem({
+            name: newItemName.trim(),
+            quantity: parseFloat(newItemQty) || 1,
+            unit: newItemUnit.trim() || 'each',
+            category: newItemCategory
+        });
+        
+        setNewItemName('');
+        setNewItemQty('1');
+        setIsAdding(false);
+    };
 
     return (
         <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
@@ -399,6 +444,69 @@ const ShoppingList: React.FC = () => {
                 </div>
             )}
 
+            {/* Manual Add Form */}
+            <form onSubmit={handleAddManualItem} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-3 items-end">
+                <div className="flex-grow w-full">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Add to List</label>
+                    <input 
+                        type="text" 
+                        value={newItemName}
+                        onChange={e => setNewItemName(e.target.value)}
+                        placeholder="e.g. Paper Towels" 
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                        required
+                    />
+                </div>
+                <div className="w-full sm:w-24">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Qty</label>
+                    <input 
+                        type="number" 
+                        value={newItemQty}
+                        onChange={e => setNewItemQty(e.target.value)}
+                        min="0.1"
+                        step="0.1"
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                    />
+                </div>
+                <div className="w-full sm:w-32">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Unit</label>
+                    <select 
+                        value={newItemUnit}
+                        onChange={e => setNewItemUnit(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                    >
+                        <option value="each">each</option>
+                        <option value="rolls">rolls</option>
+                        <option value="boxes">boxes</option>
+                        <option value="oz">oz</option>
+                        <option value="g">g</option>
+                    </select>
+                </div>
+                <div className="w-full sm:w-40">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Category</label>
+                    <select 
+                        value={newItemCategory}
+                        onChange={e => setNewItemCategory(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                    >
+                        <option value="Other">Other</option>
+                        <option value="Produce">Produce</option>
+                        <option value="Meat">Meat</option>
+                        <option value="Dairy & Eggs">Dairy & Eggs</option>
+                        <option value="Pantry Staples">Pantry Staples</option>
+                        <option value="Household">Household</option>
+                        <option value="Beverages">Beverages</option>
+                    </select>
+                </div>
+                <button 
+                    type="submit" 
+                    disabled={isAdding || !newItemName.trim()}
+                    className="w-full sm:w-auto bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 h-[42px]"
+                >
+                    {isAdding ? <i className="fas fa-spinner fa-spin"></i> : 'Add'}
+                </button>
+            </form>
+
             <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-100 min-h-[400px]">
                 {listHasItems ? (
                     <div className="space-y-8">
@@ -431,6 +539,18 @@ const ShoppingList: React.FC = () => {
                                                 <span className={`text-sm font-bold px-3 py-1 rounded-full ${isChecked ? 'bg-gray-200 text-gray-500' : 'bg-blue-50 text-blue-600'}`}>
                                                     {item.quantity.toFixed(2)} {item.unit}
                                                 </span>
+                                                {(item as any).isManual && (item as any).id && (
+                                                    <button 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            removeManualShoppingItem((item as any).id);
+                                                        }}
+                                                        className="ml-3 text-red-300 hover:text-red-500 transition-colors p-2"
+                                                        title="Remove item"
+                                                    >
+                                                        <i className="fas fa-trash-alt"></i>
+                                                    </button>
+                                                )}
                                             </div>
                                         );
                                     })}

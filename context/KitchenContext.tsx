@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Recipe, PantryItem, MealPlan } from '../types';
+import { Recipe, PantryItem, MealPlan, ShoppingItem } from '../types';
 import { MOCK_RECIPES, MOCK_PANTRY, MOCK_MEAL_PLAN } from '../mockData';
 import { authFetch } from '../utils/api';
 import { useUser } from './UserContext';
@@ -17,6 +17,9 @@ interface KitchenContextType {
     setRecipes: React.Dispatch<React.SetStateAction<Recipe[]>>;
     setPantry: React.Dispatch<React.SetStateAction<PantryItem[]>>;
     setMealPlan: React.Dispatch<React.SetStateAction<MealPlan>>;
+    manualShoppingList: ShoppingItem[];
+    addManualShoppingItem: (item: Omit<ShoppingItem, 'id'>) => Promise<void>;
+    removeManualShoppingItem: (id: number) => Promise<void>;
     isLoading: boolean;
 }
 
@@ -28,7 +31,8 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const [recipes, setRecipes] = useState<Recipe[]>(MOCK_RECIPES);
     const [pantry, setPantry] = useState<PantryItem[]>(MOCK_PANTRY);
-    const [mealPlan, setMealPlan] = useState<MealPlan>(MOCK_MEAL_PLAN);
+    const [mealPlan, setMealPlan] = useState<MealPlan>({}); // Starts empty to fix ghost items bug
+    const [manualShoppingList, setManualShoppingList] = useState<ShoppingItem[]>([]);
 
     // Initial Sync
     useEffect(() => {
@@ -37,13 +41,15 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (isAuthenticated) {
                 try {
                     const token = await getAccessToken();
-                    const [resRecipes, resPantry] = await Promise.all([
+                    const [resRecipes, resPantry, resShopping] = await Promise.all([
                         authFetch('/api/data/recipes', { token }),
-                        authFetch('/api/data/pantry', { token })
+                        authFetch('/api/data/pantry', { token }),
+                        authFetch('/api/data/shopping', { token })
                     ]);
 
                     if (resRecipes.ok) setRecipes(await resRecipes.json());
                     if (resPantry.ok) setPantry(await resPantry.json());
+                    if (resShopping.ok) setManualShoppingList(await resShopping.json());
                     // MealPlan sync later
                 } catch (e) {
                     console.error("Sync Failed", e);
@@ -55,6 +61,9 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
                 const savedP = localStorage.getItem('ks_pantry');
                 if (savedP) setPantry(JSON.parse(savedP));
+
+                const savedS = localStorage.getItem('ks_shopping');
+                if (savedS) setManualShoppingList(JSON.parse(savedS));
             }
             setIsLoading(false);
         };
@@ -150,12 +159,46 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
     };
 
+    const addManualShoppingItem = async (item: Omit<ShoppingItem, 'id'>) => {
+        const tempId = Date.now();
+        const fullItem = { ...item, id: tempId };
+        setManualShoppingList(prev => [...prev, fullItem]);
+
+        if (isAuthenticated) {
+            const token = await getAccessToken();
+            const res = await authFetch('/api/data/shopping', {
+                method: 'POST',
+                body: JSON.stringify(item),
+                token
+            });
+            if (res.ok) {
+                const saved = await res.json();
+                setManualShoppingList(prev => prev.map(s => s.id === tempId ? saved : s));
+            }
+        } else {
+            localStorage.setItem('ks_shopping', JSON.stringify([...manualShoppingList, fullItem]));
+        }
+    };
+
+    const removeManualShoppingItem = async (id: number) => {
+        const newList = manualShoppingList.filter(s => s.id !== id);
+        setManualShoppingList(newList);
+        
+        if (isAuthenticated) {
+            const token = await getAccessToken();
+            authFetch(`/api/data/shopping/${id}`, { method: 'DELETE', token });
+        } else {
+            localStorage.setItem('ks_shopping', JSON.stringify(newList));
+        }
+    };
+
     return (
         <KitchenContext.Provider value={{
             recipes, pantry, mealPlan,
             addRecipe, updateRecipe, deleteRecipe,
             addPantryItem, batchAddPantryItems, removePantryItem,
             setRecipes, setPantry, setMealPlan,
+            manualShoppingList, addManualShoppingItem, removeManualShoppingItem,
             isLoading
         }}>
             {children}

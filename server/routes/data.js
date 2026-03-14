@@ -107,4 +107,46 @@ router.delete('/pantry/:id', async (req, res) => {
     }
 });
 
+// --- SHOPPING LIST ---
+
+// GET /api/data/shopping
+router.get('/shopping', async (req, res) => {
+    try {
+        const queryStr = 'SELECT * FROM shopping_list WHERE user_id IN (SELECT id FROM users WHERE household_id = $1 OR (household_id IS NULL AND id::text = $1))';
+        const { rows } = await db.query(queryStr, [req.user.effective_household]);
+        res.json(rows);
+    } catch (e) {
+        console.error("Fetch Shopping List Error:", e);
+        res.status(500).json({ error: "Failed to fetch shopping list" });
+    }
+});
+
+// POST /api/data/shopping (Add manual item)
+router.post('/shopping', async (req, res) => {
+    const item = req.body;
+
+    try {
+        const result = await db.query(
+            'INSERT INTO shopping_list (user_id, name, quantity, unit, category) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+            [req.user.id, item.name, item.quantity, item.unit, item.category]
+        );
+        res.json({ ...item, id: result.rows[0].id });
+    } catch (e) {
+        console.error("Add Shopping Item Error:", e);
+        res.status(500).json({ error: "Failed to add shopping item" });
+    }
+});
+
+// DELETE /api/data/shopping/:id
+router.delete('/shopping/:id', async (req, res) => {
+    try {
+        const queryStr = 'DELETE FROM shopping_list WHERE id = $1 AND user_id IN (SELECT id FROM users WHERE household_id = $2 OR (household_id IS NULL AND id::text = $2))';
+        await db.query(queryStr, [req.params.id, req.user.effective_household]);
+        res.json({ success: true });
+    } catch (e) {
+        console.error("Delete Shopping Item Error:", e);
+        res.status(500).json({ error: "Failed to delete shopping item" });
+    }
+});
+
 module.exports = router;

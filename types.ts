@@ -35,6 +35,14 @@ export interface PantryItem {
     expiryDate?: string;
 }
 
+export interface ShoppingItem {
+    id: number;
+    name: string;
+    quantity: number;
+    unit: string;
+    category: string;
+}
+
 export interface MealPlanSlot {
     recipeId?: number;
     custom_item_name?: string;
