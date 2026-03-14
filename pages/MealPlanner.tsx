@@ -39,10 +39,30 @@ const MealPlanner: React.FC = () => {
     const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
     const [missingIngredientsPrompt, setMissingIngredientsPrompt] = useState<{ recipeName: string, missing: Ingredient[] } | null>(null);
 
+    // State for Mobile Tap-to-Add workflow
+    const [selectedMobileRecipe, setSelectedMobileRecipe] = useState<{ id: number, name: string } | { customName: string } | null>(null);
+
     const handleDrop = (date: string, slot: string, e: React.DragEvent) => {
         const recipeId = e.dataTransfer.getData("recipeId");
         const customItemName = e.dataTransfer.getData("customItemName");
+        
+        addMealToSlot(date, slot, recipeId ? Number(recipeId) : null, customItemName || null);
+    };
 
+    const handleMobileSlotTap = (date: string, slot: string) => {
+        if (!selectedMobileRecipe) return;
+
+        if ('id' in selectedMobileRecipe) {
+            addMealToSlot(date, slot, selectedMobileRecipe.id, null);
+        } else {
+            addMealToSlot(date, slot, null, selectedMobileRecipe.customName);
+        }
+
+        // Clear selection after adding
+        setSelectedMobileRecipe(null);
+    };
+
+    const addMealToSlot = (date: string, slot: string, recipeId: number | null, customItemName: string | null) => {
         setMealPlan(prev => {
             const newPlan = JSON.parse(JSON.stringify(prev)); // Deep copy
             if (!newPlan[date]) {
@@ -53,8 +73,7 @@ const MealPlanner: React.FC = () => {
             }
 
             if (recipeId) {
-                const id = Number(recipeId);
-                newPlan[date][slot].push({ recipeId: id, completed: false });
+                newPlan[date][slot].push({ recipeId: recipeId, completed: false });
             } else if (customItemName) {
                 newPlan[date][slot].push({ custom_item_name: customItemName, completed: false });
             }
@@ -247,7 +266,11 @@ const MealPlanner: React.FC = () => {
                 {/* Recipe Tray */}
                 <div className="flex flex-col flex-grow min-h-0">
                     <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-bold text-gray-800">Drag & Drop</h2>
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-800">Plan Meals</h2>
+                            <p className="text-xs text-gray-500 md:hidden mt-1">{selectedMobileRecipe ? 'Tap a slot to add' : 'Tap a recipe to select'}</p>
+                            <p className="text-xs text-gray-500 hidden md:block mt-1">Drag & Drop</p>
+                        </div>
                         <button onClick={suggestRandomRecipes} title="Shuffle Recipes" className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-blue-500 hover:bg-blue-100 hover:scale-110 transition-all">
                             <i className="fas fa-random"></i>
                         </button>
@@ -277,22 +300,30 @@ const MealPlanner: React.FC = () => {
                     </div>
 
                     <div className="overflow-y-auto space-y-2 flex-grow pr-1 custom-scrollbar">
-                        {(shuffledTrayRecipes || filteredRecipes).map(recipe => (
-                            <div
-                                key={recipe.id}
-                                draggable
-                                onDragStart={(e) => {
-                                    e.dataTransfer.setData("recipeId", recipe.id.toString());
-                                }}
-                                className="p-3 bg-white rounded-xl shadow-sm border border-gray-100 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-200 transition-all group flex items-center justify-between"
-                            >
-                                <div>
-                                    <p className="font-bold text-sm text-gray-800 line-clamp-1">{recipe.name}</p>
-                                    <p className="text-[10px] text-gray-500 uppercase tracking-wide font-semibold">{recipe.meal_type}</p>
+                        {(shuffledTrayRecipes || filteredRecipes).map(recipe => {
+                            const isSelected = selectedMobileRecipe && 'id' in selectedMobileRecipe && selectedMobileRecipe.id === recipe.id;
+                            
+                            return (
+                                <div
+                                    key={recipe.id}
+                                    draggable
+                                    onDragStart={(e) => {
+                                        e.dataTransfer.setData("recipeId", recipe.id.toString());
+                                    }}
+                                    onClick={() => setSelectedMobileRecipe(isSelected ? null : { id: recipe.id, name: recipe.name })}
+                                    className={`p-3 rounded-xl shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md transition-all group flex items-center justify-between ${isSelected ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-200' : 'bg-white border-gray-100 hover:border-blue-200'}`}
+                                >
+                                    <div>
+                                        <p className={`font-bold text-sm line-clamp-1 ${isSelected ? 'text-blue-900' : 'text-gray-800'}`}>{recipe.name}</p>
+                                        <p className={`text-[10px] uppercase tracking-wide font-semibold ${isSelected ? 'text-blue-500' : 'text-gray-500'}`}>{recipe.meal_type}</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        {isSelected && <i className="fas fa-check-circle text-blue-500 md:hidden"></i>}
+                                        <i className="fas fa-grip-vertical text-gray-300 group-hover:text-blue-400 hidden md:block"></i>
+                                    </div>
                                 </div>
-                                <i className="fas fa-grip-vertical text-gray-300 group-hover:text-blue-400"></i>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
 
@@ -302,14 +333,25 @@ const MealPlanner: React.FC = () => {
                     <div
                         draggable
                         onDragStart={(e) => e.dataTransfer.setData("customItemName", customItemInput || "Custom Item")}
-                        className="p-3 bg-yellow-50 rounded-xl cursor-grab active:cursor-grabbing border-2 border-dashed border-yellow-200 text-center hover:bg-yellow-100 transition-colors group"
+                        onClick={() => {
+                            if (customItemInput) {
+                                const isSelected = selectedMobileRecipe && 'customName' in selectedMobileRecipe && selectedMobileRecipe.customName === customItemInput;
+                                setSelectedMobileRecipe(isSelected ? null : { customName: customItemInput });
+                            }
+                        }}
+                        className={`p-3 rounded-xl cursor-grab active:cursor-grabbing border-2 border-dashed text-center transition-colors group ${selectedMobileRecipe && 'customName' in selectedMobileRecipe ? 'bg-yellow-100 border-yellow-400 ring-2 ring-yellow-200' : 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100'}`}
                     >
-                        <i className="fas fa-hand-pointer text-yellow-400 mb-2 block group-hover:scale-110 transition-transform"></i>
+                        <i className={`fas fa-hand-pointer mb-2 hidden md:block transition-transform group-hover:scale-110 ${selectedMobileRecipe && 'customName' in selectedMobileRecipe ? 'text-yellow-600' : 'text-yellow-400'}`}></i>
+                        {selectedMobileRecipe && 'customName' in selectedMobileRecipe && <i className="fas fa-check-circle text-yellow-600 mb-2 md:hidden block text-xl"></i>}
                         <input
                             type="text"
-                            placeholder="Type (e.g. Leftovers) & Drag"
+                            placeholder="Type (e.g. Leftovers) & Drag/Tap"
                             value={customItemInput}
-                            onChange={(e) => setCustomItemInput(e.target.value)}
+                            onChange={(e) => {
+                                setCustomItemInput(e.target.value);
+                                if (selectedMobileRecipe && 'customName' in selectedMobileRecipe) setSelectedMobileRecipe(null);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
                             className="w-full bg-transparent text-sm font-bold text-yellow-800 placeholder-yellow-400 text-center outline-none"
                         />
                     </div>
@@ -367,8 +409,14 @@ const MealPlanner: React.FC = () => {
                                         >
                                             <div className="flex justify-between items-center px-1">
                                                 <h4 className="font-bold text-[10px] text-gray-400 uppercase tracking-wide">{slot}</h4>
+                                                <button 
+                                                    onClick={() => handleMobileSlotTap(dateStr, slot)}
+                                                    className={`md:hidden w-6 h-6 rounded-full flex items-center justify-center transition-all ${selectedMobileRecipe ? 'bg-blue-100 text-blue-600 animate-pulse' : 'bg-gray-100 text-gray-400'}`}
+                                                >
+                                                    <i className="fas fa-plus text-[10px]"></i>
+                                                </button>
                                                 {dayPlan[slot]?.length === 0 && (
-                                                    <i className="fas fa-plus text-[10px] text-gray-300 opacity-0 group-hover/slot:opacity-100 transition-opacity"></i>
+                                                    <i className="fas fa-plus text-[10px] text-gray-300 opacity-0 group-hover/slot:opacity-100 transition-opacity hidden md:block"></i>
                                                 )}
                                             </div>
 
