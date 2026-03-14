@@ -329,7 +329,10 @@ const MealPlanner: React.FC = () => {
 
                 {/* Custom Items Widget */}
                 <div className="flex flex-col border-t border-gray-100 pt-4 mt-auto">
-                    <h2 className="text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide">Custom Event</h2>
+                    <h2 className="text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide flex justify-between items-center">
+                        Custom Event 
+                        {selectedMobileRecipe && 'customName' in selectedMobileRecipe && <span className="text-[10px] text-yellow-600 italic font-normal bg-yellow-100 px-2 py-0.5 rounded md:hidden">Selected</span>}
+                    </h2>
                     <div
                         draggable
                         onDragStart={(e) => e.dataTransfer.setData("customItemName", customItemInput || "Custom Item")}
@@ -339,21 +342,33 @@ const MealPlanner: React.FC = () => {
                                 setSelectedMobileRecipe(isSelected ? null : { customName: customItemInput });
                             }
                         }}
-                        className={`p-3 rounded-xl cursor-grab active:cursor-grabbing border-2 border-dashed text-center transition-colors group ${selectedMobileRecipe && 'customName' in selectedMobileRecipe ? 'bg-yellow-100 border-yellow-400 ring-2 ring-yellow-200' : 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100'}`}
+                        className={`p-3 rounded-xl cursor-pointer md:cursor-grab md:active:cursor-grabbing border-2 border-dashed text-center transition-colors group relative ${selectedMobileRecipe && 'customName' in selectedMobileRecipe ? 'bg-yellow-100 border-yellow-400 ring-2 ring-yellow-200 shadow-md' : 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100'}`}
                     >
                         <i className={`fas fa-hand-pointer mb-2 hidden md:block transition-transform group-hover:scale-110 ${selectedMobileRecipe && 'customName' in selectedMobileRecipe ? 'text-yellow-600' : 'text-yellow-400'}`}></i>
-                        {selectedMobileRecipe && 'customName' in selectedMobileRecipe && <i className="fas fa-check-circle text-yellow-600 mb-2 md:hidden block text-xl"></i>}
+                        {selectedMobileRecipe && 'customName' in selectedMobileRecipe && <i className="fas fa-check-circle text-yellow-600 absolute top-2 right-2 md:hidden block"></i>}
                         <input
                             type="text"
-                            placeholder="Type (e.g. Leftovers) & Drag/Tap"
+                            placeholder="Type & Drag (Desktop) or Tap (Mobile)"
                             value={customItemInput}
                             onChange={(e) => {
                                 setCustomItemInput(e.target.value);
                                 if (selectedMobileRecipe && 'customName' in selectedMobileRecipe) setSelectedMobileRecipe(null);
                             }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-full bg-transparent text-sm font-bold text-yellow-800 placeholder-yellow-400 text-center outline-none"
+                            onClick={(e) => e.stopPropagation()} // Let user type without toggling selection immediately
+                            className="w-full bg-transparent text-sm font-bold text-yellow-800 placeholder-yellow-500/50 text-center outline-none"
                         />
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (customItemInput) {
+                                    const isSelected = selectedMobileRecipe && 'customName' in selectedMobileRecipe && selectedMobileRecipe.customName === customItemInput;
+                                    setSelectedMobileRecipe(isSelected ? null : { customName: customItemInput });
+                                }
+                            }}
+                            className={`mt-2 w-full text-xs font-bold py-1.5 rounded-lg md:hidden transition-colors ${selectedMobileRecipe && 'customName' in selectedMobileRecipe ? 'bg-yellow-200 text-yellow-800' : 'bg-yellow-400 text-white'}`}
+                        >
+                            {selectedMobileRecipe && 'customName' in selectedMobileRecipe ? 'Deselect' : 'Select'}
+                        </button>
                     </div>
                 </div>
             </aside>
