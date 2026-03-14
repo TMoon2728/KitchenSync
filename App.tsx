@@ -20,6 +20,7 @@ const Pantry = React.lazy(() => import('./pages/Pantry'));
 const ShoppingList = React.lazy(() => import('./pages/ShoppingList'));
 const Profile = React.lazy(() => import('./pages/Profile'));
 const Subscription = React.lazy(() => import('./pages/Subscription'));
+const PrivacyPolicy = React.lazy(() => import('./pages/PrivacyPolicy'));
 
 // Eager Load Auth Pages & Landing (Critical Path)
 import Login from './pages/Login';
@@ -45,6 +46,7 @@ const AppContent: React.FC = () => {
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Login />} />
+                <Route path="/privacy" element={<Suspense fallback={<div>Loading...</div>}><PrivacyPolicy /></Suspense>} />
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         );
@@ -134,34 +136,36 @@ const AppContent: React.FC = () => {
 
             {!isCookingMode && (
                 <aside
-                    className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
+                    className={`fixed inset-y-0 left-0 z-50 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
                         isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-                    } flex-shrink-0 ${themeClasses.sidebar} overflow-y-auto flex flex-col border-r border-white/10 ${isSidebarCollapsed ? 'md:w-20 w-64' : 'w-64'}`}
+                    } flex-shrink-0 ${themeClasses.sidebar} overflow-y-auto flex flex-col border-r border-white/10 ${isSidebarCollapsed && !isMobileMenuOpen ? 'md:w-20 w-64' : 'w-64'}`}
                 >
-                    <div className={`p-4 flex items-center h-16 ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
-                        {!isSidebarCollapsed && (
+                    {/* Define an internal collapsed state that forces expansion when mobile menu is open */}
+                    <div className="hidden">{(() => { /* dummy block to not break JSX */ })()}</div>
+                    <div className={`p-4 flex items-center h-16 ${isSidebarCollapsed && !isMobileMenuOpen ? 'justify-center' : 'justify-between'}`}>
+                        {!(isSidebarCollapsed && !isMobileMenuOpen) && (
                             <h1 className="text-2xl font-bold flex items-center truncate">
                                 <img src="/logo.svg" alt="Logo" className="h-12 w-12 mr-2 object-contain" />
                                 {retroMode ? '8-BIT KITCHEN' : 'KitchenSync'}
                             </h1>
                         )}
-                        {isSidebarCollapsed && (
+                        {(isSidebarCollapsed && !isMobileMenuOpen) && (
                             <img src="/logo.svg" alt="Logo" className="h-10 w-10 object-contain" />
                         )}
                     </div>
 
-                    <div className={`mx-4 mt-2 mb-4 bg-black/20 rounded-xl p-3 flex flex-col items-center border border-white/10 ${isSidebarCollapsed ? 'px-1' : ''}`}>
+                    <div className={`mx-4 mt-2 mb-4 bg-black/20 rounded-xl p-3 flex flex-col items-center border border-white/10 ${(isSidebarCollapsed && !isMobileMenuOpen) ? 'px-1' : ''}`}>
                         <div className="flex items-center gap-2 mb-1">
                             <i className="fas fa-bolt text-yellow-400"></i>
-                            {!isSidebarCollapsed && <span className="text-xs font-bold uppercase tracking-wider text-gray-300">AI Credits</span>}
+                            {!(isSidebarCollapsed && !isMobileMenuOpen) && <span className="text-xs font-bold uppercase tracking-wider text-gray-300">AI Credits</span>}
                         </div>
-                        <span className={`font-mono font-bold text-white ${isSidebarCollapsed ? 'text-xs' : 'text-xl'}`}>
+                        <span className={`font-mono font-bold text-white ${(isSidebarCollapsed && !isMobileMenuOpen) ? 'text-xs' : 'text-xl'}`}>
                             {retroMode ? '∞' : (userProfile.subscriptionTier === 'pro' ? '∞' : userProfile.credits)}
                         </span>
-                        {!isSidebarCollapsed && userProfile.subscriptionTier !== 'pro' && !retroMode && (
+                        {!(isSidebarCollapsed && !isMobileMenuOpen) && userProfile.subscriptionTier !== 'pro' && !retroMode && (
                             <NavLink to="/subscription" className="text-[10px] text-blue-300 hover:text-blue-100 mt-1">Get More</NavLink>
                         )}
-                        {retroMode && !isSidebarCollapsed && (
+                        {retroMode && !(isSidebarCollapsed && !isMobileMenuOpen) && (
                             <span className="text-[10px] text-green-400 mt-1 uppercase">God Mode</span>
                         )}
                     </div>
@@ -177,7 +181,7 @@ const AppContent: React.FC = () => {
                                     onDragOver={(e) => handleDragOver(e, index)}
                                     onDragEnd={handleDragEnd}
                                     className="cursor-move group relative"
-                                    title={isSidebarCollapsed ? item.name : 'Drag to reorder'}
+                                    title={(isSidebarCollapsed && !isMobileMenuOpen) ? item.name : 'Drag to reorder'}
                                 >
                                     <NavLink
                                         to={item.path}
@@ -186,10 +190,10 @@ const AppContent: React.FC = () => {
                                             }`
                                         }
                                     >
-                                        <div className={`w-6 flex justify-center flex-shrink-0 transition-all ${isSidebarCollapsed ? 'mx-auto' : 'mr-3'}`}>
+                                        <div className={`w-6 flex justify-center flex-shrink-0 transition-all ${(isSidebarCollapsed && !isMobileMenuOpen) ? 'mx-auto' : 'mr-3'}`}>
                                             <i className={`fas ${item.icon} text-lg ${item.path === '/ai-architect' ? 'text-purple-400' : ''}`}></i>
                                         </div>
-                                        <span className={`transition-all duration-300 ${isSidebarCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
+                                        <span className={`transition-all duration-300 ${(isSidebarCollapsed && !isMobileMenuOpen) ? 'opacity-0 w-0' : 'opacity-100'}`}>
                                             {item.name}
                                         </span>
                                     </NavLink>
@@ -204,10 +208,10 @@ const AppContent: React.FC = () => {
                             className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all whitespace-nowrap overflow-hidden text-gray-300 hover:text-white hover:bg-red-900/30 group`}
                             title="Logout"
                         >
-                            <div className={`w-6 flex justify-center flex-shrink-0 transition-all ${isSidebarCollapsed ? 'mx-auto' : 'mr-3'}`}>
+                            <div className={`w-6 flex justify-center flex-shrink-0 transition-all ${(isSidebarCollapsed && !isMobileMenuOpen) ? 'mx-auto' : 'mr-3'}`}>
                                 <i className="fas fa-sign-out-alt text-lg text-red-400 group-hover:text-red-300"></i>
                             </div>
-                            <span className={`transition-all duration-300 ${isSidebarCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
+                            <span className={`transition-all duration-300 ${(isSidebarCollapsed && !isMobileMenuOpen) ? 'opacity-0 w-0' : 'opacity-100'}`}>
                                 Logout
                             </span>
                         </button>
@@ -229,7 +233,7 @@ const AppContent: React.FC = () => {
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                 {/* Mobile Header Block */}
                 {!isCookingMode && (
-                    <header className="md:hidden flex items-center justify-between p-4 bg-gray-900 border-b border-gray-800 z-30">
+                    <header className="md:hidden flex items-center justify-between p-4 pt-[max(1rem,env(safe-area-inset-top))] bg-gray-900 border-b border-gray-800 z-30">
                         <div className="flex items-center gap-3">
                             <img src="/logo.svg" alt="Logo" className="h-8 w-8 object-contain" />
                             <span className="font-bold text-lg">{retroMode ? '8-BIT KITCHEN' : 'KitchenSync'}</span>
@@ -243,7 +247,7 @@ const AppContent: React.FC = () => {
                     </header>
                 )}
 
-                <main className={`flex-1 overflow-y-auto bg-gray-100 text-gray-800 ${isCookingMode ? 'p-0' : 'p-4 sm:p-6 lg:p-8'}`}>
+                <main className={`flex-1 overflow-y-auto bg-gray-100 text-gray-800 pb-[env(safe-area-inset-bottom)] ${isCookingMode ? 'p-0' : 'p-4 sm:p-6 lg:p-8'}`}>
                     <Suspense fallback={<div className="flex h-full items-center justify-center"><Spinner size="lg" /></div>}>
                     <Routes>
                         <Route path="/" element={<Dashboard />} />
@@ -258,6 +262,7 @@ const AppContent: React.FC = () => {
                         <Route path="/shopping-list" element={<ShoppingList />} />
                         <Route path="/profile" element={<Profile />} />
                         <Route path="/subscription" element={<Subscription />} />
+                        <Route path="/privacy" element={<PrivacyPolicy />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                 </Suspense>

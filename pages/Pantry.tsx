@@ -292,7 +292,7 @@ const Pantry: React.FC = () => {
                 <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
                     
                     {/* Scan Pantry Button */}
-                    <div className="relative">
+                    <div className="relative flex-1 sm:flex-none">
                         <input
                             type="file"
                             accept="image/*"
@@ -304,15 +304,15 @@ const Pantry: React.FC = () => {
                         />
                         <label
                             htmlFor="pantry-shelf-upload"
-                            className={`cursor-pointer bg-blue-100 border border-blue-200 text-blue-800 px-4 py-2 rounded-xl font-bold hover:bg-blue-200 transition-colors flex items-center shadow-sm ${isScanning ? 'opacity-50 cursor-wait' : ''}`}
+                            className={`cursor-pointer bg-blue-100 w-full sm:w-auto justify-center border border-blue-200 text-blue-800 px-4 py-2 rounded-xl font-bold hover:bg-blue-200 transition-colors flex items-center shadow-sm ${isScanning ? 'opacity-50 cursor-wait' : ''}`}
                             title="Take a photo of your fridge or pantry to auto-add items!"
                         >
-                            {isScanning ? <i className="fas fa-spinner fa-spin mr-2"></i> : <i className="fas fa-camera-viewfinder mr-2"></i>}
-                            <span className="hidden sm:inline ml-1">{isScanning ? 'Scanning...' : 'Scan Fridge/Pantry'}</span>
+                            {isScanning ? <i className="fas fa-spinner fa-spin md:mr-2"></i> : <i className="fas fa-camera-viewfinder md:mr-2"></i>}
+                            <span className="ml-2">{isScanning ? 'Scanning...' : 'Scan Fridge'}</span>
                         </label>
                     </div>
 
-                    <div className="relative">
+                    <div className="relative flex-1 sm:flex-none">
                         <input
                             type="file"
                             accept="image/*"
@@ -324,10 +324,10 @@ const Pantry: React.FC = () => {
                         />
                         <label
                             htmlFor="pantry-receipt-upload"
-                            className={`cursor-pointer bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-xl font-bold hover:bg-gray-50 transition-colors flex items-center shadow-sm ${isScanning ? 'opacity-50 cursor-wait' : ''}`}
+                            className={`cursor-pointer bg-white w-full sm:w-auto justify-center border border-gray-200 text-gray-700 px-4 py-2 rounded-xl font-bold hover:bg-gray-50 transition-colors flex items-center shadow-sm ${isScanning ? 'opacity-50 cursor-wait' : ''}`}
                         >
-                            {isScanning ? <i className="fas fa-spinner fa-spin mr-2"></i> : <i className="fas fa-receipt mr-2"></i>}
-                            <span className="hidden sm:inline ml-1">{isScanning ? 'Scanning...' : 'Scan Receipt'}</span>
+                            {isScanning ? <i className="fas fa-spinner fa-spin md:mr-2"></i> : <i className="fas fa-receipt md:mr-2"></i>}
+                            <span className="ml-2">{isScanning ? 'Scanning...' : 'Scan Receipt'}</span>
                         </label>
                     </div>
 

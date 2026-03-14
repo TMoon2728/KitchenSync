@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">kitchensync</string>
+    <string name="title_activity_main">kitchensync</string>
+    <string name="package_name">com.tmoon.kitchensync</string>
+    <string name="custom_url_scheme">com.tmoon.kitchensync</string>
+</resources>
