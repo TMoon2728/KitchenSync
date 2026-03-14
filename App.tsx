@@ -6,6 +6,8 @@ import { UserProvider, useUser } from './context/UserContext';
 import { KitchenProvider } from './context/KitchenContext';
 import { UIProvider, useUI } from './context/UIContext';
 import Spinner from './components/Spinner';
+import { CapacitorShareTarget } from '@capgo/capacitor-share-target';
+import { useNavigate } from 'react-router-dom';
 
 // Lazy Load Pages
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
@@ -81,6 +83,26 @@ const AppContent: React.FC = () => {
     }, [konamiIndex, setRetroMode]);
 
     const location = useLocation();
+    const navigate = useNavigate();
+
+    // --- Share Target Listener ---
+    useEffect(() => {
+        const listener = CapacitorShareTarget.addListener('shareReceived', (event) => {
+            console.log('ShareReceived:', event);
+            // The event contains texts (array of strings, typically just one URL)
+            const sharedUrl = event.texts && event.texts.length > 0 ? event.texts[0] : null;
+            
+            if (sharedUrl && (sharedUrl.startsWith('http://') || sharedUrl.startsWith('https://'))) {
+                // Navigate to the Recipes page and trigger the import URL modal automatically
+                navigate(`/recipes?importUrl=${encodeURIComponent(sharedUrl)}`);
+            }
+        });
+
+        // Cleanup listener on unmount
+        return () => {
+            listener.then(l => l.remove());
+        };
+    }, [navigate]);
 
     // Theme Logic
     const themeColor = userProfile.preferences?.themeColor || 'blue';

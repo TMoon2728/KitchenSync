@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Recipe, PantryItem } from '../types';
 import { useKitchen } from '../context/KitchenContext';
 import { useUser } from '../context/UserContext';
@@ -12,6 +12,7 @@ const Recipes: React.FC = () => {
     const { recipes, pantry, addRecipe, setRecipes } = useKitchen();
     const { consumeCredits, getAccessToken } = useUser();
     const location = useLocation();
+    const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState('');
 
     // Initialize filter from location state if available (e.g. coming from Dashboard tiles)
@@ -103,6 +104,41 @@ const Recipes: React.FC = () => {
             setIsImporting(false);
         }
     };
+
+    // Auto-trigger Import if initialized via Share Target Navigation
+    React.useEffect(() => {
+        const queryParams = new URLSearchParams(location.search);
+        const sharedUrl = queryParams.get('importUrl');
+        if (sharedUrl && !isImporting) {
+            setImportUrl(sharedUrl);
+            
+            // Clean up the URL so it doesn't re-trigger on refresh
+            navigate('/recipes', { replace: true });
+            
+            // Trigger the import (we must use the local value since state update async)
+            const autoImport = async () => {
+                if (!consumeCredits(1, true)) return;
+                setIsImporting(true);
+                setImportError(null);
+                try {
+                    const token = await getAccessToken();
+                    const result = await generateRecipeFromUrl(sharedUrl, token);
+                    if (result && result.name && result.ingredients && result.instructions) {
+                        addRecipe(result as Omit<Recipe, 'id' | 'is_favorite' | 'rating'>);
+                        setImportUrl('');
+                    } else {
+                        setImportError("AI failed to import the recipe from the shared URL.");
+                    }
+                } catch (e) {
+                    setImportError("An unexpected error occurred during automatic URL import.");
+                } finally {
+                    setIsImporting(false);
+                }
+            };
+            
+            autoImport();
+        }
+    }, [location.search, navigate, consumeCredits, getAccessToken, addRecipe]);
 
     const toggleFavorite = (id: number) => {
         setRecipes(prev =>
