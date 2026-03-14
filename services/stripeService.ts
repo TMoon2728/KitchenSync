@@ -1,43 +1,47 @@
+import { authFetch } from './../utils/api';
 
-import type { UserProfile } from '../types';
-
-// Explicitly access environment variables so bundlers can replace them at build time.
-// Dynamic access (e.g. process.env[key]) often fails in frontend builds because 
-// bundlers rely on static analysis to replace specific variable strings.
-const STRIPE_LINK_STARTER = process.env.STRIPE_LINK_STARTER;
-const STRIPE_LINK_PRO = process.env.STRIPE_LINK_PRO;
-const STRIPE_PORTAL_LINK = process.env.STRIPE_PORTAL_LINK;
-
-export const redirectToCheckout = (tier: 'starter' | 'pro') => {
-    const targetUrl = tier === 'starter' 
-        ? STRIPE_LINK_STARTER
-        : STRIPE_LINK_PRO;
-    
+export const redirectToCheckout = async (tier: 'starter' | 'pro', token: string) => {
     console.log(`Initiating checkout for ${tier}`);
 
-    if (targetUrl) {
-         window.location.href = targetUrl;
-         return new Promise(() => {}); // Never resolves, just redirects
-    }
+    try {
+        const res = await authFetch('/api/stripe/create-checkout-session', {
+            method: 'POST',
+            body: JSON.stringify({ tier }),
+            token
+        });
 
-    // Fallback Mock Behavior for development or when links aren't set
-    console.warn(`Stripe link for ${tier} not configured in environment variables.`);
-    alert(`Stripe configuration missing for ${tier}. Please check environment variables.`);
-    
-    return new Promise<void>((resolve) => {
-        setTimeout(() => {
-            resolve();
-        }, 1000);
-    });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.url) {
+                window.location.href = data.url;
+                return new Promise(() => {}); // Never resolves, just redirects to Stripe
+            }
+        }
+        
+        throw new Error("Invalid response from checkout creation endpoint");
+    } catch (e) {
+        console.error("Stripe checkout error:", e);
+        alert(`Failed to initiate checkout. Please try again later.`);
+    }
 };
 
-export const manageSubscription = () => {
-    const url = STRIPE_PORTAL_LINK;
+export const manageSubscription = async (token: string) => {
+    try {
+         const res = await authFetch('/api/stripe/create-portal-session', {
+            method: 'POST',
+            token
+        });
 
-    if (url) {
-        window.open(url, '_blank');
-    } else {
-        console.error("STRIPE_PORTAL_LINK environment variable is missing.");
-        alert("Billing portal link is not configured. Please check your STRIPE_PORTAL_LINK environment variable.");
+        if (res.ok) {
+            const data = await res.json();
+            if (data.url) {
+                 window.open(data.url, '_self'); // Same window for portal
+                 return;
+            }
+        }
+        throw new Error("Invalid response from portal creation endpoint");
+    } catch (e) {
+        console.error("Stripe portal error:", e);
+        alert("Failed to load billing portal. Note: You must have an active subscription history first.");
     }
 };

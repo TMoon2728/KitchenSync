@@ -263,34 +263,7 @@ router.post('/generate-image', async (req, res) => {
     }
 });
 
-// 4. Upgrade Subscription
-router.post('/subscription/upgrade', async (req, res) => {
-    try {
-        const { tier, payment_token } = req.body; // 'starter' or 'pro'
-        const user = await getUser(req);
 
-        if (!user) return res.status(401).json({ error: "Unauthorized" });
-
-        if (!['starter', 'pro'].includes(tier)) {
-            return res.status(400).json({ error: "Invalid tier" });
-        }
-
-        // Prototype security: require a specific dummy token for upgrades
-        if (!payment_token || payment_token !== 'dummy_stripe_token_123') {
-            return res.status(403).json({ error: "Forbidden. Invalid payment token." });
-        }
-
-        const newCredits = tier === 'starter' ? 50 : 999999;
-
-        // Update DB
-        await db.query('UPDATE users SET subscription_tier = $1, credits = $2 WHERE id = $3', [tier, newCredits, user.id]);
-
-        res.json({ success: true, tier, credits: newCredits });
-    } catch (e) {
-        console.error("Upgrade failed:", e);
-        res.status(500).json({ error: "Upgrade failed" });
-    }
-});
 
 // 4. Gemini Proxy: Chat (Sous Chef)
 router.post('/chat', async (req, res) => {

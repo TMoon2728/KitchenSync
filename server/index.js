@@ -14,6 +14,12 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
+
+// --- Stripe Webhook MUST come before express.json() ---
+const stripeRoutes = require('./routes/stripe');
+app.use('/api/stripe', stripeRoutes);
+// ------------------------------------------------------
+
 app.use(express.json({ limit: '10mb' }));
 
 // Auth Middleware (Global check for token)

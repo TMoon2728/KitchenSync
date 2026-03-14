@@ -31,9 +31,10 @@ const init = async () => {
             )
         `);
 
-        // Household Sharing
+        // Household Sharing & Stripe Data
         await pool.query(`
             ALTER TABLE users ADD COLUMN IF NOT EXISTS household_id TEXT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
         `);
 
         // Recipes Table

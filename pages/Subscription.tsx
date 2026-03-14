@@ -9,7 +9,7 @@ import Spinner from '../components/Spinner';
 import confetti from 'canvas-confetti';
 
 const Subscription: React.FC = () => {
-    const { userProfile, updateProfile } = useUser();
+    const { userProfile, updateProfile, getAccessToken } = useUser();
 
     // Adapter
     const setUserProfile = (action: React.SetStateAction<UserProfile>) => {
@@ -25,42 +25,16 @@ const Subscription: React.FC = () => {
 
     const handleUpgrade = async (tier: 'starter' | 'pro') => {
         setIsLoading(tier);
-        // Simulate Stripe Checkout Delay
-        await redirectToCheckout(tier);
-
-
-
-        // ... 
-
-        // API Call
         try {
-            const res = await authFetch('/api/subscription/upgrade', {
-                method: 'POST',
-                body: JSON.stringify({ tier, payment_token: 'dummy_stripe_token_123' })
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                setUserProfile(prev => ({
-                    ...prev,
-                    subscriptionTier: data.tier,
-                    credits: data.credits
-                }));
-            }
+            const token = await getAccessToken();
+            await redirectToCheckout(tier, token);
+            // Confetti and navigation are no longer needed here since
+            // Stripe redirects the user to their own checkout portal immediately.
         } catch (e) {
             console.error("Upgrade error", e);
+        } finally {
+            setIsLoading(null);
         }
-
-        setIsLoading(null);
-
-        confetti({
-            particleCount: 200,
-            spread: 100,
-            origin: { y: 0.6 },
-            colors: ['#FFD700', '#FFA500', '#FFFFFF']
-        });
-
-        setTimeout(() => navigate('/'), 1500);
     };
 
     const PlanCard: React.FC<{

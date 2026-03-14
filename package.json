@@ -36,7 +36,8 @@
     "pg": "^8.20.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^7.9.6"
+    "react-router-dom": "^7.9.6",
+    "stripe": "^20.4.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
