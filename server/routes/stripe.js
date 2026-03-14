@@ -4,13 +4,19 @@ const Stripe = require('stripe');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 
-const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+const stripeKey = process.env.STRIPE_SECRET_KEY;
+const stripe = stripeKey ? Stripe(stripeKey) : null;
 
 // Webhook handling must use raw body before express.json() parses it.
 // This route is directly mounted in index.js for this reason.
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
     const signature = req.headers['stripe-signature'];
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!stripe) {
+        console.error("Stripe is not configured on this server.");
+        return res.status(503).send('Stripe not configured');
+    }
 
     if (!webhookSecret) {
         console.error("STRIPE_WEBHOOK_SECRET is not set.");
