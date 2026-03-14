@@ -60,8 +60,12 @@ const handleApiResponse = async <T>(response: Response): Promise<T | null> => {
     return data.result as T;
 };
 
-export const generateRecipeFromIngredients = async (ingredients: string, token: string): Promise<Partial<Recipe> | null> => {
-    const prompt = `You are a creative chef. Invent a recipe using the following ingredients: ${ingredients}. Be creative and fill in any gaps with common pantry staples. Provide a complete recipe. Include useful tags (e.g., 'Vegetarian', 'Gluten-Free') in the response.`;
+export const generateRecipeFromIngredients = async (request: string, token: string): Promise<Partial<Recipe> | null> => {
+    const prompt = `You are a creative chef. Based on the following user request: "${request}". 
+    
+    CRITICAL INSTRUCTION: If the request is completely unrelated to food, cooking, meals, treats, or recipes (for example, asking for coding help, math, general chatting, or inappropriate content), you MUST invent a funny, sarcastic fake recipe that politely explains you are a Sous Chef, not a general assistant. For example, if asked to help with math homework, you could output a recipe named "Baked Math Homework with Extra Zeros". Make the instructions funny but clear that you only do food.
+    
+    If the request IS related to food or an event (e.g. "birthday treats", "dinner", "spicy food"), provide a complete, creative, and delicious recipe that fits the request perfectly. Fill in any gaps with common pantry staples. Include useful tags (e.g., 'Vegetarian', 'Quick', 'Party') in the response. Ensure the output strictly follows the schema.`;
 
     try {
         const response = await authFetch(`${API_BASE}/generate-recipe`, {

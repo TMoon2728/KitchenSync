@@ -1,4 +1,3 @@
-
 const express = require('express');
 const router = express.Router();
 const { GoogleGenAI } = require("@google/genai");
@@ -9,15 +8,18 @@ const db = require('../db');
 const genAI = new GoogleGenAI(process.env.GEMINI_API_KEY);
 
 // --- Helpers ---
-const getUser = (req) => {
+const getUser = async (req) => {
     if (!req.user) return null;
-    const row = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    const { rows } = await db.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+    const row = rows[0];
     if (!row) return null;
 
     // Parse JSON fields
+    const preferences = typeof row.preferences === 'string' ? JSON.parse(row.preferences || '{}') : (row.preferences || {});
+
     return {
         ...row,
-        preferences: JSON.parse(row.preferences || '{}'),
+        preferences,
         subscriptionTier: row.subscription_tier // map snake_case to camelCase
     };
 };
@@ -25,34 +27,44 @@ const getUser = (req) => {
 // --- Routes ---
 
 // 1. Get User Profile
-router.get('/user/profile', (req, res) => {
-    const user = getUser(req);
-    if (!user) return res.status(401).json({ error: "Unauthorized" });
-    res.json(user);
+router.get('/user/profile', async (req, res) => {
+    try {
+        const user = await getUser(req);
+        if (!user) return res.status(401).json({ error: "Unauthorized" });
+        res.json(user);
+    } catch (e) {
+        console.error("Profile Error:", e);
+        res.status(500).json({ error: "Failed to fetch profile" });
+    }
 });
 
 // 2. Consume Credits
-router.post('/credits/consume', (req, res) => {
-    const { amount } = req.body;
-    const user = getUser(req);
+router.post('/credits/consume', async (req, res) => {
+    try {
+        const { amount } = req.body;
+        const user = await getUser(req);
 
-    if (!user) return res.status(401).json({ error: "Unauthorized" });
+        if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-    if (typeof amount !== 'number' || amount <= 0) {
-        return res.status(400).json({ error: "Invalid amount. Must be a positive number." });
-    }
+        if (typeof amount !== 'number' || amount <= 0) {
+            return res.status(400).json({ error: "Invalid amount. Must be a positive number." });
+        }
 
-    if (user.subscriptionTier === 'pro') {
-        return res.json({ success: true, remaining: '∞', tier: 'pro' });
-    }
+        if (user.subscriptionTier === 'pro') {
+            return res.json({ success: true, remaining: '∞', tier: 'pro' });
+        }
 
-    if (user.credits >= amount) {
-        // Transaction
-        const info = db.prepare('UPDATE users SET credits = credits - ? WHERE id = ?').run(amount, user.id);
-        const updatedCredits = user.credits - amount;
-        return res.json({ success: true, remaining: updatedCredits, tier: user.subscriptionTier });
-    } else {
-        return res.status(402).json({ error: "Insufficient credits", current: user.credits });
+        if (user.credits >= amount) {
+            // Transaction
+            await db.query('UPDATE users SET credits = credits - $1 WHERE id = $2', [amount, user.id]);
+            const updatedCredits = user.credits - amount;
+            return res.json({ success: true, remaining: updatedCredits, tier: user.subscriptionTier });
+        } else {
+            return res.status(402).json({ error: "Insufficient credits", current: user.credits });
+        }
+    } catch (e) {
+        console.error("Consume Credits Error:", e);
+        res.status(500).json({ error: "Failed to consume credits" });
     }
 });
 
@@ -116,7 +128,7 @@ const resolveModel = async () => {
 
     } catch (e) {
         console.error("Failed to list models for resolution:", e);
-        return preferred;
+        return preferred; // Fallback so local dev without API keys listing perms still attempts
     }
 };
 
@@ -127,36 +139,40 @@ router.post('/generate-recipe', async (req, res) => {
         return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
     }
 
-    const { prompt, schema } = req.body;
-    const user = getUser(req);
-
-    // Auth Check
-    if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
-
-    // Validate Credits
-    if (user.subscriptionTier !== 'pro' && user.credits < 1) {
-        return res.status(402).json({ error: "Insufficient credits" });
-    }
-
     try {
+        const { prompt, schema } = req.body;
+        const user = await getUser(req);
+
+        // Auth Check
+        if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
+
+        // Validate Credits
+        if (user.subscriptionTier !== 'pro' && user.credits < 1) {
+            return res.status(402).json({ error: "Insufficient credits" });
+        }
+
         const modelName = await resolveModel();
         console.log(`Using model: ${modelName}`);
+
+        const config = {
+            responseMimeType: "application/json"
+        };
+        if (schema) {
+            config.responseSchema = schema;
+        }
 
         const result = await genAI.models.generateContent({
             model: modelName,
             contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: schema
-            }
+            config: config
         });
 
         const responseText = typeof result.text === 'function' ? result.text() : result.text;
 
         // Deduct Credit only on success
         if (user.subscriptionTier !== 'pro') {
-            const info = db.prepare('UPDATE users SET credits = credits - 1 WHERE id = ?').run(user.id);
-            console.log(`[CreditAudit] Deducted 1 credit from User ${user.id}. Changes: ${info.changes}, Previous Credits: ${user.credits}`);
+            const info = await db.query('UPDATE users SET credits = credits - 1 WHERE id = $1', [user.id]);
+            console.log(`[CreditAudit] Deducted 1 credit from User ${user.id}. Changes: ${info.rowCount}, Previous Credits: ${user.credits}`);
         } else {
             console.log(`[CreditAudit] User ${user.id} is PRO. No deduction.`);
         }
@@ -180,27 +196,26 @@ router.post('/generate-recipe', async (req, res) => {
 });
 
 // 4. Upgrade Subscription
-router.post('/subscription/upgrade', (req, res) => {
-    const { tier, payment_token } = req.body; // 'starter' or 'pro'
-    const user = getUser(req);
-
-    if (!user) return res.status(401).json({ error: "Unauthorized" });
-
-    if (!['starter', 'pro'].includes(tier)) {
-        return res.status(400).json({ error: "Invalid tier" });
-    }
-
-    // Prototype security: require a specific dummy token for upgrades
-    if (!payment_token || payment_token !== 'dummy_stripe_token_123') {
-        return res.status(403).json({ error: "Forbidden. Invalid payment token." });
-    }
-
+router.post('/subscription/upgrade', async (req, res) => {
     try {
+        const { tier, payment_token } = req.body; // 'starter' or 'pro'
+        const user = await getUser(req);
+
+        if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+        if (!['starter', 'pro'].includes(tier)) {
+            return res.status(400).json({ error: "Invalid tier" });
+        }
+
+        // Prototype security: require a specific dummy token for upgrades
+        if (!payment_token || payment_token !== 'dummy_stripe_token_123') {
+            return res.status(403).json({ error: "Forbidden. Invalid payment token." });
+        }
+
         const newCredits = tier === 'starter' ? 50 : 999999;
 
         // Update DB
-        const stmt = db.prepare('UPDATE users SET subscription_tier = ?, credits = ? WHERE id = ?');
-        stmt.run(tier, newCredits, user.id);
+        await db.query('UPDATE users SET subscription_tier = $1, credits = $2 WHERE id = $3', [tier, newCredits, user.id]);
 
         res.json({ success: true, tier, credits: newCredits });
     } catch (e) {
@@ -213,19 +228,17 @@ router.post('/subscription/upgrade', (req, res) => {
 router.post('/chat', async (req, res) => {
     if (!genAI) return res.status(503).json({ error: "AI Service Unavailable" });
 
-    // 1. Auth & Credit Check
-    const user = getUser(req);
-    if (!user) return res.status(401).json({ error: "Unauthorized" });
-
-    if (user.subscriptionTier !== 'pro' && user.credits < 1) {
-        return res.status(402).json({ error: "Insufficient credits" });
-    }
-
-    const { history, message, systemInstruction } = req.body;
-
     try {
-        // Chat not directly supported in genAI.models? 
-        // In new SDK: client.chats.create({ model: ..., ... })
+        // 1. Auth & Credit Check
+        const user = await getUser(req);
+        if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+        if (user.subscriptionTier !== 'pro' && user.credits < 1) {
+            return res.status(402).json({ error: "Insufficient credits" });
+        }
+
+        const { history, message, systemInstruction } = req.body;
+
         const modelName = await resolveModel();
         const chat = genAI.chats.create({
             model: modelName,
@@ -238,8 +251,8 @@ router.post('/chat', async (req, res) => {
 
         // 2. Deduct Credit
         if (user.subscriptionTier !== 'pro') {
-            const info = db.prepare('UPDATE users SET credits = credits - 1 WHERE id = ?').run(user.id);
-            console.log(`[CreditAudit] Deducted 1 credit from User ${user.id} (Chat). Changes: ${info.changes}, Previous: ${user.credits}`);
+            const info = await db.query('UPDATE users SET credits = credits - 1 WHERE id = $1', [user.id]);
+            console.log(`[CreditAudit] Deducted 1 credit from User ${user.id} (Chat). Changes: ${info.rowCount}`);
         } else {
             console.log(`[CreditAudit] User ${user.id} is PRO. No deduction.`);
         }
@@ -257,17 +270,17 @@ router.post('/ai/parse-url', async (req, res) => {
         return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
     }
 
-    const { url, schema } = req.body;
-    const user = getUser(req);
-
-    // Auth & Credit Check
-    if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
-
-    if (user.subscriptionTier !== 'pro' && user.credits < 1) {
-        return res.status(402).json({ error: "Insufficient credits" });
-    }
-
     try {
+        const { url, schema } = req.body;
+        const user = await getUser(req);
+
+        // Auth & Credit Check
+        if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
+
+        if (user.subscriptionTier !== 'pro' && user.credits < 1) {
+            return res.status(402).json({ error: "Insufficient credits" });
+        }
+
         console.log(`[ParseURL] Fetching content from: ${url}`);
         
         // 1. Fetch the raw HTML from the target URL
@@ -300,13 +313,17 @@ router.post('/ai/parse-url', async (req, res) => {
         `;
 
         const modelName = await resolveModel();
+        const config = {
+            responseMimeType: "application/json"
+        };
+        if (schema) {
+            config.responseSchema = schema;
+        }
+        
         const result = await genAI.models.generateContent({
             model: modelName,
             contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: schema
-            }
+            config: config
         });
 
         const responseText = typeof result.text === 'function' ? result.text() : result.text;
@@ -314,7 +331,7 @@ router.post('/ai/parse-url', async (req, res) => {
 
         // 3. Deduct Credit
         if (user.subscriptionTier !== 'pro') {
-            const info = db.prepare('UPDATE users SET credits = credits - 1 WHERE id = ?').run(user.id);
+            const info = await db.query('UPDATE users SET credits = credits - 1 WHERE id = $1', [user.id]);
             console.log(`[CreditAudit] Deducted 1 credit for URL Parse. User ${user.id}`);
         }
 
@@ -337,18 +354,18 @@ router.post('/ai/analyze-receipt', async (req, res) => {
         return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
     }
 
-    const { image, currentShoppingList } = req.body; // image as base64
-    const user = getUser(req);
-
-    // Auth Check
-    if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
-
-    // Validate Credits
-    if (user.subscriptionTier !== 'pro' && user.credits < 1) {
-        return res.status(402).json({ error: "Insufficient credits" });
-    }
-
     try {
+        const { image, currentShoppingList } = req.body; // image as base64
+        const user = await getUser(req);
+
+        // Auth Check
+        if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
+
+        // Validate Credits
+        if (user.subscriptionTier !== 'pro' && user.credits < 1) {
+            return res.status(402).json({ error: "Insufficient credits" });
+        }
+
         const prompt = `
         You are a smart shopping assistant. Compare this receipt image with the user's current shopping list.
         
@@ -396,8 +413,8 @@ router.post('/ai/analyze-receipt', async (req, res) => {
 
         // Deduct Credit only on success
         if (user.subscriptionTier !== 'pro') {
-            const info = db.prepare('UPDATE users SET credits = credits - 1 WHERE id = ?').run(user.id);
-            console.log(`[CreditAudit] Deducted 1 credit from User ${user.id}. Changes: ${info.changes}, Previous Credits: ${user.credits}`);
+            const info = await db.query('UPDATE users SET credits = credits - 1 WHERE id = $1', [user.id]);
+            console.log(`[CreditAudit] Deducted 1 credit from User ${user.id}. Changes: ${info.rowCount}`);
         } else {
             console.log(`[CreditAudit] User ${user.id} is PRO. No deduction.`);
         }
@@ -419,12 +436,9 @@ router.post('/ai/analyze-receipt', async (req, res) => {
 router.get('/ai/models', async (req, res) => {
     if (!genAI) return res.status(503).json({ error: "AI Service Unavailable" });
     try {
-        // Attempt to list models. SDK dependent.
-        // Try the standard way:
         let models = [];
         try {
             const list = await genAI.models.list();
-            // result might be an iterable or object with 'models'
             for await (const model of list) {
                 models.push(model);
             }
@@ -454,16 +468,16 @@ router.post('/ai/scan-pantry', async (req, res) => {
         return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
     }
 
-    const { image } = req.body;
-    const user = getUser(req);
-
-    if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
-
-    if (user.subscriptionTier !== 'pro' && user.credits < 1) {
-        return res.status(402).json({ error: "Insufficient credits" });
-    }
-
     try {
+        const { image } = req.body;
+        const user = await getUser(req);
+
+        if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
+
+        if (user.subscriptionTier !== 'pro' && user.credits < 1) {
+            return res.status(402).json({ error: "Insufficient credits" });
+        }
+
         const prompt = `
         You are a smart inventory assistant. Analyze this photo of a pantry shelf or refrigerator.
         
@@ -499,7 +513,7 @@ router.post('/ai/scan-pantry', async (req, res) => {
         const data = JSON.parse(cleanedText);
 
         if (user.subscriptionTier !== 'pro') {
-            const info = db.prepare('UPDATE users SET credits = credits - 1 WHERE id = ?').run(user.id);
+            const info = await db.query('UPDATE users SET credits = credits - 1 WHERE id = $1', [user.id]);
             console.log(`[CreditAudit] Deducted 1 credit for Pantry Scan. User ${user.id}`);
         }
 
