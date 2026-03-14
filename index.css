@@ -40,6 +40,12 @@ body {
   50% { transform: translateY(5%); }
 }
 
+@keyframes progress-indeterminate {
+  0% { transform: translateX(-100%) scaleX(0.2); }
+  50% { transform: translateX(0) scaleX(1); }
+  100% { transform: translateX(100%) scaleX(0.2); }
+}
+
 /* Utility Classes for Animations */
 .animate-fade-in {
   animation: fadeIn 0.5s ease-out forwards;
@@ -63,6 +69,11 @@ body {
 
 .animate-bounce-slow {
   animation: bounce-slow 2s infinite;
+}
+
+.animate-progress-indeterminate {
+  animation: progress-indeterminate 2s ease-in-out infinite;
+  transform-origin: left;
 }
 
 /* Staggered Delays */

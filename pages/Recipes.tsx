@@ -205,7 +205,28 @@ const Recipes: React.FC = () => {
     );
 
     return (
-        <div className="flex flex-col lg:flex-row gap-8 animate-fade-in">
+        <div className="flex flex-col lg:flex-row gap-8 animate-fade-in relative block">
+            {/* Full-screen Loading Overlay for URL Import via Share Target */}
+            {isImporting && (
+                <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-900/80 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm text-center border-t-4 border-green-500 transform transition-all scale-100">
+                        <div className="relative mb-6">
+                            <div className="absolute inset-0 bg-green-500 rounded-full blur animate-pulse opacity-20"></div>
+                            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center relative border-2 border-green-100">
+                                <i className="fas fa-magic text-3xl text-green-500 animate-bounce"></i>
+                            </div>
+                        </div>
+                        <h2 className="text-2xl font-black text-gray-800 tracking-tight mb-2">Scanning Link...</h2>
+                        <p className="text-gray-500 text-sm leading-relaxed">
+                            Our AI Sous Chef is reading the website, extracting the ingredients, and writing down the steps. This usually takes about 10 seconds.
+                        </p>
+                        <div className="mt-8 w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                            <div className="bg-gradient-to-r from-green-400 to-emerald-500 h-1.5 rounded-full animate-progress-indeterminate"></div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Filter Sidebar */}
             <aside className="w-full lg:w-64 flex-shrink-0 space-y-6">
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">

@@ -12,7 +12,12 @@ const Auth0ProviderWithRedirectCallback = ({ children, ...props }: any) => {
   const navigate = useNavigate();
 
   const onRedirectCallback = (appState?: AppState) => {
-    navigate((appState && appState.returnTo) || window.location.pathname + window.location.search);
+    // If we're using HashRouter, we must preserve the hash, otherwise fallback to standard path + search
+    const defaultRoute = window.location.hash 
+      ? window.location.hash.replace(/^#/, '') 
+      : window.location.pathname + window.location.search;
+      
+    navigate((appState && appState.returnTo) || defaultRoute);
   };
 
   return (
