@@ -105,6 +105,7 @@ const populateUser = async (req, res, next) => {
                     req.authLog.push(`Failed auto-upgrade: ${e.message}`);
                 }
             }
+            user.effective_household = user.household_id || String(user.id);
             req.user = user;
         } else {
             req.authLog.push("Final resolution: User is null.");

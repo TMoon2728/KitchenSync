@@ -10,8 +10,8 @@ router.use(requireAuth);
 // GET /api/data/recipes
 router.get('/recipes', async (req, res) => {
     try {
-        // pg driver uses $1, $2 for parameterized queries instead of ?
-        const { rows } = await db.query('SELECT * FROM recipes WHERE user_id = $1', [req.user.id]);
+        const queryStr = 'SELECT * FROM recipes WHERE user_id IN (SELECT id FROM users WHERE household_id = $1 OR (household_id IS NULL AND id::text = $1))';
+        const { rows } = await db.query(queryStr, [req.user.effective_household]);
         
         // Parse JSONB data column. In pg, jsonb columns might already be returned as objects.
         // We'll safely parse if it's a string, otherwise use it directly.
@@ -54,7 +54,8 @@ router.post('/recipes', async (req, res) => {
 // DELETE /api/data/recipes/:id
 router.delete('/recipes/:id', async (req, res) => {
     try {
-        const result = await db.query('DELETE FROM recipes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+        const queryStr = 'DELETE FROM recipes WHERE id = $1 AND user_id IN (SELECT id FROM users WHERE household_id = $2 OR (household_id IS NULL AND id::text = $2))';
+        const result = await db.query(queryStr, [req.params.id, req.user.effective_household]);
         if (result.rowCount > 0) res.json({ success: true });
         else res.status(404).json({ error: "Recipe not found" });
     } catch (e) {
@@ -69,7 +70,8 @@ router.delete('/recipes/:id', async (req, res) => {
 // GET /api/data/pantry
 router.get('/pantry', async (req, res) => {
     try {
-        const { rows } = await db.query('SELECT * FROM pantry WHERE user_id = $1', [req.user.id]);
+        const queryStr = 'SELECT * FROM pantry WHERE user_id IN (SELECT id FROM users WHERE household_id = $1 OR (household_id IS NULL AND id::text = $1))';
+        const { rows } = await db.query(queryStr, [req.user.effective_household]);
         res.json(rows);
     } catch (e) {
         console.error("Fetch Pantry Error:", e);
@@ -96,7 +98,8 @@ router.post('/pantry', async (req, res) => {
 // DELETE /api/data/pantry/:id
 router.delete('/pantry/:id', async (req, res) => {
     try {
-        await db.query('DELETE FROM pantry WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+        const queryStr = 'DELETE FROM pantry WHERE id = $1 AND user_id IN (SELECT id FROM users WHERE household_id = $2 OR (household_id IS NULL AND id::text = $2))';
+        await db.query(queryStr, [req.params.id, req.user.effective_household]);
         res.json({ success: true });
     } catch (e) {
         console.error("Delete Pantry Error:", e);

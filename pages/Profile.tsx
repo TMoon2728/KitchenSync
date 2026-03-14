@@ -4,6 +4,7 @@ import type { HouseholdMember, GroceryStore } from '../types';
 import { useUser } from '../context/UserContext';
 import { manageSubscription } from '../services/stripeService';
 import { Link } from 'react-router-dom';
+import { authFetch } from '../utils/api';
 
 const AVATARS = [
     '👨‍🍳', '👩‍🍳',
@@ -29,7 +30,7 @@ const TOGGLEABLE_NAV_ITEMS = [
 ];
 
 const Profile: React.FC = () => {
-    const { userProfile, updateProfile } = useUser();
+    const { userProfile, updateProfile, getAccessToken } = useUser();
 
     // Helper adapter for setUserProfile to match old signature if needed
     // But we will refactor to use updateProfile directly where possible
@@ -44,6 +45,11 @@ const Profile: React.FC = () => {
     // Household State
     const [newMemberName, setNewMemberName] = useState('');
     const [newMemberDiet, setNewMemberDiet] = useState('');
+
+    // Account Link State
+    const [linkEmail, setLinkEmail] = useState('');
+    const [isLinking, setIsLinking] = useState(false);
+    const [linkMessage, setLinkMessage] = useState<{type: 'success'|'error', text: string} | null>(null);
 
     // Grocery Store State
     const [newStoreName, setNewStoreName] = useState('');
@@ -86,6 +92,35 @@ const Profile: React.FC = () => {
             ...prev,
             householdMembers: prev.householdMembers.filter(m => m.id !== id)
         }));
+    };
+
+    const handleLinkAccount = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLinkMessage(null);
+        if (!linkEmail.trim()) return;
+
+        setIsLinking(true);
+        try {
+            const token = await getAccessToken();
+            const res = await authFetch('/api/auth/link', {
+                method: 'POST',
+                body: JSON.stringify({ targetEmail: linkEmail.trim() }),
+                token
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setLinkMessage({ type: 'success', text: data.message || "Account linked!" });
+                setLinkEmail('');
+                // Reload to fetch merged household data
+                setTimeout(() => window.location.reload(), 2000);
+            } else {
+                setLinkMessage({ type: 'error', text: data.error || "Failed to link account" });
+            }
+        } catch (error) {
+            setLinkMessage({ type: 'error', text: "A network error occurred." });
+        } finally {
+            setIsLinking(false);
+        }
     };
 
     // Handlers for Grocery Stores
@@ -352,6 +387,34 @@ const Profile: React.FC = () => {
                 <h2 className="text-xl font-bold mb-4 flex items-center">
                     <i className="fas fa-users text-blue-500 mr-2"></i> Household Management
                 </h2>
+
+                {/* Account Linking */}
+                <div className="mb-6 p-4 bg-purple-50 rounded-lg border border-purple-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                        <h3 className="font-bold text-purple-800 flex items-center"><i className="fas fa-link mr-2"></i>Link Accounts</h3>
+                        <p className="text-sm text-purple-600">Connect with a spouse or roommate to share your Recipes and Pantry automatically.</p>
+                    </div>
+                    <form onSubmit={handleLinkAccount} className="flex w-full md:w-auto gap-2">
+                        <input 
+                            type="email" 
+                            placeholder="Partner's Email" 
+                            className="form-input text-sm p-2 border border-purple-200 rounded flex-grow md:w-48 focus:ring-purple-500 bg-white" 
+                            value={linkEmail}
+                            onChange={e => setLinkEmail(e.target.value)}
+                            required
+                        />
+                        <button type="submit" disabled={isLinking} className="bg-purple-600 text-white px-4 py-2 rounded text-sm font-bold shadow hover:bg-purple-700 transition disabled:opacity-50 whitespace-nowrap">
+                            {isLinking ? <i className="fas fa-spinner fa-spin"></i> : 'Connect'}
+                        </button>
+                    </form>
+                </div>
+                {linkMessage && (
+                    <div className={`mb-6 p-3 rounded text-sm font-semibold flex items-center ${linkMessage.type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'}`}>
+                        <i className={`fas ${linkMessage.type === 'success' ? 'fa-check-circle text-green-600' : 'fa-exclamation-circle text-red-600'} mr-2`}></i>
+                        {linkMessage.text} {linkMessage.type === 'success' && " Refreshing..."}
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="md:col-span-2 space-y-3">
                         {userProfile.householdMembers.length > 0 ? (

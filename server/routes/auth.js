@@ -61,4 +61,45 @@ router.post('/login', (req, res) => {
     });
 });
 
+// POST /api/auth/link (Link Accounts into a Household)
+router.post('/link', requireAuth, async (req, res) => {
+    const { targetEmail } = req.body;
+    const currentUser = req.user;
+
+    if (!targetEmail) {
+        return res.status(400).json({ error: "Target email is required" });
+    }
+
+    if (targetEmail.toLowerCase() === currentUser.email.toLowerCase()) {
+        return res.status(400).json({ error: "Cannot link to yourself" });
+    }
+
+    try {
+        const result = await db.query('SELECT * FROM users WHERE email = $1', [targetEmail]);
+        const targetUser = result.rows[0];
+
+        if (!targetUser) {
+            return res.status(404).json({ error: "User with that email not found" });
+        }
+
+        const targetHousehold = targetUser.household_id || String(targetUser.id);
+        const myHousehold = currentUser.household_id || String(currentUser.id);
+
+        if (targetHousehold === myHousehold) {
+            return res.status(400).json({ error: "Accounts are already linked" });
+        }
+
+        // Update current user
+        await db.query('UPDATE users SET household_id = $1 WHERE id = $2', [targetHousehold, currentUser.id]);
+        
+        // Ensure target user also has the matching formal identifier
+        await db.query('UPDATE users SET household_id = $1 WHERE id = $2', [targetHousehold, targetUser.id]);
+
+        res.json({ success: true, message: `Successfully linked your account to ${targetEmail}` });
+    } catch (e) {
+        console.error("Link Account Error:", e);
+        res.status(500).json({ error: "Failed to link accounts" });
+    }
+});
+
 module.exports = router;
