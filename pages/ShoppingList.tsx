@@ -468,7 +468,7 @@ const ShoppingList: React.FC = () => {
                         className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
                     />
                 </div>
-                <div className="w-full sm:w-36 min-w-[100px]">
+                <div className="w-full sm:w-40 min-w-[120px]">
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Unit</label>
                     <select 
                         value={newItemUnit}
@@ -478,11 +478,13 @@ const ShoppingList: React.FC = () => {
                         <option value="each">each</option>
                         <option value="rolls">rolls</option>
                         <option value="boxes">boxes</option>
+                        <option value="cans">cans</option>
+                        <option value="packages">packages</option>
                         <option value="oz">oz</option>
                         <option value="g">g</option>
                     </select>
                 </div>
-                <div className="w-full sm:w-48 min-w-[140px]">
+                <div className="w-full sm:w-56 min-w-[170px]">
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Category</label>
                     <select 
                         value={newItemCategory}
