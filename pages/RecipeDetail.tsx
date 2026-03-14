@@ -183,7 +183,7 @@ const RecipeDetail: React.FC = () => {
                         className={`w-10 h-10 rounded-full flex items-center justify-center bg-white shadow-md transition-transform hover:scale-110`}
                         title="Toggle Favorite"
                     >
-                        <i className={`text-xl ${recipe.is_favorite ? 'fas text-red-500' : 'far text-gray-400'}`}></i>
+                        <i className={`fa-heart text-xl ${recipe.is_favorite ? 'fas text-red-500 animate-pulse-glow' : 'far text-gray-400 hover:text-red-400'}`}></i>
                     </button>
                     <div className="relative">
                         <button

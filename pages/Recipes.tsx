@@ -218,7 +218,7 @@ const Recipes: React.FC = () => {
                         </div>
                         <h2 className="text-2xl font-black text-gray-800 tracking-tight mb-2">Scanning Link...</h2>
                         <p className="text-gray-500 text-sm leading-relaxed">
-                            Our AI Sous Chef is reading the website, extracting the ingredients, and writing down the steps. This usually takes about 10 seconds.
+                            Our AI Sous Chef is reading the website, extracting the ingredients, and writing down the steps. This usually takes about a minute or two.
                         </p>
                         <div className="mt-8 w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                             <div className="bg-gradient-to-r from-green-400 to-emerald-500 h-1.5 rounded-full animate-progress-indeterminate"></div>

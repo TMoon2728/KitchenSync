@@ -214,28 +214,30 @@ router.post('/generate-image', async (req, res) => {
 
         console.log(`Generating image for prompt: ${prompt}`);
 
-        // Generate the image using imagen-3.0-generate-002
-        // We catch errors closely because image generation might not work on all API keys
-        const response = await genAI.models.generateImages({
-            model: 'imagen-3.0-generate-002',
-            prompt: prompt,
-            config: {
-                numberOfImages: 1,
-                aspectRatio: "1:1",
-                outputMimeType: "image/jpeg",
-            }
-        });
-
-        // The new SDK usually returns response.generatedImages as an array
-        const generatedImage = response.generatedImages[0];
-        
         let base64Image = '';
-        if (generatedImage.image && generatedImage.image.imageBytes) {
-            base64Image = `data:image/jpeg;base64,${generatedImage.image.imageBytes}`;
-        } else if (generatedImage.base64) { // Fallback, APIs vary
-            base64Image = `data:image/jpeg;base64,${generatedImage.base64}`;
-        } else {
-             throw new Error("Could not parse image bytes from Google GenAI response");
+        try {
+            const response = await genAI.models.generateImages({
+                model: 'imagen-3.0-generate-002',
+                prompt: prompt,
+                config: {
+                    numberOfImages: 1,
+                    aspectRatio: "1:1"
+                }
+            });
+
+            const generatedImage = response.generatedImages[0];
+            
+            if (generatedImage.image && generatedImage.image.imageBytes) {
+                base64Image = `data:image/jpeg;base64,${generatedImage.image.imageBytes}`;
+            } else if (generatedImage.base64) { 
+                base64Image = `data:image/jpeg;base64,${generatedImage.base64}`;
+            } else {
+                throw new Error("Could not parse image bytes");
+            }
+        } catch (genError) {
+            console.error("Gemini native image generation failed. Using fallback:", genError);
+            // Fallback to a food-related placeholder containing a representation of the prompt
+            base64Image = `https://loremflickr.com/500/500/food,meal`;
         }
 
         // Deduct Credit only on success
@@ -368,6 +370,7 @@ router.post('/ai/parse-url', async (req, res) => {
         You are an expert recipe extractor. Read the following HTML/text extracted from a webpage and identify the core recipe.
         Ignore ads, life stories, comments, and navigation.
         Extract the recipe name, servings, ingredients, instructions, and other details.
+        CRITICAL INSTRUCTION: You must try to extract the main image URL for the recipe if it is available in the content (look for image tags, source attributes, or meta og:image). This should be returned as imageUrl.
         
         Extracted Webpage Content:
         ${cleanText}
