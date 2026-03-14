@@ -5,7 +5,22 @@ import { HashRouter } from 'react-router-dom';
 import App from './App';
 import './index.css';
 
-import { Auth0Provider } from '@auth0/auth0-react';
+import { Auth0Provider, AppState } from '@auth0/auth0-react';
+import { useNavigate } from 'react-router-dom';
+
+const Auth0ProviderWithRedirectCallback = ({ children, ...props }: any) => {
+  const navigate = useNavigate();
+
+  const onRedirectCallback = (appState?: AppState) => {
+    navigate((appState && appState.returnTo) || window.location.pathname + window.location.search);
+  };
+
+  return (
+    <Auth0Provider onRedirectCallback={onRedirectCallback} {...props}>
+      {children}
+    </Auth0Provider>
+  );
+};
 
 const domain = import.meta.env.VITE_AUTH0_DOMAIN;
 const clientId = import.meta.env.VITE_AUTH0_CLIENT_ID;
@@ -19,20 +34,20 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <Auth0Provider
-      domain={domain}
-      clientId={clientId}
-      authorizationParams={{
-        redirect_uri: window.location.origin.replace(/\/$/, ''),
-        audience: audience,
-        scope: "openid profile email"
-      }}
-      cacheLocation="localstorage"
-      useRefreshTokens={true}
-    >
-      <HashRouter>
+    <HashRouter>
+      <Auth0ProviderWithRedirectCallback
+        domain={domain}
+        clientId={clientId}
+        authorizationParams={{
+          redirect_uri: window.location.origin.replace(/\/$/, ''),
+          audience: audience,
+          scope: "openid profile email"
+        }}
+        cacheLocation="localstorage"
+        useRefreshTokens={true}
+      >
         <App />
-      </HashRouter>
-    </Auth0Provider>
+      </Auth0ProviderWithRedirectCallback>
+    </HashRouter>
   </React.StrictMode>
 );

@@ -94,7 +94,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, [auth0Loading, isAuthenticated]);
 
     const login = async () => {
-        await loginWithRedirect();
+        await loginWithRedirect({
+            appState: {
+                returnTo: window.location.pathname + window.location.search
+            }
+        });
     };
 
     const devLogin = async (usernameArg?: string) => {
