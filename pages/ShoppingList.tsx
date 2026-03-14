@@ -138,7 +138,7 @@ const ShoppingList: React.FC = () => {
             return acc;
         }, {} as { [category: string]: NeededIngredient[] });
 
-    }, [mealPlan, pantry, recipes]);
+    }, [mealPlan, pantry, recipes, manualShoppingList]);
 
     // Stats for Gamification
     const totalItems = (Object.values(shoppingList) as NeededIngredient[][]).reduce((acc: number, items: NeededIngredient[]) => acc + items.length, 0);
