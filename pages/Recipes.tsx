@@ -107,12 +107,17 @@ const Recipes: React.FC = () => {
 
     // Auto-trigger Import if initialized via Share Target Navigation
     React.useEffect(() => {
-        const queryParams = new URLSearchParams(location.search);
-        const sharedUrl = queryParams.get('importUrl');
+        // PWA manifests might append query before the hash (/?importUrl=x#/recipes) or after it
+        const routerParams = new URLSearchParams(location.search);
+        const windowParams = new URLSearchParams(window.location.search);
+        
+        const sharedUrl = routerParams.get('importUrl') || windowParams.get('importUrl');
+        
         if (sharedUrl && !isImporting) {
             setImportUrl(sharedUrl);
             
             // Clean up the URL so it doesn't re-trigger on refresh
+            window.history.replaceState({}, '', '/#/recipes');
             navigate('/recipes', { replace: true });
             
             // Trigger the import (we must use the local value since state update async)
