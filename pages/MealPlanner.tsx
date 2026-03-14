@@ -43,10 +43,37 @@ const MealPlanner: React.FC = () => {
     const [selectedMobileRecipe, setSelectedMobileRecipe] = useState<{ id: number, name: string } | { customName: string } | null>(null);
 
     const handleDrop = (date: string, slot: string, e: React.DragEvent) => {
+        const sourceDate = e.dataTransfer.getData("sourceDate");
+        const sourceSlot = e.dataTransfer.getData("sourceSlot");
+        const sourceIndex = e.dataTransfer.getData("sourceIndex");
         const recipeId = e.dataTransfer.getData("recipeId");
         const customItemName = e.dataTransfer.getData("customItemName");
         
-        addMealToSlot(date, slot, recipeId ? Number(recipeId) : null, customItemName || null);
+        if (sourceDate && sourceSlot && sourceIndex) {
+            moveMeal(sourceDate, sourceSlot, parseInt(sourceIndex, 10), date, slot);
+        } else {
+            addMealToSlot(date, slot, recipeId ? Number(recipeId) : null, customItemName || null);
+        }
+    };
+
+    const moveMeal = (sourceDate: string, sourceSlot: string, sourceIndex: number, targetDate: string, targetSlot: string) => {
+        setMealPlan(prev => {
+            const newPlan = JSON.parse(JSON.stringify(prev)); // Deep copy
+            if (!newPlan[sourceDate]?.[sourceSlot]?.[sourceIndex]) return prev;
+
+            if (!newPlan[targetDate]) {
+                newPlan[targetDate] = { Breakfast: [], Lunch: [], Dinner: [], Snack: [] };
+            }
+            if (!newPlan[targetDate][targetSlot]) {
+                newPlan[targetDate][targetSlot] = [];
+            }
+
+            const itemToMove = newPlan[sourceDate][sourceSlot][sourceIndex];
+            newPlan[sourceDate][sourceSlot].splice(sourceIndex, 1);
+            newPlan[targetDate][targetSlot].push(itemToMove);
+
+            return newPlan;
+        });
     };
 
     const handleMobileSlotTap = (date: string, slot: string) => {
@@ -441,7 +468,17 @@ const MealPlanner: React.FC = () => {
                                                     const isCompleted = item.completed;
 
                                                     return (
-                                                        <div key={index} className={`relative p-2 rounded-lg shadow-sm border text-xs group transition-all hover:scale-105 hover:z-10 ${recipe ? (isCompleted ? 'bg-green-50 text-green-800 border-green-200 opacity-70' : 'bg-white text-gray-800 border-gray-100 hover:border-blue-300') : 'bg-yellow-50 text-yellow-800 border-yellow-100'}`}>
+                                                        <div 
+                                                            key={index}
+                                                            draggable
+                                                            onDragStart={(e) => {
+                                                                e.stopPropagation(); // prevent parent custom event drag if any
+                                                                e.dataTransfer.setData("sourceDate", dateStr);
+                                                                e.dataTransfer.setData("sourceSlot", slot);
+                                                                e.dataTransfer.setData("sourceIndex", index.toString());
+                                                            }}
+                                                            className={`relative p-2 rounded-lg shadow-sm border text-xs group transition-all hover:scale-105 hover:z-10 cursor-grab active:cursor-grabbing ${recipe ? (isCompleted ? 'bg-green-50 text-green-800 border-green-200 opacity-70' : 'bg-white text-gray-800 border-gray-100 hover:border-blue-300') : 'bg-yellow-50 text-yellow-800 border-yellow-100'}`}
+                                                        >
                                                             <span className={`font-bold line-clamp-2 leading-tight ${isCompleted ? 'line-through' : ''}`}>
                                                                 {recipe ? recipe.name : item.custom_item_name}
                                                             </span>
@@ -456,8 +493,8 @@ const MealPlanner: React.FC = () => {
                                                             )}
 
                                                             <button
-                                                                onClick={() => removeItemFromPlan(dateStr, slot, index)}
-                                                                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-red-600 scale-75 group-hover:scale-100"
+                                                                onClick={(e) => { e.stopPropagation(); removeItemFromPlan(dateStr, slot, index); }}
+                                                                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center transition-opacity shadow-md hover:bg-red-600 md:opacity-0 md:group-hover:opacity-100 opacity-100 z-20 md:scale-75 md:group-hover:scale-100"
                                                                 title="Remove"
                                                             >
                                                                 &times;
