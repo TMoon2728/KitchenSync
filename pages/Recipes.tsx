@@ -9,7 +9,7 @@ import Spinner from '../components/Spinner';
 import { generateRecipeFromIngredients, generateRecipeFromUrl } from '../services/geminiService';
 
 const Recipes: React.FC = () => {
-    const { recipes, pantry, addRecipe, setRecipes } = useKitchen();
+    const { recipes, pantry, addRecipe, setRecipes, deleteRecipe } = useKitchen();
     const { consumeCredits, getAccessToken } = useUser();
     const location = useLocation();
     const navigate = useNavigate();
@@ -336,7 +336,7 @@ const Recipes: React.FC = () => {
                                 className={`animate-slide-up ${isQuantumMode ? 'quantum-flux' : ''}`}
                                 style={{ animationDelay: `${index * 50}ms` }}
                             >
-                                <RecipeCard recipe={recipe} onToggleFavorite={toggleFavorite} />
+                                <RecipeCard recipe={recipe} onToggleFavorite={toggleFavorite} onDelete={deleteRecipe} />
                             </div>
                         ))}
                     </div>

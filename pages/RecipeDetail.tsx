@@ -89,8 +89,9 @@ const RecipeDetail: React.FC = () => {
 
         setIsImageLoading(true);
         try {
+            const token = await getAccessToken();
             const context = recipe.instructions.slice(0, 100);
-            const imageUrl = await generateRecipeImage(recipe.name, context);
+            const imageUrl = await generateRecipeImage(recipe.name, context, token);
             if (imageUrl) {
                 updateRecipe({ ...recipe, imageUrl });
                 if (isFree) {

@@ -38,7 +38,8 @@ const recipeSchema = {
             type: Type.ARRAY,
             items: { type: Type.STRING },
             description: "Relevant tags for filtering, e.g., 'Vegetarian', 'Quick', 'Spicy', 'Chicken'."
-        }
+        },
+        imageUrl: { type: Type.STRING, description: "The URL of the main image for the recipe. Extract this from the webpage if available.", nullable: true }
     },
     required: ["name", "servings", "ingredients", "instructions", "meal_type"],
 };
@@ -63,7 +64,7 @@ const handleApiResponse = async <T>(response: Response): Promise<T | null> => {
 export const generateRecipeFromIngredients = async (request: string, token: string): Promise<Partial<Recipe> | null> => {
     const prompt = `You are a creative chef. Based on the following user request: "${request}". 
     
-    CRITICAL INSTRUCTION: If the request is completely unrelated to food, cooking, meals, treats, or recipes (for example, asking for coding help, math, general chatting, or inappropriate content), you MUST invent a funny, sarcastic fake recipe that politely explains you are a Sous Chef, not a general assistant. For example, if asked to help with math homework, you could output a recipe named "Baked Math Homework with Extra Zeros". Make the instructions funny but clear that you only do food.
+    CRITICAL INSTRUCTION: If the request is completely unrelated to food, cooking, meals, treats, or recipes (for example, asking for coding help, math, general chatting, or inappropriate content), you MUST invent a funny, sarcastic fake recipe that politely explains you are a Sous Chef, not a general assistant. For example, if asked to help with math homework, you could output a recipe named "Baked Math Homework with Extra Zeros". Make the instructions funny but clear that you only do food. IMPORTANT SAFETY RULE: While being sarcastic and funny, NEVER suggest eating or doing anything actually harmful, painful, or dangerous (e.g., do not suggest eating whole hot peppers, raw meat, dangerous chemicals, or engaging in unsafe activities). Keep it lighthearted and safe!
     
     If the request IS related to food or an event (e.g. "birthday treats", "dinner", "spicy food"), provide a complete, creative, and delicious recipe that fits the request perfectly. Fill in any gaps with common pantry staples. Include useful tags (e.g., 'Vegetarian', 'Quick', 'Party') in the response. Ensure the output strictly follows the schema.`;
 
@@ -246,13 +247,21 @@ export const suggestRecipesFromPantry = async (
     }
 };
 
-export const generateRecipeImage = async (recipeName: string, description?: string): Promise<string | null> => {
-    // Phase 1: Image generation might not be implemented on backend or needs a different endpoint.
-    // Use prompt-only generation? Or separate 'image' endpoint?
-    // We didn't create /api/generate-image.
-    // Let's stub it or implement it. 
-    console.warn("generateRecipeImage not yet implemented on backend");
-    return null;
+export const generateRecipeImage = async (recipeName: string, description: string | undefined, token: string): Promise<string | null> => {
+    const prompt = `A professional, high-quality food photography top-down shot of a delicious meal called "${recipeName}". ${description || ''} The image should be brightly lit, appetizing, and suitable for a recipe blog.`;
+
+    try {
+        const response = await authFetch(`${API_BASE}/generate-image`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt }),
+            token
+        });
+        return handleApiResponse<string>(response);
+    } catch (error) {
+        console.error("Error generating recipe image:", error);
+        return null;
+    }
 };
 
 export const scanPantryStorage = async (base64Image: string, token: string): Promise<any | null> => {
@@ -288,6 +297,7 @@ export const chatWithSousChef = async (history: ChatMessage[], context: string, 
     - Be concise, encouraging, and culinary-focused.
     - If asked about wine pairings, offer a sophisticated but accessible suggestion.
     - If asked about cooking techniques, explain them simply.
+    - IMPORTANT SAFETY RULE: Keep any humor or sarcasm safe. Never suggest consuming harmful, painful, or dangerous items (e.g., dangerous chemicals, raw meat, or eating whole hot peppers).
     `;
 
     try {

@@ -195,6 +195,67 @@ router.post('/generate-recipe', async (req, res) => {
     }
 });
 
+// 3b. Gemini Proxy: Generate Image
+router.post('/generate-image', async (req, res) => {
+    if (!genAI) {
+        return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
+    }
+
+    try {
+        const { prompt } = req.body;
+        const user = await getUser(req);
+
+        // Auth Check
+        if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
+
+        if (user.subscriptionTier !== 'pro' && user.credits < 1) {
+            return res.status(402).json({ error: "Insufficient credits" });
+        }
+
+        console.log(`Generating image for prompt: ${prompt}`);
+
+        // Generate the image using imagen-3.0-generate-002
+        // We catch errors closely because image generation might not work on all API keys
+        const response = await genAI.models.generateImages({
+            model: 'imagen-3.0-generate-002',
+            prompt: prompt,
+            config: {
+                numberOfImages: 1,
+                aspectRatio: "1:1",
+                outputMimeType: "image/jpeg",
+            }
+        });
+
+        // The new SDK usually returns response.generatedImages as an array
+        const generatedImage = response.generatedImages[0];
+        
+        let base64Image = '';
+        if (generatedImage.image && generatedImage.image.imageBytes) {
+            base64Image = `data:image/jpeg;base64,${generatedImage.image.imageBytes}`;
+        } else if (generatedImage.base64) { // Fallback, APIs vary
+            base64Image = `data:image/jpeg;base64,${generatedImage.base64}`;
+        } else {
+             throw new Error("Could not parse image bytes from Google GenAI response");
+        }
+
+        // Deduct Credit only on success
+        if (user.subscriptionTier !== 'pro') {
+            await db.query('UPDATE users SET credits = credits - 1 WHERE id = $1', [user.id]);
+        }
+
+        const finalCredit = user.subscriptionTier === 'pro' ? '∞' : (user.credits - 1);
+
+        res.json({
+            result: base64Image,
+            creditsRemaining: finalCredit
+        });
+
+    } catch (error) {
+        console.error("Gemini Image Generation Error:", error);
+        res.status(500).json({ error: "Image Generation Failed", details: error.message });
+    }
+});
+
 // 4. Upgrade Subscription
 router.post('/subscription/upgrade', async (req, res) => {
     try {

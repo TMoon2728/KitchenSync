@@ -1,16 +1,26 @@
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { Recipe } from '../types';
 
 interface RecipeCardProps {
   recipe: Recipe;
   onToggleFavorite: (id: number) => void;
+  onDelete?: (id: number) => void;
 }
 
-const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onToggleFavorite }) => {
+const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onToggleFavorite, onDelete }) => {
+  const navigate = useNavigate();
+  
+  const handleCardClick = () => {
+    navigate(`/recipes/${recipe.id}`);
+  };
+
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl group border border-gray-100 relative">
+    <div 
+        onClick={handleCardClick}
+        className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl group border border-gray-100 relative cursor-pointer"
+    >
       <div className="relative h-56 overflow-hidden bg-gray-200">
           {recipe.imageUrl ? (
               <img src={recipe.imageUrl} alt={recipe.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
@@ -22,18 +32,32 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onToggleFavorite }) => 
            
            {/* Overlay Gradient on Hover */}
            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                <Link to={`/recipes/${recipe.id}/cook`} className="bg-white text-gray-900 px-6 py-2 rounded-full font-bold transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:bg-green-500 hover:text-white shadow-lg">
+                <button 
+                  onClick={(e) => { e.stopPropagation(); navigate(`/recipes/${recipe.id}/cook`); }} 
+                  className="bg-white text-gray-900 px-6 py-2 rounded-full font-bold transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:bg-green-500 hover:text-white shadow-lg"
+                >
                     <i className="fas fa-play mr-2"></i> Cook Now
-                </Link>
+                </button>
            </div>
 
-           <button
-            onClick={(e) => { e.preventDefault(); onToggleFavorite(recipe.id); }}
-            className="absolute top-3 right-3 z-10 bg-white/90 backdrop-blur-sm rounded-full w-10 h-10 flex items-center justify-center transition-all hover:bg-white shadow-sm hover:scale-110 active:scale-90"
-            title="Toggle Favorite"
-            >
-            <i className={`text-xl ${recipe.is_favorite ? 'fas text-red-500 animate-pulse-glow' : 'far text-gray-400 hover:text-red-400'}`}></i>
-            </button>
+           <div className="absolute top-3 right-3 z-10 flex gap-2">
+             {onDelete && (
+                <button
+                    onClick={(e) => { e.stopPropagation(); onDelete(recipe.id); }}
+                    className="bg-white/90 backdrop-blur-sm rounded-full w-10 h-10 flex items-center justify-center transition-all hover:bg-red-50 hover:text-red-500 shadow-sm hover:scale-110 active:scale-90 text-gray-400"
+                    title="Delete Recipe"
+                >
+                    <i className="fas fa-trash"></i>
+                </button>
+             )}
+             <button
+                onClick={(e) => { e.stopPropagation(); onToggleFavorite(recipe.id); }}
+                className="bg-white/90 backdrop-blur-sm rounded-full w-10 h-10 flex items-center justify-center transition-all hover:bg-white shadow-sm hover:scale-110 active:scale-90"
+                title="Toggle Favorite"
+                >
+                <i className={`fa-heart text-xl ${recipe.is_favorite ? 'fas text-red-500 animate-pulse-glow' : 'far text-gray-400 hover:text-red-400'}`}></i>
+             </button>
+           </div>
       </div>
       
       <div className="p-5 flex-grow flex flex-col">
@@ -57,12 +81,11 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onToggleFavorite }) => 
                 <span className="font-bold text-gray-600 text-sm">{recipe.calories} kcal</span>
                 <span>{recipe.meal_type}</span>
             </div>
-            <Link
-                to={`/recipes/${recipe.id}`}
+            <span
                 className="text-blue-600 text-sm font-semibold hover:text-blue-800 transition-colors flex items-center"
             >
                 Details <i className="fas fa-arrow-right ml-1 transform group-hover:translate-x-1 transition-transform"></i>
-            </Link>
+            </span>
         </div>
       </div>
     </div>
