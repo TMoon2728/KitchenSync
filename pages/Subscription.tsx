@@ -59,8 +59,8 @@ const Subscription: React.FC = () => {
             </div>
             <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">{tier}</h3>
             <div className="mt-2 mb-1">
-                <span className="text-3xl font-extrabold text-gray-900">{price}</span>
-                {price !== 'Free' && <span className="text-gray-500 font-medium">/mo</span>}
+                <span className="text-3xl font-extrabold text-gray-900 dark:text-gray-100">{price}</span>
+                {price !== 'Free' && <span className="text-gray-500 dark:text-gray-400 font-medium">/mo</span>}
             </div>
             <div className="text-sm font-bold text-blue-600 bg-blue-50 w-fit px-3 py-1 rounded-full mb-6">
                 {credits} Credits
@@ -68,7 +68,7 @@ const Subscription: React.FC = () => {
 
             <ul className="space-y-3 mb-8 flex-grow">
                 {features.map((feat, i) => (
-                    <li key={i} className="flex items-start text-sm text-gray-600">
+                    <li key={i} className="flex items-start text-sm text-gray-600 dark:text-gray-300">
                         <i className="fas fa-check text-green-500 mt-1 mr-2"></i>
                         {feat}
                     </li>
@@ -93,10 +93,10 @@ const Subscription: React.FC = () => {
     return (
         <div className="max-w-7xl mx-auto py-12 px-4 animate-fade-in">
             <div className="text-center mb-16">
-                <h1 className="text-4xl font-extrabold text-gray-900 mb-4">
+                <h1 className="text-4xl font-extrabold text-gray-900 dark:text-gray-100 mb-4">
                     Choose Your Kitchen Level
                 </h1>
-                <p className="text-gray-500 max-w-xl mx-auto">
+                <p className="text-gray-500 dark:text-gray-400 max-w-xl mx-auto">
                     Simple, flexible pricing. Pay for the AI power you need.
                 </p>
             </div>
@@ -136,9 +136,9 @@ const Subscription: React.FC = () => {
                 />
             </div>
 
-            <div className="mt-12 text-center bg-blue-50 p-6 rounded-2xl max-w-2xl mx-auto">
+            <div className="mt-12 text-center bg-blue-50 dark:bg-gray-800 p-6 rounded-2xl max-w-2xl mx-auto">
                 <h4 className="font-bold text-gray-800 dark:text-gray-100 mb-2">How do credits work?</h4>
-                <div className="flex justify-center gap-8 text-sm text-gray-600">
+                <div className="flex justify-center gap-8 text-sm text-gray-600 dark:text-gray-400">
                     <div className="flex flex-col items-center">
                         <i className="fas fa-scroll text-blue-400 mb-1"></i>
                         <span>Recipe Gen: 1 Credit</span>
