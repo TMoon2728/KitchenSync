@@ -144,7 +144,7 @@ router.put('/user/profile', async (req, res) => {
         const updatedPreferences = {
             ...currentPreferences,
             kitchenName,
-            dailyCalorieGoal,
+            dailyCalorieGoal: req.body.dailyCalorieGoal ?? req.body.calorieGoal,
             proteinGoal,
             carbGoal,
             fatGoal,

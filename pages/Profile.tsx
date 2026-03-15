@@ -32,15 +32,8 @@ const TOGGLEABLE_NAV_ITEMS = [
 const Profile: React.FC = () => {
     const { userProfile, updateProfile, getAccessToken } = useUser();
 
-    // Helper adapter for setUserProfile to match old signature if needed
-    // But we will refactor to use updateProfile directly where possible
-    const setUserProfile = (action: React.SetStateAction<typeof userProfile>) => {
-        if (typeof action === 'function') {
-            updateProfile(action(userProfile));
-        } else {
-            updateProfile(action);
-        }
-    };
+    const [householdMembers, setHouseholdMembers] = useState<HouseholdMember[]>(userProfile.householdMembers);
+    const [groceryStores, setGroceryStores] = useState<GroceryStore[]>(userProfile.groceryStores);
 
     // Household State
     const [newMemberName, setNewMemberName] = useState('');
@@ -82,19 +75,13 @@ const Profile: React.FC = () => {
             dietaryRestrictions: newMemberDiet,
         };
 
-        setUserProfile(prev => ({
-            ...prev,
-            householdMembers: [...prev.householdMembers, newMember]
-        }));
+        setHouseholdMembers(prev => [...prev, newMember]);
         setNewMemberName('');
         setNewMemberDiet('');
     };
 
     const handleRemoveMember = (id: number) => {
-        setUserProfile(prev => ({
-            ...prev,
-            householdMembers: prev.householdMembers.filter(m => m.id !== id)
-        }));
+        setHouseholdMembers(prev => prev.filter(m => m.id !== id));
     };
 
     const handleLinkAccount = async (e: React.FormEvent) => {
@@ -143,19 +130,13 @@ const Profile: React.FC = () => {
             url: url
         };
 
-        setUserProfile(prev => ({
-            ...prev,
-            groceryStores: [...prev.groceryStores, newStore]
-        }));
+        setGroceryStores(prev => [...prev, newStore]);
         setNewStoreName('');
         setNewStoreUrl('');
     };
 
     const handleRemoveStore = (id: number) => {
-        setUserProfile(prev => ({
-            ...prev,
-            groceryStores: prev.groceryStores.filter(s => s.id !== id)
-        }));
+        setGroceryStores(prev => prev.filter(s => s.id !== id));
     };
 
     // Handler for Nav Toggles
@@ -172,24 +153,25 @@ const Profile: React.FC = () => {
     // Handlers for Goals & Preferences
     const handleSaveSettings = () => {
         setIsSavingGoals(true);
-        setUserProfile(prev => ({
-            ...prev,
+        updateProfile({
             name: name,
             avatar: avatar,
             dailyCalorieGoal: calorieGoal,
             proteinGoal: proteinGoal === '' ? undefined : proteinGoal,
             carbGoal: carbGoal === '' ? undefined : carbGoal,
             fatGoal: fatGoal === '' ? undefined : fatGoal,
-            kitchenName: kitchenName,
+            kitchenName,
             preferences: {
                 enableConfetti,
                 confettiIntensity,
                 themeColor,
                 showSousChef,
                 hiddenNavItems,
-                stripeConfig: prev.preferences?.stripeConfig // Preserve existing config if any, but don't modify from UI
-            }
-        }));
+                stripeConfig: userProfile.preferences?.stripeConfig
+            },
+            householdMembers,
+            groceryStores
+        });
         setTimeout(() => setIsSavingGoals(false), 1000);
     };
 
@@ -423,8 +405,8 @@ const Profile: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="md:col-span-2 space-y-3">
-                        {userProfile.householdMembers.length > 0 ? (
-                            userProfile.householdMembers.map(member => {
+                        {householdMembers.length > 0 ? (
+                            householdMembers.map(member => {
                                 const isLinked = (typeof member.id === 'string' && member.id.startsWith('linked-')) || !!(member as any)._sourceUserId;
                                 return (
                                 <div key={member.id} className={`flex justify-between items-center p-3 rounded-md border ${isLinked ? 'bg-purple-50 border-purple-200' : 'bg-gray-50 border-gray-200'}`}>
@@ -494,8 +476,8 @@ const Profile: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="md:col-span-2 space-y-3">
-                        {userProfile.groceryStores.length > 0 ? (
-                            userProfile.groceryStores.map(store => (
+                        {groceryStores.length > 0 ? (
+                            groceryStores.map(store => (
                                 <div key={store.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-md border border-gray-200">
                                     <div className="flex items-center">
                                         <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 mr-3">
