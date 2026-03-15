@@ -162,10 +162,10 @@ const AiArchitect: React.FC = () => {
                 <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-lg shadow-blue-500/30 rotate-3 hover:rotate-6 transition-transform">
                     <i className="fas fa-robot text-4xl text-white"></i>
                 </div>
-                <h1 className="text-4xl font-extrabold text-gray-800 tracking-tight mb-2">
+                <h1 className="text-4xl font-extrabold text-gray-800 dark:text-gray-100 tracking-tight mb-2">
                     AI Meal Architect
                 </h1>
-                <p className="text-gray-500 text-lg max-w-xl mx-auto">Configure your preferences and let our advanced AI construct the perfect menu for you.</p>
+                <p className="text-gray-500 dark:text-gray-400 text-lg max-w-xl mx-auto">Configure your preferences and let our advanced AI construct the perfect menu for you.</p>
                 <div className="mt-4 inline-block bg-yellow-100 text-yellow-800 px-4 py-1 rounded-full text-sm font-bold border border-yellow-200">
                     <i className="fas fa-bolt mr-2"></i> Cost: {creditCost} Credit{creditCost > 1 ? 's' : ''} per Plan
                 </div>
@@ -173,7 +173,7 @@ const AiArchitect: React.FC = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Controls */}
-                <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 relative overflow-hidden">
+                <div className="bg-white dark:bg-gray-800 dark:text-gray-100 p-8 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-700 relative overflow-hidden">
                     {/* Household Tip */}
                     <div className="mb-6 p-4 bg-purple-50 text-purple-800 rounded-xl border border-purple-100 text-sm flex items-start">
                         <i className="fas fa-lightbulb text-yellow-500 mt-1 mr-3 text-lg"></i>
@@ -194,22 +194,22 @@ const AiArchitect: React.FC = () => {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label htmlFor="startDate" className="block text-sm font-bold text-gray-700 mb-2">Start Date</label>
+                                    <label htmlFor="startDate" className="block text-sm font-bold text-gray-700 dark:text-gray-200 mb-2">Start Date</label>
                                     <input
                                         type="date"
                                         id="startDate"
                                         value={startDate}
                                         onChange={(e) => setStartDate(e.target.value)}
-                                        className="w-full form-input p-3 border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-blue-500 text-gray-800"
+                                        className="w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-700/50 focus:ring-2 focus:ring-blue-500 text-gray-800 dark:text-gray-100"
                                     />
                                 </div>
                                 <div>
-                                    <label htmlFor="duration" className="block text-sm font-bold text-gray-700 mb-2">Duration</label>
+                                    <label htmlFor="duration" className="block text-sm font-bold text-gray-700 dark:text-gray-200 mb-2">Duration</label>
                                     <select
                                         id="duration"
                                         value={duration}
                                         onChange={(e) => setDuration(parseInt(e.target.value))}
-                                        className="w-full form-select p-3 border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-blue-500 text-gray-800"
+                                        className="w-full form-select p-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-700/50 focus:ring-2 focus:ring-blue-500 text-gray-800 dark:text-gray-100"
                                     >
                                         <option value={3}>3 Days</option>
                                         <option value={5}>5 Days</option>
@@ -221,14 +221,14 @@ const AiArchitect: React.FC = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Meals to Include</label>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-200 mb-2">Meals to Include</label>
                                 <div className="flex gap-3 flex-wrap">
                                     {['Breakfast', 'Lunch', 'Dinner', 'Snack'].map(slot => (
                                         <button
                                             key={slot}
                                             type="button"
                                             onClick={() => toggleSlot(slot)}
-                                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all border ${includedSlots.has(slot) ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all border ${includedSlots.has(slot) ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:bg-gray-700/50'}`}
                                         >
                                             {slot}
                                         </button>
@@ -238,7 +238,7 @@ const AiArchitect: React.FC = () => {
                         </div>
 
                         {/* Section 2: Preferences */}
-                        <div className="space-y-4 pt-4 border-t border-gray-100">
+                        <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                             <label className="text-sm font-bold text-gray-400 uppercase tracking-wider flex items-center">
                                 <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-2 text-xs">2</span>
                                 Core Directives
@@ -246,8 +246,8 @@ const AiArchitect: React.FC = () => {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label htmlFor="plan-theme" className="block text-sm font-bold text-gray-700 mb-2">Theme Selection</label>
-                                    <select id="plan-theme" value={theme} onChange={e => setTheme(e.target.value)} className="w-full form-select p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-900 focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-white">
+                                    <label htmlFor="plan-theme" className="block text-sm font-bold text-gray-700 dark:text-gray-200 mb-2">Theme Selection</label>
+                                    <select id="plan-theme" value={theme} onChange={e => setTheme(e.target.value)} className="w-full form-select p-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-50 focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-white dark:bg-gray-800 dark:text-gray-100">
                                         <option>A Balanced and Varied Plan</option>
                                         <option>Quick & Easy Dinners (under 30 mins)</option>
                                         <option>Hearty Comfort Food Classics</option>
@@ -258,12 +258,12 @@ const AiArchitect: React.FC = () => {
                                     </select>
                                 </div>
                                 <div>
-                                    <label htmlFor="complexity" className="block text-sm font-bold text-gray-700 mb-2">Meal Complexity</label>
+                                    <label htmlFor="complexity" className="block text-sm font-bold text-gray-700 dark:text-gray-200 mb-2">Meal Complexity</label>
                                     <select
                                         id="complexity"
                                         value={complexity}
                                         onChange={(e) => setComplexity(e.target.value)}
-                                        className="w-full form-select p-3 border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-blue-500 text-gray-800"
+                                        className="w-full form-select p-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-700/50 focus:ring-2 focus:ring-blue-500 text-gray-800 dark:text-gray-100"
                                     >
                                         <option value="Simple">Simple (Minimal Prep)</option>
                                         <option value="Moderate">Moderate (Standard)</option>
@@ -273,14 +273,14 @@ const AiArchitect: React.FC = () => {
                             </div>
 
                             <div>
-                                <label htmlFor="calories" className="block text-sm font-bold text-gray-700 mb-2">Daily Calorie Target</label>
+                                <label htmlFor="calories" className="block text-sm font-bold text-gray-700 dark:text-gray-200 mb-2">Daily Calorie Target</label>
                                 <div className="relative">
                                     <input
                                         type="number"
                                         id="calories"
                                         value={caloriesPerDay}
                                         onChange={e => setCaloriesPerDay(parseInt(e.target.value))}
-                                        className="w-full form-input p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-900 font-mono font-bold focus:ring-2 focus:ring-blue-500"
+                                        className="w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-50 font-mono font-bold focus:ring-2 focus:ring-blue-500"
                                         min="1000"
                                         max="5000"
                                         step="50"
@@ -290,21 +290,21 @@ const AiArchitect: React.FC = () => {
                             </div>
 
                             <div>
-                                <label htmlFor="customDiet" className="block text-sm font-bold text-gray-700 mb-2">Dietary Specifics</label>
+                                <label htmlFor="customDiet" className="block text-sm font-bold text-gray-700 dark:text-gray-200 mb-2">Dietary Specifics</label>
                                 <input
                                     type="text"
                                     id="customDiet"
                                     value={customDiet}
                                     onChange={(e) => setCustomDiet(e.target.value)}
                                     placeholder="e.g. Keto, No Seafood, High Protein..."
-                                    className="w-full form-input p-3 border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-blue-500 text-gray-800"
+                                    className="w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-700/50 focus:ring-2 focus:ring-blue-500 text-gray-800 dark:text-gray-100"
                                 />
                                 <p className="text-xs text-gray-400 mt-1">Leave empty to use profile defaults.</p>
                             </div>
                         </div>
 
                         {/* Section 3: Optimization */}
-                        <div className="space-y-4 pt-4 border-t border-gray-100">
+                        <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                             <label className="text-sm font-bold text-gray-400 uppercase tracking-wider flex items-center">
                                 <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-2 text-xs">3</span>
                                 Optimization
@@ -318,13 +318,13 @@ const AiArchitect: React.FC = () => {
                                     <div
                                         key={opt.id}
                                         onClick={() => opt.setter(!opt.state)}
-                                        className={`flex items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${opt.state ? 'border-blue-500 bg-blue-50' : 'border-gray-100 bg-white hover:border-blue-200'}`}
+                                        className={`flex items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${opt.state ? 'border-blue-500 bg-blue-50' : 'border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 dark:text-gray-100 hover:border-blue-200'}`}
                                     >
-                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center mr-3 transition-colors ${opt.state ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center mr-3 transition-colors ${opt.state ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}`}>
                                             <i className={`fas ${opt.icon} text-sm`}></i>
                                         </div>
-                                        <span className={`font-bold text-sm ${opt.state ? 'text-blue-800' : 'text-gray-600'}`}>{opt.label}</span>
-                                        <div className={`ml-auto w-5 h-5 rounded-full border-2 flex items-center justify-center ${opt.state ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}>
+                                        <span className={`font-bold text-sm ${opt.state ? 'text-blue-800' : 'text-gray-600 dark:text-gray-300'}`}>{opt.label}</span>
+                                        <div className={`ml-auto w-5 h-5 rounded-full border-2 flex items-center justify-center ${opt.state ? 'border-blue-500 bg-blue-500' : 'border-gray-300 dark:border-gray-600'}`}>
                                             {opt.state && <i className="fas fa-check text-white text-[10px]"></i>}
                                         </div>
                                     </div>
@@ -385,7 +385,7 @@ const AiArchitect: React.FC = () => {
                                                     <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center mr-2 text-xs font-mono">{i + 1}</span>
                                                     {dayPlan.dayOfWeek}
                                                 </h3>
-                                                <span className="text-xs text-gray-500 font-mono">{formattedDate}</span>
+                                                <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">{formattedDate}</span>
                                             </div>
 
                                             <div className="space-y-3">
@@ -394,9 +394,9 @@ const AiArchitect: React.FC = () => {
 
                                                     return (
                                                         <div key={slot} className="grid grid-cols-12 gap-2 items-center text-sm group">
-                                                            <span className="col-span-3 text-gray-500 font-medium text-xs uppercase group-hover:text-gray-300 transition-colors">{slot}</span>
+                                                            <span className="col-span-3 text-gray-500 dark:text-gray-400 font-medium text-xs uppercase group-hover:text-gray-300 transition-colors">{slot}</span>
                                                             <div className="col-span-9 bg-gray-900 border border-gray-700 text-gray-300 text-sm rounded-lg block w-full p-2">
-                                                                {mealName || <span className="text-gray-600 italic">-- Skip --</span>}
+                                                                {mealName || <span className="text-gray-600 dark:text-gray-300 italic">-- Skip --</span>}
                                                             </div>
                                                         </div>
                                                     );

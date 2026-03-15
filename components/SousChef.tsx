@@ -116,9 +116,9 @@ const SousChef: React.FC<SousChefProps> = ({ onDisable }) => {
             {/* Toggle Button */}
             <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
                 {showTooltip && !isOpen && (
-                    <div className="mb-3 mr-1 w-40 bg-white p-3 rounded-xl shadow-lg border border-gray-100 animate-slide-up text-center relative after:content-[''] after:absolute after:top-full after:right-4 after:border-8 after:border-transparent after:border-t-white">
-                        <p className="text-xs text-gray-600 font-medium">I'm here if you need me!</p>
-                        <button onClick={dismissTooltip} className="absolute -top-2 -right-2 bg-gray-200 rounded-full w-5 h-5 text-[10px] hover:bg-gray-300 text-gray-600">&times;</button>
+                    <div className="mb-3 mr-1 w-40 bg-white dark:bg-gray-800 dark:text-gray-100 p-3 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 animate-slide-up text-center relative after:content-[''] after:absolute after:top-full after:right-4 after:border-8 after:border-transparent after:border-t-white">
+                        <p className="text-xs text-gray-600 dark:text-gray-300 font-medium">I'm here if you need me!</p>
+                        <button onClick={dismissTooltip} className="absolute -top-2 -right-2 bg-gray-200 rounded-full w-5 h-5 text-[10px] hover:bg-gray-300 text-gray-600 dark:text-gray-300">&times;</button>
                     </div>
                 )}
 
@@ -133,11 +133,11 @@ const SousChef: React.FC<SousChefProps> = ({ onDisable }) => {
 
             {/* Chat Window */}
             {isOpen && (
-                <div className="fixed bottom-20 right-4 md:right-8 w-[calc(100vw-32px)] md:w-96 h-[500px] max-h-[70vh] bg-white rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden border border-gray-100 animate-slide-up">
+                <div className="fixed bottom-20 right-4 md:right-8 w-[calc(100vw-32px)] md:w-96 h-[500px] max-h-[70vh] bg-white dark:bg-gray-800 dark:text-gray-100 rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden border border-gray-100 dark:border-gray-700 animate-slide-up">
                     {/* Header */}
                     <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 flex justify-between items-center text-white shadow-md">
                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                            <div className="w-8 h-8 bg-white dark:bg-gray-800 dark:text-gray-100/20 rounded-full flex items-center justify-center backdrop-blur-sm">
                                 <i className="fas fa-hat-wizard text-sm"></i>
                             </div>
                             <div>
@@ -158,12 +158,12 @@ const SousChef: React.FC<SousChefProps> = ({ onDisable }) => {
                     </div>
 
                     {/* Messages */}
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-700/50/50">
                         {messages.map((msg, i) => (
                             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.role === 'user'
                                     ? 'bg-blue-600 text-white rounded-tr-none'
-                                    : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
+                                    : 'bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-800 dark:text-gray-100 border border-gray-100 dark:border-gray-700 rounded-tl-none'
                                     }`}>
                                     {msg.text}
                                 </div>
@@ -171,7 +171,7 @@ const SousChef: React.FC<SousChefProps> = ({ onDisable }) => {
                         ))}
                         {isLoading && (
                             <div className="flex justify-start">
-                                <div className="bg-white border border-gray-100 p-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
+                                <div className="bg-white dark:bg-gray-800 dark:text-gray-100 border border-gray-100 dark:border-gray-700 p-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
                                     <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
                                     <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-100"></div>
                                     <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-200"></div>
@@ -183,12 +183,12 @@ const SousChef: React.FC<SousChefProps> = ({ onDisable }) => {
 
                     {/* Suggestions */}
                     {messages.length < 4 && (
-                        <div className="px-4 py-2 bg-gray-50 flex gap-2 overflow-x-auto no-scrollbar border-t border-gray-100">
+                        <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 flex gap-2 overflow-x-auto no-scrollbar border-t border-gray-100 dark:border-gray-700">
                             {getSuggestions().map(s => (
                                 <button
                                     key={s}
                                     onClick={() => handleSend(s)}
-                                    className="whitespace-nowrap px-3 py-1 bg-white border border-blue-100 text-blue-600 text-[10px] font-bold rounded-full hover:bg-blue-50 transition-colors shadow-sm"
+                                    className="whitespace-nowrap px-3 py-1 bg-white dark:bg-gray-800 dark:text-gray-100 border border-blue-100 text-blue-600 text-[10px] font-bold rounded-full hover:bg-blue-50 transition-colors shadow-sm"
                                 >
                                     {s}
                                 </button>
@@ -197,7 +197,7 @@ const SousChef: React.FC<SousChefProps> = ({ onDisable }) => {
                     )}
 
                     {/* Input */}
-                    <div className="p-3 bg-white border-t border-gray-100">
+                    <div className="p-3 bg-white dark:bg-gray-800 dark:text-gray-100 border-t border-gray-100 dark:border-gray-700">
                         <div className="relative">
                             <input
                                 type="text"
@@ -205,7 +205,7 @@ const SousChef: React.FC<SousChefProps> = ({ onDisable }) => {
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={handleKeyDown}
                                 placeholder="Ask about this page..."
-                                className="w-full pr-10 pl-4 py-2.5 bg-gray-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder-gray-400"
+                                className="w-full pr-10 pl-4 py-2.5 bg-gray-100 dark:bg-gray-700 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder-gray-400"
                             />
                             <button
                                 onClick={() => handleSend()}

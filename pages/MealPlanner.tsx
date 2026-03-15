@@ -289,16 +289,16 @@ const MealPlanner: React.FC = () => {
 
     return (
         <div className="flex flex-col lg:flex-row h-full gap-6 relative animate-fade-in">
-            <aside className="w-full lg:w-1/4 bg-white p-5 rounded-2xl shadow-lg border border-gray-100 flex flex-col gap-4 max-h-[calc(100vh-100px)] sticky top-6 z-10">
+            <aside className="w-full lg:w-1/4 bg-white dark:bg-gray-800 dark:text-gray-100 p-5 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 flex flex-col gap-4 max-h-[calc(100vh-100px)] sticky top-6 z-10">
                 {/* Recipe Tray */}
                 <div className="flex flex-col flex-grow min-h-0">
                     <div className="flex justify-between items-center mb-4">
                         <div>
-                            <h2 className="text-xl font-bold text-gray-800">Plan Meals</h2>
-                            <p className="text-xs text-gray-500 md:hidden mt-1">{selectedMobileRecipe ? 'Tap a slot below to add' : 'Tap a recipe to select and then add it to the day below.'}</p>
-                            <p className="text-xs text-gray-500 hidden md:block mt-1">Drag & Drop</p>
+                            <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">Plan Meals</h2>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 md:hidden mt-1">{selectedMobileRecipe ? 'Tap a slot below to add' : 'Tap a recipe to select and then add it to the day below.'}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 hidden md:block mt-1">Drag & Drop</p>
                         </div>
-                        <button onClick={suggestRandomRecipes} title="Shuffle Recipes" className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-blue-500 hover:bg-blue-100 hover:scale-110 transition-all">
+                        <button onClick={suggestRandomRecipes} title="Shuffle Recipes" className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-blue-500 hover:bg-blue-100 hover:scale-110 transition-all">
                             <i className="fas fa-random"></i>
                         </button>
                     </div>
@@ -310,7 +310,7 @@ const MealPlanner: React.FC = () => {
                             placeholder="Search recipes..."
                             value={traySearch}
                             onChange={(e) => { handleTrayInteraction(); setTraySearch(e.target.value); }}
-                            className="w-full form-input pl-10 pr-4 py-2 border border-gray-200 rounded-xl bg-gray-50 text-gray-900 focus:ring-2 focus:ring-blue-500 text-sm"
+                            className="w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-50 focus:ring-2 focus:ring-blue-500 text-sm"
                         />
                     </div>
 
@@ -319,7 +319,7 @@ const MealPlanner: React.FC = () => {
                             <button
                                 key={type}
                                 onClick={() => { handleTrayInteraction(); setTrayFilter(type); }}
-                                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-colors ${trayFilter === type && !shuffledTrayRecipes ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-colors ${trayFilter === type && !shuffledTrayRecipes ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'}`}
                             >
                                 {type}
                             </button>
@@ -338,11 +338,11 @@ const MealPlanner: React.FC = () => {
                                         e.dataTransfer.setData("recipeId", recipe.id.toString());
                                     }}
                                     onClick={() => setSelectedMobileRecipe(isSelected ? null : { id: recipe.id, name: recipe.name })}
-                                    className={`p-3 rounded-xl shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md transition-all group flex items-center justify-between ${isSelected ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-200' : 'bg-white border-gray-100 hover:border-blue-200'}`}
+                                    className={`p-3 rounded-xl shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md transition-all group flex items-center justify-between ${isSelected ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-200' : 'bg-white dark:bg-gray-800 dark:text-gray-100 border-gray-100 dark:border-gray-700 hover:border-blue-200'}`}
                                 >
                                     <div>
-                                        <p className={`font-bold text-sm line-clamp-1 ${isSelected ? 'text-blue-900' : 'text-gray-800'}`}>{recipe.name}</p>
-                                        <p className={`text-[10px] uppercase tracking-wide font-semibold ${isSelected ? 'text-blue-500' : 'text-gray-500'}`}>{recipe.meal_type}</p>
+                                        <p className={`font-bold text-sm line-clamp-1 ${isSelected ? 'text-blue-900' : 'text-gray-800 dark:text-gray-100'}`}>{recipe.name}</p>
+                                        <p className={`text-[10px] uppercase tracking-wide font-semibold ${isSelected ? 'text-blue-500' : 'text-gray-500 dark:text-gray-400'}`}>{recipe.meal_type}</p>
                                     </div>
                                     <div className="flex gap-2">
                                         {isSelected && <i className="fas fa-check-circle text-blue-500 md:hidden"></i>}
@@ -355,8 +355,8 @@ const MealPlanner: React.FC = () => {
                 </div>
 
                 {/* Custom Items Widget */}
-                <div className="flex flex-col border-t border-gray-100 pt-4 mt-auto">
-                    <h2 className="text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide flex justify-between items-center">
+                <div className="flex flex-col border-t border-gray-100 dark:border-gray-700 pt-4 mt-auto">
+                    <h2 className="text-sm font-bold text-gray-600 dark:text-gray-300 mb-2 uppercase tracking-wide flex justify-between items-center">
                         Custom Event 
                         {selectedMobileRecipe && 'customName' in selectedMobileRecipe && <span className="text-[10px] text-yellow-600 italic font-normal bg-yellow-100 px-2 py-0.5 rounded md:hidden">Selected</span>}
                     </h2>
@@ -402,14 +402,14 @@ const MealPlanner: React.FC = () => {
 
             {/* Calendar */}
             <div className="flex-1 flex flex-col min-w-0">
-                <div className="flex flex-col md:flex-row justify-between items-center mb-6 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 gap-4">
+                <div className="flex flex-col md:flex-row justify-between items-center mb-6 bg-white dark:bg-gray-800 dark:text-gray-100 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 gap-4">
                     <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
-                            <button onClick={() => changeWeek('prev')} className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white hover:shadow-sm text-gray-600 transition-all"><i className="fas fa-chevron-left"></i></button>
-                            <button onClick={() => changeWeek('today')} className="px-3 py-1 text-sm font-bold text-gray-700 hover:bg-white hover:shadow-sm rounded-md transition-all">Today</button>
-                            <button onClick={() => changeWeek('next')} className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white hover:shadow-sm text-gray-600 transition-all"><i className="fas fa-chevron-right"></i></button>
+                        <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+                            <button onClick={() => changeWeek('prev')} className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white dark:bg-gray-800 dark:text-gray-100 hover:shadow-sm text-gray-600 dark:text-gray-300 transition-all"><i className="fas fa-chevron-left"></i></button>
+                            <button onClick={() => changeWeek('today')} className="px-3 py-1 text-sm font-bold text-gray-700 dark:text-gray-200 hover:bg-white dark:bg-gray-800 dark:text-gray-100 hover:shadow-sm rounded-md transition-all">Today</button>
+                            <button onClick={() => changeWeek('next')} className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white dark:bg-gray-800 dark:text-gray-100 hover:shadow-sm text-gray-600 dark:text-gray-300 transition-all"><i className="fas fa-chevron-right"></i></button>
                         </div>
-                        <h1 className="text-xl font-bold text-gray-800">
+                        <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">
                             {weekStartDate.toLocaleDateString('en-US', { month: 'long' })}
                         </h1>
                     </div>
@@ -417,7 +417,7 @@ const MealPlanner: React.FC = () => {
                     {/* Weekly Progress Bar */}
                     <div className="flex items-center gap-3 w-full md:w-64">
                         <span className="text-xs font-bold text-gray-400 uppercase whitespace-nowrap">Plan Score</span>
-                        <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                        <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
                             <div
                                 className="bg-gradient-to-r from-blue-400 to-purple-500 h-2.5 rounded-full transition-all duration-1000 ease-out"
                                 style={{ width: `${planningProgress}%` }}
@@ -436,10 +436,10 @@ const MealPlanner: React.FC = () => {
                             const isToday = formatDate(new Date()) === dateStr;
 
                             return (
-                                <div key={dateStr} className={`flex-shrink-0 w-full md:w-[300px] rounded-2xl flex flex-col p-3 space-y-3 border transition-all md:h-full md:overflow-y-auto custom-scrollbar md:snap-center ${isToday ? 'bg-blue-50/50 border-blue-200 shadow-md ring-2 ring-blue-100' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                    <div className="text-center pb-2 border-b border-gray-100/50 sticky top-0 bg-inherit z-10 backdrop-blur-sm">
+                                <div key={dateStr} className={`flex-shrink-0 w-full md:w-[300px] rounded-2xl flex flex-col p-3 space-y-3 border transition-all md:h-full md:overflow-y-auto custom-scrollbar md:snap-center ${isToday ? 'bg-blue-50/50 border-blue-200 shadow-md ring-2 ring-blue-100' : 'bg-white dark:bg-gray-800 dark:text-gray-100 border-gray-100 dark:border-gray-700 shadow-sm'}`}>
+                                    <div className="text-center pb-2 border-b border-gray-100 dark:border-gray-700/50 sticky top-0 bg-inherit z-10 backdrop-blur-sm">
                                         <h3 className={`font-black uppercase tracking-wider text-xs ${isToday ? 'text-blue-600' : 'text-gray-400'}`}>{day.toLocaleDateString('en-US', { weekday: 'short' })}</h3>
-                                        <p className={`text-xl font-bold ${isToday ? 'text-blue-800' : 'text-gray-800'}`}>{day.getDate()}</p>
+                                        <p className={`text-xl font-bold ${isToday ? 'text-blue-800' : 'text-gray-800 dark:text-gray-100'}`}>{day.getDate()}</p>
                                     </div>
 
                                     {['Breakfast', 'Lunch', 'Dinner', 'Snack'].map(slot => (
@@ -453,7 +453,7 @@ const MealPlanner: React.FC = () => {
                                                 <h4 className="font-bold text-[10px] text-gray-400 uppercase tracking-wide">{slot}</h4>
                                                 <button 
                                                     onClick={() => handleMobileSlotTap(dateStr, slot)}
-                                                    className={`md:hidden w-6 h-6 rounded-full flex items-center justify-center transition-all ${selectedMobileRecipe ? 'bg-blue-100 text-blue-600 animate-pulse' : 'bg-gray-100 text-gray-400'}`}
+                                                    className={`md:hidden w-6 h-6 rounded-full flex items-center justify-center transition-all ${selectedMobileRecipe ? 'bg-blue-100 text-blue-600 animate-pulse' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}`}
                                                 >
                                                     <i className="fas fa-plus text-[10px]"></i>
                                                 </button>
@@ -462,7 +462,7 @@ const MealPlanner: React.FC = () => {
                                                 )}
                                             </div>
 
-                                            <div className={`flex-grow rounded-xl transition-all border-2 border-transparent space-y-2 ${dayPlan[slot]?.length === 0 ? 'bg-gray-50/50 border-dashed border-gray-200 group-hover/slot:bg-blue-50/30 group-hover/slot:border-blue-200' : ''} p-1`}>
+                                            <div className={`flex-grow rounded-xl transition-all border-2 border-transparent space-y-2 ${dayPlan[slot]?.length === 0 ? 'bg-gray-50 dark:bg-gray-700/50/50 border-dashed border-gray-200 dark:border-gray-700 group-hover/slot:bg-blue-50/30 group-hover/slot:border-blue-200' : ''} p-1`}>
                                                 {dayPlan[slot]?.map((item, index) => {
                                                     const recipe = item.recipeId ? recipes.find(r => r.id === item.recipeId) : null;
                                                     const isCompleted = item.completed;
@@ -477,7 +477,7 @@ const MealPlanner: React.FC = () => {
                                                                 e.dataTransfer.setData("sourceSlot", slot);
                                                                 e.dataTransfer.setData("sourceIndex", index.toString());
                                                             }}
-                                                            className={`relative p-2 rounded-lg shadow-sm border text-xs group transition-all hover:scale-105 hover:z-10 cursor-grab active:cursor-grabbing ${recipe ? (isCompleted ? 'bg-green-50 text-green-800 border-green-200 opacity-70' : 'bg-white text-gray-800 border-gray-100 hover:border-blue-300') : 'bg-yellow-50 text-yellow-800 border-yellow-100'}`}
+                                                            className={`relative p-2 rounded-lg shadow-sm border text-xs group transition-all hover:scale-105 hover:z-10 cursor-grab active:cursor-grabbing ${recipe ? (isCompleted ? 'bg-green-50 text-green-800 border-green-200 opacity-70' : 'bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-800 dark:text-gray-100 border-gray-100 dark:border-gray-700 hover:border-blue-300') : 'bg-yellow-50 text-yellow-800 border-yellow-100'}`}
                                                         >
                                                             <span className={`font-bold line-clamp-2 leading-tight ${isCompleted ? 'line-through' : ''}`}>
                                                                 {recipe ? recipe.name : item.custom_item_name}
@@ -486,7 +486,7 @@ const MealPlanner: React.FC = () => {
                                                             {recipe && (
                                                                 <button
                                                                     onClick={() => initiateToggleStatus(dateStr, slot, index, recipe.id)}
-                                                                    className={`mt-2 w-full py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition-colors ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500 hover:bg-green-500 hover:text-white'}`}
+                                                                    className={`mt-2 w-full py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition-colors ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-green-500 hover:text-white'}`}
                                                                 >
                                                                     {isCompleted ? 'Done' : 'Cook'}
                                                                 </button>
@@ -515,19 +515,19 @@ const MealPlanner: React.FC = () => {
             {/* Confirmation Modal */}
             {pendingAction && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full animate-scale-in border border-gray-100">
-                        <div className="flex items-center gap-3 mb-4 text-gray-800">
+                    <div className="bg-white dark:bg-gray-800 dark:text-gray-100 p-6 rounded-2xl shadow-2xl max-w-md w-full animate-scale-in border border-gray-100 dark:border-gray-700">
+                        <div className="flex items-center gap-3 mb-4 text-gray-800 dark:text-gray-100">
                             <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
                                 <i className="fas fa-fire-burner text-lg"></i>
                             </div>
                             <h3 className="text-xl font-bold">Time to Cook?</h3>
                         </div>
 
-                        <p className="text-sm text-gray-600 mb-6 leading-relaxed">
+                        <p className="text-sm text-gray-600 dark:text-gray-300 mb-6 leading-relaxed">
                             Marking <strong>{pendingAction.recipeName}</strong> as cooked will automatically deduct ingredients from your pantry.
                         </p>
 
-                        <div className="bg-gray-50 p-4 rounded-xl mb-6 border border-gray-100 max-h-48 overflow-y-auto">
+                        <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl mb-6 border border-gray-100 dark:border-gray-700 max-h-48 overflow-y-auto">
                             <h4 className="text-xs font-bold text-gray-400 uppercase mb-2">Pantry Impact</h4>
                             <ul className="text-xs space-y-2">
                                 {recipes.find(r => r.id === pendingAction.recipeId)?.ingredients.map((ing, i) => {
@@ -535,7 +535,7 @@ const MealPlanner: React.FC = () => {
                                     const conversion = inPantry ? convertQuantity(ing.quantity, ing.unit, inPantry.unit) : null;
 
                                     return (
-                                        <li key={i} className="flex justify-between items-center text-gray-700">
+                                        <li key={i} className="flex justify-between items-center text-gray-700 dark:text-gray-200">
                                             <span className="font-medium">{ing.name}</span>
                                             <div className="text-right">
                                                 <span className="font-mono text-red-500 font-bold">-{ing.quantity} {ing.unit}</span>
@@ -551,7 +551,7 @@ const MealPlanner: React.FC = () => {
                         <div className="flex justify-end gap-3">
                             <button
                                 onClick={() => setPendingAction(null)}
-                                className="px-5 py-2.5 rounded-xl text-gray-600 hover:bg-gray-100 font-bold text-sm transition-colors"
+                                className="px-5 py-2.5 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:bg-gray-700 font-bold text-sm transition-colors"
                             >
                                 Cancel
                             </button>
@@ -569,7 +569,7 @@ const MealPlanner: React.FC = () => {
             {/* Workflow 2: Missing Ingredients Prompt Modal */}
             {missingIngredientsPrompt && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full animate-scale-in border border-gray-100">
+                    <div className="bg-white dark:bg-gray-800 dark:text-gray-100 p-6 rounded-2xl shadow-2xl max-w-md w-full animate-scale-in border border-gray-100 dark:border-gray-700">
                         <div className="flex items-center justify-center mb-6 relative">
                             <div className="w-16 h-16 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-500 shadow-sm border-4 border-white absolute -top-12">
                                 <i className="fas fa-lightbulb text-2xl animate-pulse"></i>
@@ -577,22 +577,22 @@ const MealPlanner: React.FC = () => {
                         </div>
                         
                         <div className="text-center mt-4 mb-6">
-                            <h3 className="text-xl font-black text-gray-800 mb-2">Did you already have these?</h3>
-                            <p className="text-sm text-gray-600">
+                            <h3 className="text-xl font-black text-gray-800 dark:text-gray-100 mb-2">Did you already have these?</h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-300">
                                 You just cooked <strong>{missingIngredientsPrompt.recipeName}</strong>, but these ingredients weren't in your KitchenSync Pantry. 
                                 <br/><br/>If you had them in your real kitchen, add them now so we know for next time!
                             </p>
                         </div>
 
-                        <div className="bg-gray-50 p-4 rounded-xl mb-6 border border-gray-100 max-h-48 overflow-y-auto custom-scrollbar">
-                            <ul className="text-sm font-semibold text-gray-700 space-y-3">
+                        <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl mb-6 border border-gray-100 dark:border-gray-700 max-h-48 overflow-y-auto custom-scrollbar">
+                            <ul className="text-sm font-semibold text-gray-700 dark:text-gray-200 space-y-3">
                                 {missingIngredientsPrompt.missing.map((ing, i) => (
                                     <li key={i} className="flex justify-between items-center group">
                                         <div className="flex items-center gap-2">
                                             <i className="fas fa-plus-circle text-green-500 opacity-50 group-hover:opacity-100 transition-opacity"></i>
                                             <span>{ing.name}</span>
                                         </div>
-                                        <span className="text-xs text-gray-400 font-mono bg-white px-2 py-0.5 rounded border border-gray-100">{ing.category || 'Other'}</span>
+                                        <span className="text-xs text-gray-400 font-mono bg-white dark:bg-gray-800 dark:text-gray-100 px-2 py-0.5 rounded border border-gray-100 dark:border-gray-700">{ing.category || 'Other'}</span>
                                     </li>
                                 ))}
                             </ul>
@@ -606,7 +606,7 @@ const MealPlanner: React.FC = () => {
                                         confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
                                     }
                                 }}
-                                className="px-5 py-2.5 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 font-bold text-sm transition-colors w-full"
+                                className="px-5 py-2.5 rounded-xl text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:bg-gray-700 font-bold text-sm transition-colors w-full"
                             >
                                 Skip
                             </button>

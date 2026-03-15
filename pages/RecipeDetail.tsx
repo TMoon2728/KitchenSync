@@ -118,19 +118,19 @@ const RecipeDetail: React.FC = () => {
     const InfoChip: React.FC<{ icon: string, label: string, value: string | number }> = ({ icon, label, value }) => (
         <div className="flex flex-col items-center bg-blue-50 p-3 rounded-lg">
             <i className={`fas ${icon} text-blue-500 text-xl mb-1`}></i>
-            <span className="text-sm text-gray-600">{label}</span>
+            <span className="text-sm text-gray-600 dark:text-gray-300">{label}</span>
             <span className="font-bold">{value}</span>
         </div>
     );
 
     return (
-        <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-xl overflow-hidden">
+        <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 dark:text-gray-100 rounded-lg shadow-xl overflow-hidden">
             {/* Hero Section with Image */}
             <div className="relative h-64 md:h-96 bg-gray-200 group">
                 {recipe.imageUrl ? (
                     <img src={recipe.imageUrl} alt={recipe.name} className="w-full h-full object-cover" />
                 ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-gray-100">
+                    <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-gray-100 dark:bg-gray-700">
                         <i className="fas fa-camera text-5xl mb-4"></i>
                         <p>No photo available</p>
                         <button
@@ -181,7 +181,7 @@ const RecipeDetail: React.FC = () => {
                     </div>
                     <button
                         onClick={toggleFavorite}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center bg-white shadow-md transition-transform hover:scale-110`}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center bg-white dark:bg-gray-800 dark:text-gray-100 shadow-md transition-transform hover:scale-110`}
                         title={recipe.is_favorite ? "Remove from Favorites" : "Add to Favorites"}
                     >
                         <i className={`fa-heart text-xl ${recipe.is_favorite ? 'fas text-red-500 animate-pulse-glow' : 'far text-gray-400 hover:text-red-400'}`}></i>
@@ -189,7 +189,7 @@ const RecipeDetail: React.FC = () => {
                     <div className="relative">
                         <button
                             onClick={handleShare}
-                            className="w-10 h-10 rounded-full flex items-center justify-center bg-white shadow-md transition-transform hover:scale-110"
+                            className="w-10 h-10 rounded-full flex items-center justify-center bg-white dark:bg-gray-800 dark:text-gray-100 shadow-md transition-transform hover:scale-110"
                             title="Share Recipe"
                         >
                             <i className="fas fa-share-alt text-xl text-blue-500"></i>
@@ -208,7 +208,7 @@ const RecipeDetail: React.FC = () => {
                 {recipe.tags && recipe.tags.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-6">
                         {recipe.tags.map(tag => (
-                            <span key={tag} className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm font-semibold">
+                            <span key={tag} className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 rounded-full text-sm font-semibold">
                                 <i className="fas fa-tag mr-1 text-gray-400"></i>{tag}
                             </span>
                         ))}
@@ -223,42 +223,42 @@ const RecipeDetail: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <div className="md:col-span-1 bg-gray-50 p-6 rounded-xl h-fit">
-                        <h2 className="text-xl font-bold mb-4 flex items-center text-gray-800"><i className="fas fa-carrot mr-2 text-orange-500"></i>Ingredients</h2>
+                    <div className="md:col-span-1 bg-gray-50 dark:bg-gray-700/50 p-6 rounded-xl h-fit">
+                        <h2 className="text-xl font-bold mb-4 flex items-center text-gray-800 dark:text-gray-100"><i className="fas fa-carrot mr-2 text-orange-500"></i>Ingredients</h2>
                         <ul className="space-y-3">
                             {recipe.ingredients.map((ing, i) => (
-                                <li key={i} className="flex justify-between items-center border-b border-gray-200 pb-2 last:border-0">
-                                    <span className="font-medium text-gray-700">{ing.name}</span>
-                                    <span className="text-gray-500 text-sm bg-white px-2 py-1 rounded-md shadow-sm">{ing.quantity} {ing.unit}</span>
+                                <li key={i} className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-2 last:border-0">
+                                    <span className="font-medium text-gray-700 dark:text-gray-200">{ing.name}</span>
+                                    <span className="text-gray-500 dark:text-gray-400 text-sm bg-white dark:bg-gray-800 dark:text-gray-100 px-2 py-1 rounded-md shadow-sm">{ing.quantity} {ing.unit}</span>
                                 </li>
                             ))}
                         </ul>
                     </div>
                     <div className="md:col-span-2">
-                        <h2 className="text-xl font-bold mb-4 flex items-center text-gray-800"><i className="fas fa-list-ol mr-2 text-blue-500"></i>Instructions</h2>
-                        <div className="prose max-w-none text-gray-700 leading-relaxed bg-white p-6 border border-gray-100 rounded-xl shadow-sm">
+                        <h2 className="text-xl font-bold mb-4 flex items-center text-gray-800 dark:text-gray-100"><i className="fas fa-list-ol mr-2 text-blue-500"></i>Instructions</h2>
+                        <div className="prose max-w-none text-gray-700 dark:text-gray-200 leading-relaxed bg-white dark:bg-gray-800 dark:text-gray-100 p-6 border border-gray-100 dark:border-gray-700 rounded-xl shadow-sm">
                             <p style={{ whiteSpace: 'pre-wrap' }}>{recipe.instructions}</p>
                         </div>
                     </div>
                 </div>
 
                 <div className="mt-10 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-100">
-                    <h3 className="text-xl font-bold mb-2 flex items-center text-gray-800">
+                    <h3 className="text-xl font-bold mb-2 flex items-center text-gray-800 dark:text-gray-100">
                         <i className="fas fa-robot mr-2 text-purple-600"></i>AI Recipe Remix
                         <span className="ml-3 text-[10px] bg-yellow-400 text-black px-2 py-1 rounded-full font-bold">1 Credit</span>
                     </h3>
                     
                     {/* Household Tip */}
-                    <div className="mb-4 p-3 bg-white/60 text-purple-800 rounded-lg border border-purple-100/50 text-xs flex items-start">
+                    <div className="mb-4 p-3 bg-white dark:bg-gray-800 dark:text-gray-100/60 text-purple-800 rounded-lg border border-purple-100/50 text-xs flex items-start">
                         <i className="fas fa-lightbulb text-yellow-500 mt-0.5 mr-2"></i>
                         <div>
                             <strong>Tip:</strong> The Sous Chef automatically adjusts remixed recipe serving sizes to perfectly feed your <a href="#/profile" className="underline font-bold hover:text-purple-600">Household</a> (Currently: {1 + userProfile.householdMembers.length}!).
                         </div>
                     </div>
 
-                    <p className="text-sm text-gray-600 mb-4">Want to shake things up? Let the AI reimagine this dish.</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">Want to shake things up? Let the AI reimagine this dish.</p>
                     <div className="flex flex-col sm:flex-row items-center gap-4">
-                        <select value={remixType} onChange={(e) => setRemixType(e.target.value)} className="form-select w-full sm:w-1/3 p-2.5 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500 bg-white text-gray-900">
+                        <select value={remixType} onChange={(e) => setRemixType(e.target.value)} className="form-select w-full sm:w-1/3 p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50">
                             <option>Make it Healthier</option>
                             <option>Make it Gluten-Free</option>
                             <option>Make it Vegetarian</option>
@@ -272,9 +272,9 @@ const RecipeDetail: React.FC = () => {
                     </div>
                     {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
                     {remixResult && (
-                        <div className="mt-6 p-6 bg-white rounded-lg shadow-lg border-l-4 border-purple-500 animate-fade-in">
-                            <h4 className="font-bold text-lg text-gray-800 mb-2">{remixResult.name}</h4>
-                            <div className="text-sm text-gray-600 mb-4 max-h-60 overflow-y-auto p-2 bg-gray-50 rounded">
+                        <div className="mt-6 p-6 bg-white dark:bg-gray-800 dark:text-gray-100 rounded-lg shadow-lg border-l-4 border-purple-500 animate-fade-in">
+                            <h4 className="font-bold text-lg text-gray-800 dark:text-gray-100 mb-2">{remixResult.name}</h4>
+                            <div className="text-sm text-gray-600 dark:text-gray-300 mb-4 max-h-60 overflow-y-auto p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
                                 <p className="whitespace-pre-wrap">{JSON.stringify(remixResult, null, 2)}</p>
                             </div>
                             <button onClick={saveRemixedRecipe} className="bg-green-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-600 shadow-sm transition-transform active:scale-95">

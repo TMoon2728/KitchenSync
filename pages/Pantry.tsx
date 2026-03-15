@@ -246,7 +246,7 @@ const Pantry: React.FC = () => {
     };
 
     const ViewButton: React.FC<{ value: 'inPantry' | 'all'; children: React.ReactNode }> = ({ value, children }) => (
-        <button onClick={() => setView(value)} className={`flex-1 md:flex-none px-6 py-2 text-sm font-bold rounded-xl transition-all ${view === value ? 'bg-white text-gray-800 shadow-md' : 'text-gray-500 hover:bg-gray-200/50'}`}>{children}</button>
+        <button onClick={() => setView(value)} className={`flex-1 md:flex-none px-6 py-2 text-sm font-bold rounded-xl transition-all ${view === value ? 'bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-800 dark:text-gray-100 shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/50'}`}>{children}</button>
     );
 
     const handlePantryCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -288,7 +288,7 @@ const Pantry: React.FC = () => {
     return (
         <div className="max-w-5xl mx-auto space-y-6 md:space-y-8 animate-fade-in">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <h1 className="text-2xl md:text-3xl font-extrabold text-gray-800">My Pantry</h1>
+                <h1 className="text-2xl md:text-3xl font-extrabold text-gray-800 dark:text-gray-100">My Pantry</h1>
                 <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
                     
                     {/* Scan Pantry Button */}
@@ -324,14 +324,14 @@ const Pantry: React.FC = () => {
                         />
                         <label
                             htmlFor="pantry-receipt-upload"
-                            className={`cursor-pointer bg-white w-full sm:w-auto justify-center border border-gray-200 text-gray-700 px-4 py-2 rounded-xl font-bold hover:bg-gray-50 transition-colors flex items-center shadow-sm ${isScanning ? 'opacity-50 cursor-wait' : ''}`}
+                            className={`cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 w-full sm:w-auto justify-center border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-xl font-bold hover:bg-gray-50 dark:bg-gray-700/50 transition-colors flex items-center shadow-sm ${isScanning ? 'opacity-50 cursor-wait' : ''}`}
                         >
                             {isScanning ? <i className="fas fa-spinner fa-spin md:mr-2"></i> : <i className="fas fa-receipt md:mr-2"></i>}
                             <span className="ml-2">{isScanning ? 'Scanning...' : 'Scan Receipt'}</span>
                         </label>
                     </div>
 
-                    <div className="flex bg-gray-100 p-1 rounded-2xl w-full sm:w-auto mt-2 sm:mt-0">
+                    <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-2xl w-full sm:w-auto mt-2 sm:mt-0">
                         <ViewButton value="inPantry">Inventory</ViewButton>
                         <ViewButton value="all">Add Items</ViewButton>
                     </div>
@@ -340,7 +340,7 @@ const Pantry: React.FC = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-100 min-h-[500px]">
+                    <div className="bg-white dark:bg-gray-800 dark:text-gray-100 p-6 rounded-2xl shadow-md border border-gray-100 dark:border-gray-700 min-h-[500px]">
                         {/* Quick Add Bar */}
                         {view === 'inPantry' && (
                             <div className="mb-6 relative">
@@ -352,7 +352,7 @@ const Pantry: React.FC = () => {
                                             value={quickAdd}
                                             onChange={(e) => setQuickAdd(e.target.value)}
                                             placeholder="Quick Add (e.g., '2 cups rice', '5 apples')"
-                                            className="w-full form-input pl-10 pr-4 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-900 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                                            className="w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 pl-10 pr-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-50 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                                         />
                                     </div>
                                     <button type="submit" className="bg-green-500 text-white px-6 py-3 rounded-xl font-bold hover:bg-green-600 shadow-md hover:shadow-lg transition-all active:scale-95">
@@ -366,12 +366,12 @@ const Pantry: React.FC = () => {
                             pantry.length > 0 ? (
                                 <ul className="space-y-3">
                                     {pantry.map((item, index) => (
-                                        <li key={item.id} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center p-4 sm:p-3 bg-white border border-gray-100 rounded-xl hover:shadow-sm transition-all animate-slide-up" style={{ animationDelay: `${index * 30}ms` }}>
-                                            <span className="font-bold text-gray-700 sm:col-span-4 truncate text-lg sm:text-base border-b sm:border-b-0 pb-2 sm:pb-0 mb-2 sm:mb-0" title={item.name}>{item.name}</span>
+                                        <li key={item.id} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center p-4 sm:p-3 bg-white dark:bg-gray-800 dark:text-gray-100 border border-gray-100 dark:border-gray-700 rounded-xl hover:shadow-sm transition-all animate-slide-up" style={{ animationDelay: `${index * 30}ms` }}>
+                                            <span className="font-bold text-gray-700 dark:text-gray-200 sm:col-span-4 truncate text-lg sm:text-base border-b sm:border-b-0 pb-2 sm:pb-0 mb-2 sm:mb-0" title={item.name}>{item.name}</span>
                                             
                                             <div className="grid grid-cols-3 sm:col-span-4 gap-2">
-                                                <input type="number" value={item.quantity} onChange={e => handleUpdate(item.id, 'quantity', parseFloat(e.target.value))} className="form-input p-2 text-sm rounded-lg border border-gray-200 bg-gray-50 text-gray-900 text-center col-span-1" />
-                                                <input type="text" value={item.unit} onChange={e => handleUpdate(item.id, 'unit', e.target.value)} className="form-input p-2 text-sm rounded-lg border border-gray-200 bg-gray-50 text-gray-900 col-span-2" />
+                                                <input type="number" value={item.quantity} onChange={e => handleUpdate(item.id, 'quantity', parseFloat(e.target.value))} className="form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-50 text-center col-span-1" />
+                                                <input type="text" value={item.unit} onChange={e => handleUpdate(item.id, 'unit', e.target.value)} className="form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-50 col-span-2" />
                                             </div>
 
                                             <div className="flex sm:col-span-4 gap-2 items-center mt-2 sm:mt-0">
@@ -380,21 +380,21 @@ const Pantry: React.FC = () => {
                                                     list="category-options"
                                                     value={item.category || ''}
                                                     onChange={e => handleUpdate(item.id, 'category', e.target.value)}
-                                                    className="form-input p-2 text-sm sm:text-xs rounded-lg border border-gray-200 bg-gray-50 text-gray-900 flex-1"
+                                                    className="form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 text-sm sm:text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-50 flex-1"
                                                     placeholder="Category"
                                                 />
-                                                <button onClick={() => handleDelete(item.id)} className="text-gray-400 bg-gray-100 p-2 sm:p-0 sm:bg-transparent rounded-lg hover:text-red-500 hover:bg-red-50 text-center transition-colors w-10 sm:w-auto flex-shrink-0"><i className="fas fa-trash-alt"></i></button>
+                                                <button onClick={() => handleDelete(item.id)} className="text-gray-400 bg-gray-100 dark:bg-gray-700 p-2 sm:p-0 sm:bg-transparent rounded-lg hover:text-red-500 hover:bg-red-50 text-center transition-colors w-10 sm:w-auto flex-shrink-0"><i className="fas fa-trash-alt"></i></button>
                                             </div>
                                         </li>
                                     ))}
                                 </ul>
                             ) : (
                                 <div className="text-center py-20 flex flex-col items-center">
-                                    <div className="w-32 h-32 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                                    <div className="w-32 h-32 bg-gray-50 dark:bg-gray-700/50 rounded-full flex items-center justify-center mb-4">
                                         <i className="fas fa-box-open text-5xl text-gray-300"></i>
                                     </div>
-                                    <h3 className="text-xl font-bold text-gray-800">Your pantry is empty</h3>
-                                    <p className="text-gray-500">Use the Quick Add bar to stock up!</p>
+                                    <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">Your pantry is empty</h3>
+                                    <p className="text-gray-500 dark:text-gray-400">Use the Quick Add bar to stock up!</p>
                                 </div>
                             )
                         )}
@@ -425,22 +425,22 @@ const Pantry: React.FC = () => {
                                                 key={ing.name}
                                                 onClick={() => !isInPantry && toggleSelection(ing.name)}
                                                 className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${isInPantry
-                                                    ? 'bg-gray-50 border-gray-100 opacity-60 cursor-default'
+                                                    ? 'bg-gray-50 dark:bg-gray-700/50 border-gray-100 dark:border-gray-700 opacity-60 cursor-default'
                                                     : isSelected
                                                         ? 'bg-blue-50 border-blue-200 shadow-inner'
-                                                        : 'bg-white border-gray-100 hover:border-blue-300 hover:shadow-sm'
+                                                        : 'bg-white dark:bg-gray-800 dark:text-gray-100 border-gray-100 dark:border-gray-700 hover:border-blue-300 hover:shadow-sm'
                                                     }`}
                                             >
                                                 <div className="flex items-center gap-3">
                                                     {!isInPantry && (
-                                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300 bg-white'}`}>
+                                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100'}`}>
                                                             {isSelected && <i className="fas fa-check text-white text-xs"></i>}
                                                         </div>
                                                     )}
                                                     {isInPantry && <i className="fas fa-check-circle text-green-500 text-lg"></i>}
 
                                                     <div className="flex flex-col">
-                                                        <span className={`font-semibold ${isInPantry ? 'text-gray-500' : 'text-gray-800'}`}>
+                                                        <span className={`font-semibold ${isInPantry ? 'text-gray-500 dark:text-gray-400' : 'text-gray-800 dark:text-gray-100'}`}>
                                                             {ing.name}
                                                         </span>
                                                         <span className="text-xs text-gray-400">
@@ -450,7 +450,7 @@ const Pantry: React.FC = () => {
                                                 </div>
 
                                                 {isInPantry && (
-                                                    <span className="text-[10px] font-bold bg-gray-200 text-gray-600 px-2 py-1 rounded-full uppercase tracking-wide">
+                                                    <span className="text-[10px] font-bold bg-gray-200 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-full uppercase tracking-wide">
                                                         Owned
                                                     </span>
                                                 )}
@@ -480,7 +480,7 @@ const Pantry: React.FC = () => {
                         <button
                             onClick={handleSuggestRecipes}
                             disabled={isLoading || pantry.length === 0}
-                            className="w-full bg-white text-blue-600 py-4 rounded-xl font-bold hover:bg-blue-50 transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center group relative z-10"
+                            className="w-full bg-white dark:bg-gray-800 dark:text-gray-100 text-blue-600 py-4 rounded-xl font-bold hover:bg-blue-50 transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center group relative z-10"
                         >
                             {isLoading ? <Spinner size="sm" /> : <><i className="fas fa-sparkles mr-2 text-yellow-500 group-hover:animate-spin"></i> What Can I Make?</>}
                         </button>
@@ -491,19 +491,19 @@ const Pantry: React.FC = () => {
 
                     {suggestions && (
                         <div className="space-y-4 animate-slide-up">
-                            <h3 className="font-bold text-gray-700 uppercase text-xs tracking-wider ml-1">Chef's Suggestions</h3>
+                            <h3 className="font-bold text-gray-700 dark:text-gray-200 uppercase text-xs tracking-wider ml-1">Chef's Suggestions</h3>
                             {suggestions.length > 0 ? (
                                 suggestions.map((suggestion, index) => (
-                                    <div key={index} className="bg-white p-5 rounded-2xl shadow-md border-l-4 border-yellow-400 hover:translate-x-1 transition-transform cursor-default">
+                                    <div key={index} className="bg-white dark:bg-gray-800 dark:text-gray-100 p-5 rounded-2xl shadow-md border-l-4 border-yellow-400 hover:translate-x-1 transition-transform cursor-default">
                                         <div className="flex justify-between items-start mb-2">
                                             {suggestion.existingRecipeId ? (
                                                 <Link to={`/recipes/${suggestion.existingRecipeId}`} className="font-bold text-blue-600 hover:underline text-lg">{suggestion.recipeName}</Link>
                                             ) : (
-                                                <span className="font-bold text-gray-800 text-lg">{suggestion.recipeName}</span>
+                                                <span className="font-bold text-gray-800 dark:text-gray-100 text-lg">{suggestion.recipeName}</span>
                                             )}
                                             {suggestion.existingRecipeId && <span className="bg-blue-100 text-blue-600 text-[10px] font-bold px-2 py-1 rounded-full uppercase">Recipe Book</span>}
                                         </div>
-                                        <p className="text-sm text-gray-600 leading-relaxed max-h-24 overflow-y-auto custom-scrollbar">{suggestion.reason}</p>
+                                        <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed max-h-24 overflow-y-auto custom-scrollbar">{suggestion.reason}</p>
                                         {!suggestion.existingRecipeId && (
                                             <button 
                                                 onClick={() => handleGenerateFromSuggestion(suggestion.recipeName, suggestion.reason)}
@@ -517,7 +517,7 @@ const Pantry: React.FC = () => {
                                     </div>
                                 ))
                             ) : (
-                                <div className="bg-white p-6 rounded-2xl text-center text-gray-500 shadow-sm">
+                                <div className="bg-white dark:bg-gray-800 dark:text-gray-100 p-6 rounded-2xl text-center text-gray-500 dark:text-gray-400 shadow-sm">
                                     <p>No specific matches found. Try adding basics like oil, flour, or spices!</p>
                                 </div>
                             )}

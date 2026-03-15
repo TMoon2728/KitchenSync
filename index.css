@@ -165,7 +165,6 @@ body {
 .quantum-flux {
     animation: quantum-jitter 0.8s infinite steps(10);
 }
-/* Collapse the wave function on hover */
 .quantum-flux:hover {
     animation: none;
     filter: none;
@@ -174,4 +173,27 @@ body {
     box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
     z-index: 50;
     background-color: white;
+}
+
+/* 4. Landing Page Mode (Glassmorphism) */
+.theme-landing, .theme-landing body {
+    background-color: #111827 !important; /* Tailwind gray-900 */
+    background-image: 
+        radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.15) 0%, transparent 50%), 
+        radial-gradient(circle at 0% 100%, rgba(168, 85, 247, 0.15) 0%, transparent 50%) !important;
+    background-attachment: fixed !important;
+}
+
+.theme-landing .bg-white,
+.theme-landing .dark\:bg-gray-800,
+.theme-landing .dark\:bg-gray-900 {
+    background-color: rgba(31, 41, 55, 0.4) !important; /* Tailwind gray-800 at 40% */
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1) !important;
+}
+
+.theme-landing header, .theme-landing main {
+    background-color: transparent !important;
 }

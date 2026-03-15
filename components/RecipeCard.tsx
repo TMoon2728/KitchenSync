@@ -19,13 +19,13 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onToggleFavorite, onDel
   return (
     <div 
         onClick={handleCardClick}
-        className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl group border border-gray-100 relative cursor-pointer"
+        className="bg-white dark:bg-gray-800 dark:text-gray-100 rounded-xl shadow-md overflow-hidden flex flex-col transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl group border border-gray-100 dark:border-gray-700 relative cursor-pointer"
     >
       <div className="relative h-56 overflow-hidden bg-gray-200">
           {recipe.imageUrl ? (
               <img src={recipe.imageUrl} alt={recipe.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
           ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-300">
+              <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-gray-300">
                   <i className="fas fa-utensils text-5xl opacity-50"></i>
               </div>
           )}
@@ -34,7 +34,7 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onToggleFavorite, onDel
            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                 <button 
                   onClick={(e) => { e.stopPropagation(); navigate(`/recipes/${recipe.id}/cook`); }} 
-                  className="bg-white text-gray-900 px-6 py-2 rounded-full font-bold transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:bg-green-500 hover:text-white shadow-lg"
+                  className="bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50 px-6 py-2 rounded-full font-bold transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:bg-green-500 hover:text-white shadow-lg"
                 >
                     <i className="fas fa-play mr-2"></i> Cook Now
                 </button>
@@ -44,7 +44,7 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onToggleFavorite, onDel
              {onDelete && (
                 <button
                     onClick={(e) => { e.stopPropagation(); onDelete(recipe.id); }}
-                    className="bg-white/90 backdrop-blur-sm rounded-full w-10 h-10 flex items-center justify-center transition-all hover:bg-red-50 hover:text-red-500 shadow-sm hover:scale-110 active:scale-90 text-gray-400"
+                    className="bg-white dark:bg-gray-800 dark:text-gray-100/90 backdrop-blur-sm rounded-full w-10 h-10 flex items-center justify-center transition-all hover:bg-red-50 hover:text-red-500 shadow-sm hover:scale-110 active:scale-90 text-gray-400"
                     title="Delete Recipe"
                 >
                     <i className="fas fa-trash"></i>
@@ -52,7 +52,7 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onToggleFavorite, onDel
              )}
              <button
                 onClick={(e) => { e.stopPropagation(); onToggleFavorite(recipe.id); }}
-                className="bg-white/90 backdrop-blur-sm rounded-full w-10 h-10 flex items-center justify-center transition-all hover:bg-white shadow-sm hover:scale-110 active:scale-90"
+                className="bg-white dark:bg-gray-800 dark:text-gray-100/90 backdrop-blur-sm rounded-full w-10 h-10 flex items-center justify-center transition-all hover:bg-white dark:bg-gray-800 dark:text-gray-100 shadow-sm hover:scale-110 active:scale-90"
                 title="Toggle Favorite"
                 >
                 <i className={`fa-heart text-xl ${recipe.is_favorite ? 'fas text-red-500 animate-pulse-glow' : 'far text-gray-400 hover:text-red-400'}`}></i>
@@ -62,7 +62,7 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onToggleFavorite, onDel
       
       <div className="p-5 flex-grow flex flex-col">
         <div className="flex justify-between items-start mb-2">
-            <h3 className="text-lg font-bold text-gray-800 line-clamp-1 group-hover:text-blue-600 transition-colors" title={recipe.name}>{recipe.name}</h3>
+            <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 line-clamp-1 group-hover:text-blue-600 transition-colors" title={recipe.name}>{recipe.name}</h3>
             <div className="flex items-center text-yellow-400 text-xs bg-yellow-50 px-2 py-1 rounded-md border border-yellow-100">
                 <i className="fas fa-star mr-1"></i> <span className="text-yellow-700 font-bold">{recipe.rating}</span>
             </div>
@@ -70,15 +70,15 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onToggleFavorite, onDel
         
         <div className="flex flex-wrap gap-1 mb-3">
             {recipe.tags?.slice(0, 3).map(tag => (
-                <span key={tag} className="text-[10px] uppercase font-bold tracking-wider bg-gray-100 text-gray-600 px-2 py-1 rounded-md">{tag}</span>
+                <span key={tag} className="text-[10px] uppercase font-bold tracking-wider bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-md">{tag}</span>
             ))}
         </div>
 
-        <p className="text-gray-500 text-sm mb-4 line-clamp-2 flex-grow font-light leading-relaxed">{recipe.instructions}</p>
+        <p className="text-gray-500 dark:text-gray-400 text-sm mb-4 line-clamp-2 flex-grow font-light leading-relaxed">{recipe.instructions}</p>
         
-        <div className="flex justify-between items-center pt-4 border-t border-gray-100 mt-auto">
+        <div className="flex justify-between items-center pt-4 border-t border-gray-100 dark:border-gray-700 mt-auto">
              <div className="text-xs text-gray-400 flex flex-col">
-                <span className="font-bold text-gray-600 text-sm">{recipe.calories} kcal</span>
+                <span className="font-bold text-gray-600 dark:text-gray-300 text-sm">{recipe.calories} kcal</span>
                 <span>{recipe.meal_type}</span>
             </div>
             <span

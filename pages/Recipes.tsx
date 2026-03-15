@@ -199,10 +199,10 @@ const Recipes: React.FC = () => {
     }, [recipes, searchTerm, filter, sort, pantryItemNames, selectedTags]);
 
     const FilterButton: React.FC<{ value: 'all' | 'favorites' | 'canMake'; children: React.ReactNode }> = ({ value, children }) => (
-        <button onClick={() => setFilter(value)} className={`px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 ${filter === value ? 'bg-blue-600 text-white shadow-md transform scale-105' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>{children}</button>
+        <button onClick={() => setFilter(value)} className={`px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 ${filter === value ? 'bg-blue-600 text-white shadow-md transform scale-105' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200'}`}>{children}</button>
     );
     const SortButton: React.FC<{ value: 'asc' | 'desc' | 'rating'; children: React.ReactNode }> = ({ value, children }) => (
-        <button onClick={() => setSort(value)} className={`px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 ${sort === value ? 'bg-blue-600 text-white shadow-md transform scale-105' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>{children}</button>
+        <button onClick={() => setSort(value)} className={`px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 ${sort === value ? 'bg-blue-600 text-white shadow-md transform scale-105' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200'}`}>{children}</button>
     );
 
     return (
@@ -210,18 +210,18 @@ const Recipes: React.FC = () => {
             {/* Full-screen Loading Overlay for URL Import via Share Target */}
             {isImporting && (
                 <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-900/80 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm text-center border-t-4 border-green-500 transform transition-all scale-100">
+                    <div className="bg-white dark:bg-gray-800 dark:text-gray-100 p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm text-center border-t-4 border-green-500 transform transition-all scale-100">
                         <div className="relative mb-6">
                             <div className="absolute inset-0 bg-green-500 rounded-full blur animate-pulse opacity-20"></div>
                             <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center relative border-2 border-green-100">
                                 <i className="fas fa-magic text-3xl text-green-500 animate-bounce"></i>
                             </div>
                         </div>
-                        <h2 className="text-2xl font-black text-gray-800 tracking-tight mb-2">Scanning Link...</h2>
-                        <p className="text-gray-500 text-sm leading-relaxed">
+                        <h2 className="text-2xl font-black text-gray-800 dark:text-gray-100 tracking-tight mb-2">Scanning Link...</h2>
+                        <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
                             Our AI Sous Chef is reading the website, extracting the ingredients, and writing down the steps. This usually takes about a minute or two.
                         </p>
-                        <div className="mt-8 w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                        <div className="mt-8 w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
                             <div className="bg-gradient-to-r from-green-400 to-emerald-500 h-1.5 rounded-full animate-progress-indeterminate"></div>
                         </div>
                     </div>
@@ -230,9 +230,9 @@ const Recipes: React.FC = () => {
 
             {/* Filter Sidebar */}
             <aside className="w-full lg:w-64 flex-shrink-0 space-y-6">
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                <div className="bg-white dark:bg-gray-800 dark:text-gray-100 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                     <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-lg font-bold text-gray-800">Filter By Tag</h2>
+                        <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">Filter By Tag</h2>
                         {selectedTags.size > 0 && <button onClick={() => setSelectedTags(new Set())} className="text-xs text-blue-500 hover:text-blue-700 font-semibold">Clear</button>}
                     </div>
                     <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-2">
@@ -240,7 +240,7 @@ const Recipes: React.FC = () => {
                             <button
                                 key={tag}
                                 onClick={() => toggleTag(tag)}
-                                className={`text-xs px-2.5 py-1.5 rounded-lg border transition-all duration-200 ${selectedTags.has(tag) ? 'bg-blue-500 border-blue-500 text-white shadow-sm' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                                className={`text-xs px-2.5 py-1.5 rounded-lg border transition-all duration-200 ${selectedTags.has(tag) ? 'bg-blue-500 border-blue-500 text-white shadow-sm' : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:bg-gray-700'}`}
                             >
                                 {tag}
                             </button>
@@ -251,7 +251,7 @@ const Recipes: React.FC = () => {
                 <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-5 rounded-2xl shadow-lg text-white">
                     <h2 className="text-lg font-bold mb-2">Create New</h2>
                     <p className="text-blue-100 text-xs mb-4">Add your own family secret recipes manually.</p>
-                    <Link to="/recipes/new" className="block w-full bg-white text-blue-600 px-4 py-2.5 rounded-xl font-bold hover:bg-blue-50 transition-colors text-center shadow-md">
+                    <Link to="/recipes/new" className="block w-full bg-white dark:bg-gray-800 dark:text-gray-100 text-blue-600 px-4 py-2.5 rounded-xl font-bold hover:bg-blue-50 transition-colors text-center shadow-md">
                         <i className="fas fa-plus mr-2"></i> Add Manually
                     </Link>
                 </div>
@@ -270,16 +270,16 @@ const Recipes: React.FC = () => {
 
                 {/* AI Tools */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-purple-100 relative overflow-hidden group hover:shadow-md transition-shadow">
+                    <div className="bg-white dark:bg-gray-800 dark:text-gray-100 p-6 rounded-2xl shadow-sm border border-purple-100 relative overflow-hidden group hover:shadow-md transition-shadow">
                         <div className="absolute top-0 right-0 p-4 opacity-5 transform rotate-12 transition-transform group-hover:scale-110">
                             <i className="fas fa-magic text-8xl text-purple-600"></i>
                         </div>
-                        <h2 className="text-xl font-bold mb-2 flex items-center text-gray-800"><i className="fas fa-magic mr-2 text-purple-500"></i>AI Quick Add <span className="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded ml-2">1 Credit</span></h2>
-                        <p className="text-sm text-gray-500 mb-4 relative z-10">Describe a dish and let AI write the recipe.</p>
+                        <h2 className="text-xl font-bold mb-2 flex items-center text-gray-800 dark:text-gray-100"><i className="fas fa-magic mr-2 text-purple-500"></i>AI Quick Add <span className="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded ml-2">1 Credit</span></h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 relative z-10">Describe a dish and let AI write the recipe.</p>
                         <form onSubmit={handleAiQuickAdd} className="flex items-start gap-3 relative z-10">
                             <textarea
                                 name="ai_request"
-                                className="form-input w-full p-3 border border-gray-200 rounded-xl flex-grow focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-gray-50 text-gray-900 text-sm resize-none"
+                                className="form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 w-full p-3 border border-gray-200 dark:border-gray-700 rounded-xl flex-grow focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-50 text-sm resize-none"
                                 placeholder="e.g. Spicy Tofu Stir-fry..."
                                 rows={1}
                                 value={aiRequest}
@@ -291,17 +291,17 @@ const Recipes: React.FC = () => {
                         </form>
                         {addError && <p className="text-red-500 text-xs mt-2 font-medium">{addError}</p>}
                     </div>
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-green-100 relative overflow-hidden group hover:shadow-md transition-shadow">
+                    <div className="bg-white dark:bg-gray-800 dark:text-gray-100 p-6 rounded-2xl shadow-sm border border-green-100 relative overflow-hidden group hover:shadow-md transition-shadow">
                         <div className="absolute top-0 right-0 p-4 opacity-5 transform -rotate-12 transition-transform group-hover:scale-110">
                             <i className="fas fa-link text-8xl text-green-600"></i>
                         </div>
-                        <h2 className="text-xl font-bold mb-2 flex items-center text-gray-800"><i className="fas fa-cloud-download-alt mr-2 text-green-500"></i>Import URL <span className="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded ml-2">1 Credit</span></h2>
-                        <p className="text-sm text-gray-500 mb-4 relative z-10">Paste a URL to extract recipe details.</p>
+                        <h2 className="text-xl font-bold mb-2 flex items-center text-gray-800 dark:text-gray-100"><i className="fas fa-cloud-download-alt mr-2 text-green-500"></i>Import URL <span className="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded ml-2">1 Credit</span></h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 relative z-10">Paste a URL to extract recipe details.</p>
                         <form onSubmit={handleImportFromUrl} className="flex items-start gap-3 relative z-10">
                             <input
                                 type="url"
                                 name="import_url"
-                                className="form-input w-full p-3 border border-gray-200 rounded-xl flex-grow focus:ring-2 focus:ring-green-500 focus:border-transparent bg-gray-50 text-gray-900 text-sm"
+                                className="form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 w-full p-3 border border-gray-200 dark:border-gray-700 rounded-xl flex-grow focus:ring-2 focus:ring-green-500 focus:border-transparent bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-50 text-sm"
                                 placeholder="https://..."
                                 value={importUrl}
                                 onChange={(e) => setImportUrl(e.target.value)}
@@ -314,7 +314,7 @@ const Recipes: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-4 md:space-y-0 md:flex justify-between items-center sticky top-0 z-20 backdrop-blur-md bg-white/90">
+                <div className="bg-white dark:bg-gray-800 dark:text-gray-100 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 space-y-4 md:space-y-0 md:flex justify-between items-center sticky top-0 z-20 backdrop-blur-md bg-white dark:bg-gray-800 dark:text-gray-100/90">
                     <div className="relative w-full md:w-1/3">
                         <i className={`fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 ${isQuantumMode ? 'text-blue-500 animate-spin' : 'text-gray-400'}`}></i>
                         <input
@@ -322,16 +322,16 @@ const Recipes: React.FC = () => {
                             placeholder="Search recipes..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full form-input pl-10 pr-4 py-2 border border-gray-200 rounded-xl bg-gray-50 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                            className="w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
                         />
                     </div>
                     <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-                        <div className="flex flex-wrap justify-center sm:justify-start gap-1 p-1 bg-gray-100 rounded-2xl w-full sm:w-auto">
+                        <div className="flex flex-wrap justify-center sm:justify-start gap-1 p-1 bg-gray-100 dark:bg-gray-700 rounded-2xl w-full sm:w-auto">
                             <FilterButton value="all">All</FilterButton>
                             <FilterButton value="favorites"><i className="fas fa-heart mr-1 text-red-400"></i> Favs</FilterButton>
                             <FilterButton value="canMake"><i className="fas fa-utensils mr-1 text-orange-400"></i> Cook Now</FilterButton>
                         </div>
-                        <div className="flex flex-wrap justify-center sm:justify-start gap-1 p-1 bg-gray-100 rounded-2xl w-full sm:w-auto">
+                        <div className="flex flex-wrap justify-center sm:justify-start gap-1 p-1 bg-gray-100 dark:bg-gray-700 rounded-2xl w-full sm:w-auto">
                             <SortButton value="asc">A-Z</SortButton>
                             <SortButton value="rating"><i className="fas fa-star mr-1 text-yellow-400"></i> Top</SortButton>
                         </div>
@@ -351,12 +351,12 @@ const Recipes: React.FC = () => {
                         ))}
                     </div>
                 ) : (
-                    <div className="text-center py-20 bg-white rounded-3xl shadow-sm border border-dashed border-gray-200">
-                        <div className="inline-block p-6 bg-gray-50 rounded-full mb-4">
+                    <div className="text-center py-20 bg-white dark:bg-gray-800 dark:text-gray-100 rounded-3xl shadow-sm border border-dashed border-gray-200 dark:border-gray-700">
+                        <div className="inline-block p-6 bg-gray-50 dark:bg-gray-700/50 rounded-full mb-4">
                             <i className="fas fa-search text-4xl text-gray-300"></i>
                         </div>
-                        <h3 className="text-xl font-bold text-gray-800 mb-2">No recipes found</h3>
-                        <p className="text-gray-500 max-w-xs mx-auto mb-6">We couldn't find any recipes matching your current filters.</p>
+                        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2">No recipes found</h3>
+                        <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto mb-6">We couldn't find any recipes matching your current filters.</p>
                         <button onClick={() => { setFilter('all'); setSelectedTags(new Set()); setSearchTerm(''); }} className="px-6 py-2 bg-blue-100 text-blue-700 rounded-full font-semibold hover:bg-blue-200 transition-colors">
                             Clear all filters
                         </button>

@@ -280,8 +280,8 @@ const ShoppingList: React.FC = () => {
         <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-800">Shopping Mission</h1>
-                    <p className="text-gray-500 text-sm">Gather supplies for the week ahead.</p>
+                    <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">Shopping Mission</h1>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm">Gather supplies for the week ahead.</p>
                 </div>
 
                 <div className="flex gap-2 relative items-center">
@@ -319,13 +319,13 @@ const ShoppingList: React.FC = () => {
                     <div className="relative">
                         <button
                             onClick={() => setShowStoreLinks(!showStoreLinks)}
-                            className="bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-xl font-bold hover:bg-gray-50 transition-colors flex items-center shadow-sm"
+                            className="bg-white dark:bg-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-xl font-bold hover:bg-gray-50 dark:bg-gray-700/50 transition-colors flex items-center shadow-sm"
                         >
                             <i className="fas fa-shopping-cart mr-2 text-green-500"></i> <span className="hidden sm:inline">Stores</span> <i className="fas fa-chevron-down ml-2 text-xs"></i>
                         </button>
 
                         {showStoreLinks && (
-                            <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl py-2 z-20 border border-gray-100 animate-scale-in">
+                            <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 dark:text-gray-100 rounded-xl shadow-xl py-2 z-20 border border-gray-100 dark:border-gray-700 animate-scale-in">
                                 <div className="px-4 py-2 text-xs text-gray-400 font-bold uppercase tracking-wider">
                                     Your Stores
                                 </div>
@@ -336,14 +336,14 @@ const ShoppingList: React.FC = () => {
                                             href={store.url}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="block px-4 py-3 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors flex justify-between items-center group"
+                                            className="block px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-green-50 hover:text-green-700 transition-colors flex justify-between items-center group"
                                         >
                                             <span className="font-semibold">{store.name}</span>
                                             <i className="fas fa-external-link-alt text-xs text-gray-300 group-hover:text-green-500"></i>
                                         </a>
                                     ))
                                 ) : (
-                                    <div className="px-4 py-3 text-sm text-gray-500 italic">
+                                    <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 italic">
                                         No stores configured. <br />
                                         <Link to="/profile" className="text-blue-500 hover:underline">Add in Profile</Link>
                                     </div>
@@ -364,7 +364,7 @@ const ShoppingList: React.FC = () => {
                 <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-6 animate-fade-in relative">
                     <button
                         onClick={() => setScanResult(null)}
-                        className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                        className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:text-gray-300"
                     >
                         <i className="fas fa-times"></i>
                     </button>
@@ -375,7 +375,7 @@ const ShoppingList: React.FC = () => {
                     <div className="grid md:grid-cols-2 gap-6">
                         <div>
                             <h4 className="font-bold text-green-700 mb-2">Matched & Checked ({scanResult.matched?.length || 0})</h4>
-                            <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                            <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-200 space-y-1">
                                 {scanResult.matched?.map((item, idx) => (
                                     <li key={idx}>{item}</li>
                                 ))}
@@ -386,10 +386,10 @@ const ShoppingList: React.FC = () => {
                             {scanResult.extra?.length > 0 ? (
                                 <div className="space-y-3">
                                     {scanResult.extra.map((item, idx) => (
-                                        <div key={idx} className="flex items-center justify-between bg-white p-2 rounded-lg border border-orange-100">
+                                        <div key={idx} className="flex items-center justify-between bg-white dark:bg-gray-800 dark:text-gray-100 p-2 rounded-lg border border-orange-100">
                                             <div>
-                                                <span className="font-bold block text-gray-800">{item.name}</span>
-                                                <span className="text-xs text-gray-500">{item.quantity} {item.unit} ({item.category})</span>
+                                                <span className="font-bold block text-gray-800 dark:text-gray-100">{item.name}</span>
+                                                <span className="text-xs text-gray-500 dark:text-gray-400">{item.quantity} {item.unit} ({item.category})</span>
                                             </div>
                                             <button
                                                 onClick={() => {
@@ -409,7 +409,7 @@ const ShoppingList: React.FC = () => {
                                     ))}
                                 </div>
                             ) : (
-                                <p className="text-sm text-gray-500 italic">No extra items detected.</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 italic">No extra items detected.</p>
                             )}
                         </div>
                     </div>
@@ -418,12 +418,12 @@ const ShoppingList: React.FC = () => {
 
             {/* Gamified Progress Bar */}
             {listHasItems && (
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                <div className="bg-white dark:bg-gray-800 dark:text-gray-100 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                     <div className="flex justify-between items-end mb-2">
                         <div>
                             <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Mission Progress</span>
                             <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-black text-gray-800">{completedItems}</span>
+                                <span className="text-2xl font-black text-gray-800 dark:text-gray-100">{completedItems}</span>
                                 <span className="text-gray-400 font-medium">/ {totalItems} items</span>
                             </div>
                         </div>
@@ -433,47 +433,47 @@ const ShoppingList: React.FC = () => {
                             </span>
                         )}
                     </div>
-                    <div className="w-full bg-gray-100 rounded-full h-4 overflow-hidden">
+                    <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
                         <div
                             className={`h-4 rounded-full transition-all duration-700 ease-out relative ${progress === 100 ? 'bg-green-500' : 'bg-gradient-to-r from-blue-500 to-indigo-600'}`}
                             style={{ width: `${progress}%` }}
                         >
-                            <div className="absolute inset-0 bg-white opacity-20 animate-pulse"></div>
+                            <div className="absolute inset-0 bg-white dark:bg-gray-800 dark:text-gray-100 opacity-20 animate-pulse"></div>
                         </div>
                     </div>
                 </div>
             )}
 
             {/* Manual Add Form */}
-            <form onSubmit={handleAddManualItem} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-3 items-end">
+            <form onSubmit={handleAddManualItem} className="bg-white dark:bg-gray-800 dark:text-gray-100 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row gap-3 items-end">
                 <div className="flex-grow w-full">
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Add to List</label>
+                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Add to List</label>
                     <input 
                         type="text" 
                         value={newItemName}
                         onChange={e => setNewItemName(e.target.value)}
                         placeholder="e.g. Paper Towels" 
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                        className="w-full bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:bg-gray-800 dark:text-gray-100"
                         required
                     />
                 </div>
                 <div className="w-full sm:w-28 min-w-[80px]">
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Qty</label>
+                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Qty</label>
                     <input 
                         type="number" 
                         value={newItemQty}
                         onChange={e => setNewItemQty(e.target.value)}
                         min="0.1"
                         step="0.1"
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                        className="w-full bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:bg-gray-800 dark:text-gray-100"
                     />
                 </div>
                 <div className="w-full sm:w-40 min-w-[120px]">
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Unit</label>
+                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Unit</label>
                     <select 
                         value={newItemUnit}
                         onChange={e => setNewItemUnit(e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                        className="w-full bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:bg-gray-800 dark:text-gray-100"
                     >
                         <option value="each">each</option>
                         <option value="rolls">rolls</option>
@@ -485,11 +485,11 @@ const ShoppingList: React.FC = () => {
                     </select>
                 </div>
                 <div className="w-full sm:w-56 min-w-[170px]">
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Category</label>
+                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Category</label>
                     <select 
                         value={newItemCategory}
                         onChange={e => setNewItemCategory(e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                        className="w-full bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:bg-gray-800 dark:text-gray-100"
                     >
                         <option value="Other">Other</option>
                         <option value="Produce">Produce</option>
@@ -509,12 +509,12 @@ const ShoppingList: React.FC = () => {
                 </button>
             </form>
 
-            <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-100 min-h-[400px]">
+            <div className="bg-white dark:bg-gray-800 dark:text-gray-100 p-6 rounded-2xl shadow-md border border-gray-100 dark:border-gray-700 min-h-[400px]">
                 {listHasItems ? (
                     <div className="space-y-8">
                         {Object.entries(shoppingList).map(([category, items]) => (
                             <div key={category} className="animate-slide-up">
-                                <h3 className="font-bold text-lg text-gray-800 mb-3 flex items-center">
+                                <h3 className="font-bold text-lg text-gray-800 dark:text-gray-100 mb-3 flex items-center">
                                     <span className="w-2 h-8 bg-blue-500 rounded-r-full mr-3"></span>
                                     {category}
                                 </h3>
@@ -526,19 +526,19 @@ const ShoppingList: React.FC = () => {
                                                 key={item.name}
                                                 onClick={() => handleCheck(item.name)}
                                                 className={`flex items-center p-3 rounded-xl border-2 transition-all cursor-pointer group select-none ${isChecked
-                                                    ? 'bg-gray-50 border-gray-100 opacity-60 grayscale'
-                                                    : 'bg-white border-gray-100 hover:border-blue-200 hover:shadow-sm'
+                                                    ? 'bg-gray-50 dark:bg-gray-700/50 border-gray-100 dark:border-gray-700 opacity-60 grayscale'
+                                                    : 'bg-white dark:bg-gray-800 dark:text-gray-100 border-gray-100 dark:border-gray-700 hover:border-blue-200 hover:shadow-sm'
                                                     }`}
                                             >
-                                                <div className={`w-6 h-6 rounded-md border-2 mr-4 flex items-center justify-center transition-colors ${isChecked ? 'bg-green-500 border-green-500' : 'border-gray-300 group-hover:border-blue-400'}`}>
+                                                <div className={`w-6 h-6 rounded-md border-2 mr-4 flex items-center justify-center transition-colors ${isChecked ? 'bg-green-500 border-green-500' : 'border-gray-300 dark:border-gray-600 group-hover:border-blue-400'}`}>
                                                     {isChecked && <i className="fas fa-check text-white text-xs"></i>}
                                                 </div>
                                                 <div className="flex-grow">
-                                                    <span className={`font-semibold text-base block ${isChecked ? 'text-gray-500 line-through decoration-2' : 'text-gray-800'}`}>
+                                                    <span className={`font-semibold text-base block ${isChecked ? 'text-gray-500 dark:text-gray-400 line-through decoration-2' : 'text-gray-800 dark:text-gray-100'}`}>
                                                         {item.name}
                                                     </span>
                                                 </div>
-                                                <span className={`text-sm font-bold px-3 py-1 rounded-full ${isChecked ? 'bg-gray-200 text-gray-500' : 'bg-blue-50 text-blue-600'}`}>
+                                                <span className={`text-sm font-bold px-3 py-1 rounded-full ${isChecked ? 'bg-gray-200 text-gray-500 dark:text-gray-400' : 'bg-blue-50 text-blue-600'}`}>
                                                     {item.quantity.toFixed(2)} {item.unit}
                                                 </span>
                                                 {(item as any).isManual && (item as any).id && (
@@ -565,8 +565,8 @@ const ShoppingList: React.FC = () => {
                         <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-blue-100">
                             <i className="fas fa-shopping-basket text-4xl text-blue-400"></i>
                         </div>
-                        <h2 className="text-2xl font-bold text-gray-800 mb-3">Your List is Empty!</h2>
-                        <p className="text-gray-600 max-w-md mb-8">
+                        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-3">Your List is Empty!</h2>
+                        <p className="text-gray-600 dark:text-gray-300 max-w-md mb-8">
                             Your shopping list is generated automatically when you add recipes to your Meal Planner. Make planning a breeze!
                         </p>
                         <Link 

@@ -11,13 +11,13 @@ import { convertQuantity } from '../utils/unitConversion';
 import type { Ingredient } from '../types';
 
 const StatCard: React.FC<{ icon: string; title: string; value: string | number; color: string; delay: string; to: string; state?: any }> = ({ icon, title, value, color, delay, to, state }) => (
-    <Link to={to} state={state} className={`bg-white p-4 rounded-xl shadow-lg border-b-4 border-gray-100 flex items-center transform transition-all duration-300 hover:-translate-y-1 hover:shadow-xl animate-slide-up ${delay} block`}>
+    <Link to={to} state={state} className={`bg-white dark:bg-gray-800 dark:text-gray-100 p-4 rounded-xl shadow-lg border-b-4 border-gray-100 dark:border-gray-700 flex items-center transform transition-all duration-300 hover:-translate-y-1 hover:shadow-xl animate-slide-up ${delay} block`}>
         <div className={`w-14 h-14 rounded-full flex items-center justify-center ${color} shadow-inner`}>
             <i className={`fas ${icon} text-white text-2xl`}></i>
         </div>
         <div className="ml-4">
-            <p className="text-gray-500 text-sm font-medium uppercase tracking-wide">{title}</p>
-            <p className="text-3xl font-extrabold text-gray-800">{value}</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wide">{title}</p>
+            <p className="text-3xl font-extrabold text-gray-800 dark:text-gray-100">{value}</p>
         </div>
     </Link>
 );
@@ -223,19 +223,19 @@ const Dashboard: React.FC = () => {
                                     {userProfile.avatar}
                                 </div>
                             )}
-                            <div className="absolute -bottom-1 -right-1 md:-bottom-2 md:-right-2 bg-white rounded-full p-1 shadow-md">
+                            <div className="absolute -bottom-1 -right-1 md:-bottom-2 md:-right-2 bg-white dark:bg-gray-800 dark:text-gray-100 rounded-full p-1 shadow-md">
                                 <i className={`fas ${xpStats.currentLevel.icon} ${xpStats.currentLevel.color} text-sm`}></i>
                             </div>
                         </div>
                     )}
                     <div className="flex flex-col items-center md:items-start">
-                        <h1 className="text-3xl md:text-4xl font-extrabold text-gray-800 tracking-tight">
+                        <h1 className="text-3xl md:text-4xl font-extrabold text-gray-800 dark:text-gray-100 tracking-tight">
                             {userProfile.kitchenName || `Welcome, ${userProfile.name}!`}
                         </h1>
                         <div className="flex items-center justify-center md:justify-start mt-2 gap-2 flex-wrap">
-                            <div className="bg-white px-3 py-1 rounded-full shadow-sm border border-gray-100 flex items-center gap-2">
+                            <div className="bg-white dark:bg-gray-800 dark:text-gray-100 px-3 py-1 rounded-full shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-2">
                                 <i className={`fas ${xpStats.currentLevel.icon} ${xpStats.currentLevel.color}`}></i>
-                                <span className="font-bold text-gray-700 text-sm">{xpStats.currentLevel.name}</span>
+                                <span className="font-bold text-gray-700 dark:text-gray-200 text-sm">{xpStats.currentLevel.name}</span>
                             </div>
                             <span className="text-xs text-gray-400 font-mono">{xpStats.xp} XP</span>
                             <Link to="/subscription" className="text-xs bg-yellow-400 text-black px-2 py-0.5 rounded font-bold hover:bg-yellow-300 shadow-sm mt-1 sm:mt-0">
@@ -246,8 +246,8 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 {/* Level Progress Bar */}
-                <div className="w-full max-w-sm md:w-1/3 bg-white p-4 rounded-xl shadow-md border border-gray-100 relative overflow-hidden group mx-auto md:mx-0">
-                    <div className="flex justify-between text-xs font-semibold text-gray-500 mb-1">
+                <div className="w-full max-w-sm md:w-1/3 bg-white dark:bg-gray-800 dark:text-gray-100 p-4 rounded-xl shadow-md border border-gray-100 dark:border-gray-700 relative overflow-hidden group mx-auto md:mx-0">
+                    <div className="flex justify-between text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
                         <span>Current Level</span>
                         <span>Next: {xpStats.nextLevel.name}</span>
                     </div>
@@ -256,7 +256,7 @@ const Dashboard: React.FC = () => {
                             className="bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full transition-all duration-1000 ease-out relative"
                             style={{ width: `${xpStats.progress}%` }}
                         >
-                            <div className="absolute inset-0 bg-white opacity-20 animate-pulse"></div>
+                            <div className="absolute inset-0 bg-white dark:bg-gray-800 dark:text-gray-100 opacity-20 animate-pulse"></div>
                         </div>
                     </div>
                     <p className="text-xs text-center mt-1 text-gray-400">
@@ -270,9 +270,9 @@ const Dashboard: React.FC = () => {
                 <StatCard icon="fa-book-open" title="Total Recipes" value={kitchenStats.totalRecipes} color="bg-blue-500" delay="delay-100" to="/recipes" />
                 <StatCard icon="fa-box-open" title="Pantry Items" value={kitchenStats.pantryItems} color="bg-green-500" delay="delay-200" to="/pantry" />
                 <StatCard icon="fa-heart" title="Favorites" value={kitchenStats.favoriteRecipes} color="bg-red-500" delay="delay-300" to="/recipes" state={{ filter: 'favorites' }} />
-                <Link to="/recipes" state={{ filter: 'canMake' }} className="bg-white p-4 rounded-xl shadow-lg border-b-4 border-gray-100 flex items-center justify-between transform transition-all duration-300 hover:-translate-y-1 hover:shadow-xl animate-slide-up delay-400 block">
+                <Link to="/recipes" state={{ filter: 'canMake' }} className="bg-white dark:bg-gray-800 dark:text-gray-100 p-4 rounded-xl shadow-lg border-b-4 border-gray-100 dark:border-gray-700 flex items-center justify-between transform transition-all duration-300 hover:-translate-y-1 hover:shadow-xl animate-slide-up delay-400 block">
                     <div>
-                        <p className="text-gray-500 text-sm font-medium uppercase tracking-wide">Kitchen Health</p>
+                        <p className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wide">Kitchen Health</p>
                         <p className={`text-3xl font-extrabold ${healthColor}`}>{kitchenHealth}%</p>
                         <p className="text-xs text-gray-400">Cookable Now</p>
                     </div>
@@ -298,7 +298,7 @@ const Dashboard: React.FC = () => {
                 {/* Main Content Area */}
                 <div className="lg:col-span-2 space-y-8">
                     {/* Dinner Card */}
-                    <div className="bg-white p-6 rounded-2xl shadow-lg animate-slide-up delay-200 relative overflow-hidden">
+                    <div className="bg-white dark:bg-gray-800 dark:text-gray-100 p-6 rounded-2xl shadow-lg animate-slide-up delay-200 relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-4 opacity-10">
                             <i className="fas fa-utensils text-9xl"></i>
                         </div>
@@ -310,15 +310,15 @@ const Dashboard: React.FC = () => {
                         </h2>
 
                         {todaysDinnerRecipe ? (
-                            <div className="relative z-10 bg-gray-50 rounded-xl p-6 border border-gray-100 transition-transform hover:scale-[1.01]">
+                            <div className="relative z-10 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-6 border border-gray-100 dark:border-gray-700 transition-transform hover:scale-[1.01]">
                                 <div className="flex flex-col md:flex-row justify-between items-start gap-4">
                                     <div className="flex-1">
-                                        <h3 className={`text-3xl font-bold mb-2 ${isDinnerCooked ? 'text-green-600 line-through decoration-4 decoration-green-500/30' : 'text-gray-800'}`}>
+                                        <h3 className={`text-3xl font-bold mb-2 ${isDinnerCooked ? 'text-green-600 line-through decoration-4 decoration-green-500/30' : 'text-gray-800 dark:text-gray-100'}`}>
                                             {todaysDinnerRecipe.name}
                                         </h3>
                                         <div className="flex flex-wrap gap-2 mb-4">
                                             {todaysDinnerRecipe.tags?.map(tag => (
-                                                <span key={tag} className="text-xs bg-white border border-gray-200 px-3 py-1 rounded-full text-gray-600 font-medium shadow-sm">
+                                                <span key={tag} className="text-xs bg-white dark:bg-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700 px-3 py-1 rounded-full text-gray-600 dark:text-gray-300 font-medium shadow-sm">
                                                     {tag}
                                                 </span>
                                             ))}
@@ -326,7 +326,7 @@ const Dashboard: React.FC = () => {
                                                 <i className="fas fa-clock mr-1"></i> {todaysDinnerRecipe.cook_time}
                                             </span>
                                         </div>
-                                        <p className="text-gray-600 leading-relaxed line-clamp-3 bg-white p-3 rounded-lg border border-gray-100 italic">
+                                        <p className="text-gray-600 dark:text-gray-300 leading-relaxed line-clamp-3 bg-white dark:bg-gray-800 dark:text-gray-100 p-3 rounded-lg border border-gray-100 dark:border-gray-700 italic">
                                             "{todaysDinnerRecipe.instructions}"
                                         </p>
                                     </div>
@@ -358,9 +358,9 @@ const Dashboard: React.FC = () => {
                                 </div>
                             </div>
                         ) : (
-                            <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                            <div className="text-center py-12 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-dashed border-gray-300 dark:border-gray-600">
                                 <div className="text-gray-400 text-6xl mb-4"><i className="fas fa-plate-wheat"></i></div>
-                                <p className="text-gray-500 font-medium mb-4">Your plate is empty for tonight!</p>
+                                <p className="text-gray-500 dark:text-gray-400 font-medium mb-4">Your plate is empty for tonight!</p>
                                 <Link to="/planner" className="inline-block bg-blue-500 text-white px-8 py-3 rounded-full font-bold hover:bg-blue-600 transition-transform hover:scale-105 shadow-md">
                                     <i className="fas fa-calendar-plus mr-2"></i> Plan a Meal
                                 </Link>
@@ -370,7 +370,7 @@ const Dashboard: React.FC = () => {
 
                     {/* Fun Fact Card */}
                     <div className="bg-gradient-to-r from-orange-100 to-amber-100 p-6 rounded-2xl shadow-md border border-orange-200 animate-slide-up delay-300 flex items-start gap-4">
-                        <div className="bg-white p-3 rounded-full shadow-sm text-orange-500 text-xl flex-shrink-0">
+                        <div className="bg-white dark:bg-gray-800 dark:text-gray-100 p-3 rounded-full shadow-sm text-orange-500 text-xl flex-shrink-0">
                             <i className="fas fa-lightbulb"></i>
                         </div>
                         <div>
@@ -383,7 +383,7 @@ const Dashboard: React.FC = () => {
                 {/* Sidebar Column */}
                 <div className="space-y-8 animate-slide-up delay-300">
                     {/* AI Generator */}
-                    <div className="bg-white p-6 rounded-2xl shadow-lg border-t-4 border-purple-500 flex flex-col h-full relative overflow-hidden">
+                    <div className="bg-white dark:bg-gray-800 dark:text-gray-100 p-6 rounded-2xl shadow-lg border-t-4 border-purple-500 flex flex-col h-full relative overflow-hidden">
                         <div className="absolute -right-6 -top-6 text-purple-100 opacity-50 transform rotate-12">
                             <i className="fas fa-magic text-9xl"></i>
                         </div>
@@ -397,10 +397,10 @@ const Dashboard: React.FC = () => {
                             </span>
                         </div>
 
-                        <p className="text-sm text-gray-500 mb-4 relative z-10">Have random ingredients? Let the AI invent a unique recipe just for you.</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 relative z-10">Have random ingredients? Let the AI invent a unique recipe just for you.</p>
 
                         <textarea
-                            className="form-input w-full p-4 border border-gray-200 rounded-xl bg-gray-50 text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-shadow resize-none mb-4 flex-grow relative z-10"
+                            className="form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 w-full p-4 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-50 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-shadow resize-none mb-4 flex-grow relative z-10"
                             placeholder="e.g., chicken breast, 1 onion, soy sauce, half a lemon..."
                             rows={4}
                             value={aiIngredients}
@@ -428,7 +428,7 @@ const Dashboard: React.FC = () => {
                             </div>
                             
                             <div className="overflow-y-auto pr-2 custom-scrollbar flex-grow mb-4">
-                                <h3 className="text-xl font-bold text-gray-800 mb-2">{generatedRecipe.name}</h3>
+                                <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2">{generatedRecipe.name}</h3>
                                 
                                 <div className="flex gap-2 text-xs text-purple-700 font-semibold mb-4 bg-purple-100 p-2 rounded-lg inline-block">
                                     <span><i className="fas fa-clock mr-1"></i>Cook: {generatedRecipe.cook_time || 'N/A'}</span>
@@ -436,8 +436,8 @@ const Dashboard: React.FC = () => {
                                     <span><i className="fas fa-fire mr-1"></i>{generatedRecipe.calories || '?'} kcal</span>
                                 </div>
 
-                                <h4 className="font-bold text-gray-700 mt-4 mb-2 border-b border-purple-200 pb-1">Ingredients</h4>
-                                <ul className="text-sm text-gray-600 space-y-1 mb-4">
+                                <h4 className="font-bold text-gray-700 dark:text-gray-200 mt-4 mb-2 border-b border-purple-200 pb-1">Ingredients</h4>
+                                <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1 mb-4">
                                     {generatedRecipe.ingredients?.map((ing, idx) => (
                                         <li key={idx} className="flex items-start">
                                             <i className="fas fa-caret-right text-purple-400 mt-1 mr-2 text-xs"></i>
@@ -446,8 +446,8 @@ const Dashboard: React.FC = () => {
                                     ))}
                                 </ul>
 
-                                <h4 className="font-bold text-gray-700 mb-2 border-b border-purple-200 pb-1">Instructions</h4>
-                                <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
+                                <h4 className="font-bold text-gray-700 dark:text-gray-200 mb-2 border-b border-purple-200 pb-1">Instructions</h4>
+                                <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
                                     {generatedRecipe.instructions}
                                 </p>
                             </div>
@@ -473,7 +473,7 @@ const Dashboard: React.FC = () => {
             {/* Workflow 2: Missing Ingredients Prompt Modal */}
             {missingIngredientsPrompt && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full animate-scale-in border border-gray-100">
+                    <div className="bg-white dark:bg-gray-800 dark:text-gray-100 p-6 rounded-2xl shadow-2xl max-w-md w-full animate-scale-in border border-gray-100 dark:border-gray-700">
                         <div className="flex items-center justify-center mb-6 relative">
                             <div className="w-16 h-16 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-500 shadow-sm border-4 border-white absolute -top-12">
                                 <i className="fas fa-lightbulb text-2xl animate-pulse"></i>
@@ -481,22 +481,22 @@ const Dashboard: React.FC = () => {
                         </div>
                         
                         <div className="text-center mt-4 mb-6">
-                            <h3 className="text-xl font-black text-gray-800 mb-2">Did you already have these?</h3>
-                            <p className="text-sm text-gray-600">
+                            <h3 className="text-xl font-black text-gray-800 dark:text-gray-100 mb-2">Did you already have these?</h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-300">
                                 You just cooked <strong>{missingIngredientsPrompt.recipeName}</strong>, but these ingredients weren't in your KitchenSync Pantry. 
                                 <br/><br/>If you had them in your real kitchen, add them now so we know for next time!
                             </p>
                         </div>
 
-                        <div className="bg-gray-50 p-4 rounded-xl mb-6 border border-gray-100 max-h-48 overflow-y-auto custom-scrollbar">
-                            <ul className="text-sm font-semibold text-gray-700 space-y-3">
+                        <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl mb-6 border border-gray-100 dark:border-gray-700 max-h-48 overflow-y-auto custom-scrollbar">
+                            <ul className="text-sm font-semibold text-gray-700 dark:text-gray-200 space-y-3">
                                 {missingIngredientsPrompt.missing.map((ing, i) => (
                                     <li key={i} className="flex justify-between items-center group">
                                         <div className="flex items-center gap-2">
                                             <i className="fas fa-plus-circle text-green-500 opacity-50 group-hover:opacity-100 transition-opacity"></i>
                                             <span>{ing.name}</span>
                                         </div>
-                                        <span className="text-xs text-gray-400 font-mono bg-white px-2 py-0.5 rounded border border-gray-100">{ing.category || 'Other'}</span>
+                                        <span className="text-xs text-gray-400 font-mono bg-white dark:bg-gray-800 dark:text-gray-100 px-2 py-0.5 rounded border border-gray-100 dark:border-gray-700">{ing.category || 'Other'}</span>
                                     </li>
                                 ))}
                             </ul>
@@ -510,7 +510,7 @@ const Dashboard: React.FC = () => {
                                         confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
                                     }
                                 }}
-                                className="px-5 py-2.5 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 font-bold text-sm transition-colors w-full"
+                                className="px-5 py-2.5 rounded-xl text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:bg-gray-700 font-bold text-sm transition-colors w-full"
                             >
                                 Skip
                             </button>

@@ -72,18 +72,18 @@ const RecipeForm: React.FC = () => {
     };
 
     return (
-        <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-6">Add a New Recipe</h1>
+        <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 dark:text-gray-100 rounded-lg shadow-xl p-8">
+            <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-6">Add a New Recipe</h1>
             <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Basic Info */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label htmlFor="name" className="block text-sm font-medium text-gray-700">Recipe Name</label>
-                        <input type="text" name="name" id="name" value={recipe.name} onChange={handleChange} className="mt-1 block w-full form-input p-2 border border-gray-300 rounded-md bg-white text-gray-900" required />
+                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Recipe Name</label>
+                        <input type="text" name="name" id="name" value={recipe.name} onChange={handleChange} className="mt-1 block w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50" required />
                     </div>
                     <div>
-                        <label htmlFor="meal_type" className="block text-sm font-medium text-gray-700">Meal Type</label>
-                        <select name="meal_type" id="meal_type" value={recipe.meal_type} onChange={handleChange} className="mt-1 block w-full form-select p-2 border border-gray-300 rounded-md bg-white text-gray-900">
+                        <label htmlFor="meal_type" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Meal Type</label>
+                        <select name="meal_type" id="meal_type" value={recipe.meal_type} onChange={handleChange} className="mt-1 block w-full form-select p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50">
                             <option>Main Course</option>
                             <option>Side Dish</option>
                             <option>Dessert</option>
@@ -96,18 +96,18 @@ const RecipeForm: React.FC = () => {
                 {/* Source & Tags */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label htmlFor="source" className="block text-sm font-medium text-gray-700">Source / Credit</label>
-                        <input type="text" name="source" id="source" value={recipe.source || ''} onChange={handleChange} placeholder="e.g. Grandma, Cookbook, Website" className="mt-1 block w-full form-input p-2 border border-gray-300 rounded-md bg-white text-gray-900" />
+                        <label htmlFor="source" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Source / Credit</label>
+                        <input type="text" name="source" id="source" value={recipe.source || ''} onChange={handleChange} placeholder="e.g. Grandma, Cookbook, Website" className="mt-1 block w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50" />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Tags</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Tags</label>
                         <input
                             type="text"
                             value={tagInput}
                             onChange={e => setTagInput(e.target.value)}
                             onKeyDown={handleAddTag}
                             placeholder="Type tag and press Enter"
-                            className="mt-1 block w-full form-input p-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                            className="mt-1 block w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50"
                         />
                         <div className="flex flex-wrap gap-2 mt-2">
                             {recipe.tags?.map(tag => (
@@ -123,49 +123,49 @@ const RecipeForm: React.FC = () => {
                 {/* Times & Servings */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
-                        <label htmlFor="servings" className="block text-sm font-medium text-gray-700">Servings</label>
-                        <input type="number" name="servings" id="servings" value={recipe.servings} onChange={handleChange} className="mt-1 block w-full form-input p-2 border border-gray-300 rounded-md bg-white text-gray-900" />
+                        <label htmlFor="servings" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Servings</label>
+                        <input type="number" name="servings" id="servings" value={recipe.servings} onChange={handleChange} className="mt-1 block w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50" />
                     </div>
                     <div>
-                        <label htmlFor="prep_time" className="block text-sm font-medium text-gray-700">Prep Time</label>
-                        <input type="text" name="prep_time" id="prep_time" value={recipe.prep_time} onChange={handleChange} className="mt-1 block w-full form-input p-2 border border-gray-300 rounded-md bg-white text-gray-900" placeholder="e.g., 15 mins" />
+                        <label htmlFor="prep_time" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Prep Time</label>
+                        <input type="text" name="prep_time" id="prep_time" value={recipe.prep_time} onChange={handleChange} className="mt-1 block w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50" placeholder="e.g., 15 mins" />
                     </div>
                     <div>
-                        <label htmlFor="cook_time" className="block text-sm font-medium text-gray-700">Cook Time</label>
-                        <input type="text" name="cook_time" id="cook_time" value={recipe.cook_time} onChange={handleChange} className="mt-1 block w-full form-input p-2 border border-gray-300 rounded-md bg-white text-gray-900" placeholder="e.g., 30 mins" />
+                        <label htmlFor="cook_time" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Cook Time</label>
+                        <input type="text" name="cook_time" id="cook_time" value={recipe.cook_time} onChange={handleChange} className="mt-1 block w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50" placeholder="e.g., 30 mins" />
                     </div>
                 </div>
 
                 {/* Nutrition */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
-                        <label htmlFor="calories" className="block text-sm font-medium text-gray-700">Calories</label>
-                        <input type="number" name="calories" id="calories" value={recipe.calories} onChange={handleChange} className="mt-1 block w-full form-input p-2 border border-gray-300 rounded-md bg-white text-gray-900" />
+                        <label htmlFor="calories" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Calories</label>
+                        <input type="number" name="calories" id="calories" value={recipe.calories} onChange={handleChange} className="mt-1 block w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50" />
                     </div>
                     <div>
-                        <label htmlFor="protein" className="block text-sm font-medium text-gray-700">Protein (g)</label>
-                        <input type="number" name="protein" id="protein" value={recipe.protein} onChange={handleChange} className="mt-1 block w-full form-input p-2 border border-gray-300 rounded-md bg-white text-gray-900" />
+                        <label htmlFor="protein" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Protein (g)</label>
+                        <input type="number" name="protein" id="protein" value={recipe.protein} onChange={handleChange} className="mt-1 block w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50" />
                     </div>
                     <div>
-                        <label htmlFor="fat" className="block text-sm font-medium text-gray-700">Fat (g)</label>
-                        <input type="number" name="fat" id="fat" value={recipe.fat} onChange={handleChange} className="mt-1 block w-full form-input p-2 border border-gray-300 rounded-md bg-white text-gray-900" />
+                        <label htmlFor="fat" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Fat (g)</label>
+                        <input type="number" name="fat" id="fat" value={recipe.fat} onChange={handleChange} className="mt-1 block w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50" />
                     </div>
                     <div>
-                        <label htmlFor="carbs" className="block text-sm font-medium text-gray-700">Carbs (g)</label>
-                        <input type="number" name="carbs" id="carbs" value={recipe.carbs} onChange={handleChange} className="mt-1 block w-full form-input p-2 border border-gray-300 rounded-md bg-white text-gray-900" />
+                        <label htmlFor="carbs" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Carbs (g)</label>
+                        <input type="number" name="carbs" id="carbs" value={recipe.carbs} onChange={handleChange} className="mt-1 block w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50" />
                     </div>
                 </div>
 
                 {/* Ingredients */}
                 <div>
-                    <h3 className="text-lg font-medium text-gray-800 mb-2">Ingredients</h3>
+                    <h3 className="text-lg font-medium text-gray-800 dark:text-gray-100 mb-2">Ingredients</h3>
                     <div className="space-y-3">
                         {recipe.ingredients.map((ing, index) => (
                             <div key={index} className="grid grid-cols-12 gap-2 items-center">
-                                <input type="text" placeholder="Name" value={ing.name} onChange={e => handleIngredientChange(index, 'name', e.target.value)} className="col-span-4 form-input p-2 border border-gray-300 rounded-md bg-white text-gray-900" />
-                                <input type="number" placeholder="Qty" value={ing.quantity} onChange={e => handleIngredientChange(index, 'quantity', parseFloat(e.target.value))} className="col-span-2 form-input p-2 border border-gray-300 rounded-md bg-white text-gray-900" />
-                                <input type="text" placeholder="Unit" value={ing.unit} onChange={e => handleIngredientChange(index, 'unit', e.target.value)} className="col-span-2 form-input p-2 border border-gray-300 rounded-md bg-white text-gray-900" />
-                                <select value={ing.category || 'Other'} onChange={e => handleIngredientChange(index, 'category', e.target.value)} className="col-span-3 form-select text-xs p-2 border border-gray-300 rounded-md bg-white text-gray-900">
+                                <input type="text" placeholder="Name" value={ing.name} onChange={e => handleIngredientChange(index, 'name', e.target.value)} className="col-span-4 form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50" />
+                                <input type="number" placeholder="Qty" value={ing.quantity} onChange={e => handleIngredientChange(index, 'quantity', parseFloat(e.target.value))} className="col-span-2 form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50" />
+                                <input type="text" placeholder="Unit" value={ing.unit} onChange={e => handleIngredientChange(index, 'unit', e.target.value)} className="col-span-2 form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50" />
+                                <select value={ing.category || 'Other'} onChange={e => handleIngredientChange(index, 'category', e.target.value)} className="col-span-3 form-select text-xs p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50">
                                     {INGREDIENT_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                                 </select>
                                 <button type="button" onClick={() => removeIngredient(index)} className="col-span-1 text-red-500 hover:text-red-700 text-lg font-bold">&times;</button>
@@ -177,8 +177,8 @@ const RecipeForm: React.FC = () => {
 
                 {/* Instructions */}
                 <div>
-                    <label htmlFor="instructions" className="block text-sm font-medium text-gray-700">Instructions</label>
-                    <textarea name="instructions" id="instructions" rows={6} value={recipe.instructions} onChange={handleChange} className="mt-1 block w-full form-input p-2 border border-gray-300 rounded-md bg-white text-gray-900"></textarea>
+                    <label htmlFor="instructions" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Instructions</label>
+                    <textarea name="instructions" id="instructions" rows={6} value={recipe.instructions} onChange={handleChange} className="mt-1 block w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-900 dark:text-gray-50"></textarea>
                 </div>
 
                 <div className="flex justify-end">

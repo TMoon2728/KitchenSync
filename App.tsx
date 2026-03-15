@@ -145,9 +145,14 @@ const AppContent: React.FC = () => {
     const isCookingMode = location.pathname.includes('/cook');
     const isSpaceMode = userProfile.kitchenName && SPACE_NAMES.some(name => userProfile.kitchenName!.toLowerCase().includes(name));
     const hiddenItems = userProfile.preferences?.hiddenNavItems || [];
+    
+    // Determine the active display mode class strings
+    const displayMode = userProfile.preferences?.displayMode || 'light';
+    const isDark = displayMode === 'dark' || displayMode === 'landing';
+    const themeModeClass = `${isDark ? 'dark' : ''} ${displayMode === 'landing' ? 'theme-landing' : ''}`;
 
     return (
-        <div className={`flex h-screen bg-gray-900 text-white ${retroMode ? 'retro-mode' : ''} ${isSpaceMode ? 'zero-g-mode' : ''} overflow-hidden`}>
+        <div className={`flex h-screen bg-gray-900 text-white ${themeModeClass} ${retroMode ? 'retro-mode' : ''} ${isSpaceMode ? 'zero-g-mode' : ''} overflow-hidden`}>
             {/* Mobile Sidebar Overlay */}
             {!isCookingMode && isMobileMenuOpen && (
                 <div 
@@ -269,7 +274,7 @@ const AppContent: React.FC = () => {
                     </header>
                 )}
 
-                <main className={`flex-1 overflow-y-auto bg-gray-100 text-gray-800 pb-[env(safe-area-inset-bottom)] ${isCookingMode ? 'p-0' : 'p-4 sm:p-6 lg:p-8'}`}>
+                <main className={`flex-1 overflow-y-auto bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 pb-[env(safe-area-inset-bottom)] ${isCookingMode ? 'p-0' : 'p-4 sm:p-6 lg:p-8'}`}>
                     <Suspense fallback={<div className="flex h-full items-center justify-center"><Spinner size="lg" /></div>}>
                     <Routes>
                         <Route path="/" element={<Dashboard />} />

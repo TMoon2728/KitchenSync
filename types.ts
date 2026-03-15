@@ -73,6 +73,7 @@ export interface UserPreferences {
     enableConfetti: boolean;
     confettiIntensity: 'low' | 'medium' | 'high';
     themeColor: 'blue' | 'green' | 'purple' | 'slate' | 'orange' | 'rose';
+    displayMode?: 'light' | 'dark' | 'landing';
     showSousChef?: boolean;
     hiddenNavItems?: string[]; // List of paths to hide from sidebar
     stripeConfig?: {
