@@ -8,6 +8,9 @@ const jwtCheck = auth({
     tokenSigningAlg: 'RS256'
 });
 
+// Quick global log for diagnostics
+global.recentAuthLogs = global.recentAuthLogs || [];
+
 const populateUser = async (req, res, next) => {
     req.authLog = req.authLog || [];
     const payload = req.auth.payload || req.auth;
@@ -138,6 +141,11 @@ const populateUser = async (req, res, next) => {
     }
 
     console.log("[AuthDebug]", req.authLog);
+    
+    // Store last 50 logs globally
+    global.recentAuthLogs.unshift({ time: new Date().toISOString(), log: req.authLog });
+    if (global.recentAuthLogs.length > 50) global.recentAuthLogs.pop();
+    
     next();
 };
 

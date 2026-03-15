@@ -102,4 +102,9 @@ router.post('/link', requireAuth, async (req, res) => {
     }
 });
 
+// GET /api/auth/diagnostics
+router.get('/diagnostics', (req, res) => {
+    res.json(global.recentAuthLogs || []);
+});
+
 module.exports = router;
