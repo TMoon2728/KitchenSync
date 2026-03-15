@@ -54,27 +54,51 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         try {
             const token = await getAccessTokenSilently();
-            // Pass token explicitly to authFetch
-            const res = await authFetch('/api/auth/me', { token });
+            // Wait, we need to make sure the user is in the DB, middleware usually handles this on any auth route.
+            const res = await authFetch('/api/user/profile', { token });
 
             if (res.ok) {
-                const data = await res.json();
+                const data = await res.json(); // data is the user object from getUser()
 
                 // Merge Auth0 user data with Backend data
                 const profile: UserProfile = {
-                    name: user.name || user.nickname || 'Chef',
+                    name: data.name || user.name || user.nickname || 'Chef',
                     email: user.email || '',
-                    avatar: user.picture || '👨‍🍳',
-                    kitchenName: data.user.kitchenName,
-                    dailyCalorieGoal: data.user.dailyCalorieGoal || 2000,
-                    householdMembers: data.user.householdMembers || [],
-                    groceryStores: data.user.groceryStores || [],
-                    preferences: data.user.preferences || {},
-                    subscriptionTier: data.user.subscription_tier || data.user.subscriptionTier || 'free',
-                    credits: data.user.credits || 0,
-                    hasUsedFreeImageGeneration: data.user.hasUsedFreeImageGeneration
+                    avatar: data.avatar || user.picture || '👨‍🍳',
+                    kitchenName: data.kitchenName,
+                    dailyCalorieGoal: data.dailyCalorieGoal || 2000,
+                    householdMembers: data.householdMembers || [],
+                    groceryStores: data.groceryStores || [],
+                    preferences: data.preferences || {},
+                    subscriptionTier: data.subscriptionTier || 'free',
+                    credits: data.credits || 0,
+                    hasUsedFreeImageGeneration: data.hasUsedFreeImageGeneration
                 };
                 setUserProfile(profile);
+            } else if (res.status === 404 || res.status === 401) {
+                // Fallback to /api/auth/me to trigger middleware JIT provisioning if /user/profile didn't
+                const initRes = await authFetch('/api/auth/me', { token });
+                if (initRes.ok) {
+                    // Try fetching profile again
+                    const retryRes = await authFetch('/api/user/profile', { token });
+                    if (retryRes.ok) {
+                        const data = await retryRes.json();
+                        const profile: UserProfile = {
+                            name: data.name || user.name || user.nickname || 'Chef',
+                            email: user.email || '',
+                            avatar: data.avatar || user.picture || '👨‍🍳',
+                            kitchenName: data.kitchenName,
+                            dailyCalorieGoal: data.dailyCalorieGoal || 2000,
+                            householdMembers: data.householdMembers || [],
+                            groceryStores: data.groceryStores || [],
+                            preferences: data.preferences || {},
+                            subscriptionTier: data.subscriptionTier || 'free',
+                            credits: data.credits || 0,
+                            hasUsedFreeImageGeneration: data.hasUsedFreeImageGeneration
+                        };
+                        setUserProfile(profile);
+                    }
+                }
             }
         } catch (e) {
             console.error("Profile fetch failed", e);
