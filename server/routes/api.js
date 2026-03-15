@@ -42,7 +42,12 @@ const getUser = async (req) => {
             const hPrefs = typeof hUser.preferences === 'string' ? JSON.parse(hUser.preferences || '{}') : (hUser.preferences || {});
             
             // Add the linked user themselves as a household member automatically
-            const partnerName = hPrefs.name || hUser.username || hUser.email;
+            let defaultName = hUser.username;
+            if (!defaultName || defaultName.includes('|')) {
+                defaultName = hUser.email ? hUser.email.split('@')[0] : 'Partner';
+            }
+            const partnerName = hPrefs.name || defaultName;
+            
             if (!allHouseholdMembers.find(m => m.name === partnerName)) {
                 allHouseholdMembers.push({
                     id: `linked-${hUser.id}`,
