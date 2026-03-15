@@ -39,16 +39,18 @@ const getUser = async (req) => {
         }
 
         if (hUser.id !== row.id) {
+            const hPrefs = typeof hUser.preferences === 'string' ? JSON.parse(hUser.preferences || '{}') : (hUser.preferences || {});
+            
             // Add the linked user themselves as a household member automatically
-            if (!allHouseholdMembers.find(m => m.name === hUser.username || m.name === hUser.email)) {
+            const partnerName = hPrefs.name || hUser.username || hUser.email;
+            if (!allHouseholdMembers.find(m => m.name === partnerName)) {
                 allHouseholdMembers.push({
                     id: `linked-${hUser.id}`,
-                    name: hUser.username || hUser.email,
+                    name: partnerName,
                     dietaryRestrictions: "Linked Account"
                 });
             }
 
-            const hPrefs = typeof hUser.preferences === 'string' ? JSON.parse(hUser.preferences || '{}') : (hUser.preferences || {});
             if (hPrefs.householdMembers) {
                 hPrefs.householdMembers.forEach(m => {
                     // Prevent exact duplicates by name
