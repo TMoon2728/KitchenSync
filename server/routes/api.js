@@ -14,7 +14,7 @@ const getUser = async (req) => {
     const row = rows[0];
     if (!row) return null;
 
-    // Parse JSON fields
+    // Parse JSON fields for primary user
     const preferences = typeof row.preferences === 'string' ? JSON.parse(row.preferences || '{}') : (row.preferences || {});
     // The newer preferences payload structure nests actual preferences under `appPreferences`
     // to make room in the JSONB for other profile fields (household, grocery stores, etc.)
@@ -23,8 +23,46 @@ const getUser = async (req) => {
     const proteinGoal = preferences.proteinGoal;
     const carbGoal = preferences.carbGoal;
     const fatGoal = preferences.fatGoal;
-    const householdMembers = preferences.householdMembers || [];
-    const groceryStores = preferences.groceryStores || [];
+    
+    // Fetch all users in the household (including self) to merge members
+    const householdId = row.household_id || String(row.id);
+    const householdResult = await db.query('SELECT * FROM users WHERE household_id = $1 OR id = $2', [householdId, row.id]);
+    
+    let allHouseholdMembers = [...(preferences.householdMembers || [])];
+    let allGroceryStores = [...(preferences.groceryStores || [])];
+
+    // Merge members and partner accounts
+    for (const hUser of householdResult.rows) {
+        if (hUser.id !== row.id) {
+            // Add the linked user themselves as a household member automatically
+            if (!allHouseholdMembers.find(m => m.name === hUser.username || m.name === hUser.email)) {
+                allHouseholdMembers.push({
+                    id: `linked-${hUser.id}`,
+                    name: hUser.username || hUser.email,
+                    dietaryRestrictions: "Linked Account"
+                });
+            }
+
+            // Merge any manually added members/stores from the linked user's preferences
+            const hPrefs = typeof hUser.preferences === 'string' ? JSON.parse(hUser.preferences || '{}') : (hUser.preferences || {});
+            if (hPrefs.householdMembers) {
+                hPrefs.householdMembers.forEach(m => {
+                    // Prevent exact duplicates by name
+                    if (!allHouseholdMembers.find(existing => existing.name === m.name)) {
+                        allHouseholdMembers.push(m);
+                    }
+                });
+            }
+            if (hPrefs.groceryStores) {
+                hPrefs.groceryStores.forEach(s => {
+                    if (!allGroceryStores.find(existing => existing.url === s.url)) {
+                        allGroceryStores.push(s);
+                    }
+                });
+            }
+        }
+    }
+
     const appPreferences = preferences.appPreferences || preferences;
     const avatar = preferences.avatar || '👨‍🍳';
     const name = preferences.name || row.username;
@@ -38,8 +76,8 @@ const getUser = async (req) => {
         proteinGoal,
         carbGoal,
         fatGoal,
-        householdMembers,
-        groceryStores,
+        householdMembers: allHouseholdMembers,
+        groceryStores: allGroceryStores,
         preferences: appPreferences,
         subscriptionTier: row.subscription_tier // map snake_case to camelCase
     };
@@ -80,6 +118,10 @@ router.put('/user/profile', async (req, res) => {
 
         // We can store all these extras inside the `preferences` JSONB column to avoid immediate schema migrations.
         const currentPreferences = user.preferences || {};
+        
+        // Filter out linked accounts from being saved back as manual members
+        const filteredMembers = (householdMembers || []).filter(m => !m.id || !m.id.toString().startsWith('linked-'));
+
         const updatedPreferences = {
             ...currentPreferences,
             kitchenName,
@@ -87,7 +129,7 @@ router.put('/user/profile', async (req, res) => {
             proteinGoal,
             carbGoal,
             fatGoal,
-            householdMembers,
+            householdMembers: filteredMembers,
             groceryStores,
             appPreferences: preferences, // the actual preferences object (confetti, etc)
             avatar,
