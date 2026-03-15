@@ -148,18 +148,41 @@ const AppContent: React.FC = () => {
     
     // Determine the active display mode class strings
     const displayMode = userProfile.preferences?.displayMode || 'light';
-    const isDark = displayMode === 'dark' || displayMode === 'landing';
-    const themeModeClass = `${isDark ? 'dark' : ''} ${displayMode === 'landing' ? 'theme-landing' : ''}`;
+    const isDark = displayMode === 'dark' || displayMode === 'landing' || displayMode === 'glass-dark';
+    const isGlass = displayMode === 'landing' || displayMode === 'glass-dark' || displayMode === 'glass-light';
+    const themeModeClass = `${isDark ? 'dark' : ''} ${isGlass ? 'theme-landing' : ''}`;
 
     return (
         <div className={`flex h-screen relative bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 ${themeModeClass} ${retroMode ? 'retro-mode' : ''} ${isSpaceMode ? 'zero-g-mode' : ''} overflow-hidden`}>
             
             {/* Landing Mode Ambient Orbs */}
-            {displayMode === 'landing' && (
+            {isGlass && (
                 <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
                     <div className="absolute -top-[20%] -left-[10%] w-[70%] h-[70%] bg-blue-600/20 rounded-full blur-[120px]"></div>
                     <div className="absolute -bottom-[20%] -right-[10%] w-[60%] h-[60%] bg-purple-600/20 rounded-full blur-[100px]"></div>
                     <div className="absolute top-[40%] left-[60%] w-[40%] h-[40%] bg-emerald-500/10 rounded-full blur-[90px]"></div>
+                </div>
+            )}
+
+            {/* Space Mode Stars Background */}
+            {isSpaceMode && (
+                <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden" style={{ background: 'black', zIndex: -1 }}>
+                    {/* Generative star clusters */}
+                    {[...Array(50)].map((_, i) => (
+                        <div 
+                            key={i} 
+                            className={`absolute bg-white rounded-full ${Math.random() > 0.8 ? 'animate-pulse' : ''}`}
+                            style={{
+                                width: Math.random() * 3 + 'px',
+                                height: Math.random() * 3 + 'px',
+                                top: Math.random() * 100 + '%',
+                                left: Math.random() * 100 + '%',
+                                opacity: Math.random() * 0.8 + 0.2,
+                                animationDuration: (Math.random() * 3 + 2) + 's',
+                                animationDelay: (Math.random() * 2) + 's'
+                            }}
+                        />
+                    ))}
                 </div>
             )}
 

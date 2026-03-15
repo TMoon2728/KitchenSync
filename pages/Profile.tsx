@@ -296,19 +296,27 @@ const Profile: React.FC = () => {
 
                     <div className="border-t border-gray-100 pt-4">
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-3">Display Mode</label>
-                        <div className="flex flex-col sm:flex-row gap-4">
-                            {(['light', 'dark', 'landing'] as const).map(mode => (
-                                <button
-                                    key={mode}
-                                    onClick={() => setDisplayMode(mode)}
-                                    className={`flex-1 p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${displayMode === mode ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100' : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 text-gray-700 dark:text-gray-200'}`}
-                                >
-                                    {mode === 'light' && <i className="fas fa-sun text-yellow-500 text-xl"></i>}
-                                    {mode === 'dark' && <i className="fas fa-moon text-indigo-400 text-xl"></i>}
-                                    {mode === 'landing' && <i className="fas fa-gem text-purple-400 text-xl"></i>}
-                                    <span className="font-semibold capitalize text-sm">{mode === 'landing' ? 'Glassmorphism' : mode}</span>
-                                </button>
-                            ))}
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                            {(['light', 'dark', 'glass-light', 'glass-dark'] as const).map(mode => {
+                                const isActive = (displayMode === mode) || (displayMode === 'landing' && mode === 'glass-dark');
+                                return (
+                                    <button
+                                        key={mode}
+                                        onClick={() => setDisplayMode(mode)}
+                                        className={`w-full p-3 rounded-lg border-2 transition-all flex flex-col items-center justify-center gap-2 min-h-[90px] ${isActive ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100 shadow-sm' : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 text-gray-700 dark:text-gray-200'}`}
+                                    >
+                                        <div className="flex-grow flex items-center justify-center">
+                                            {mode === 'light' && <i className="fas fa-sun text-yellow-500 text-2xl"></i>}
+                                            {mode === 'dark' && <i className="fas fa-moon text-indigo-400 text-2xl"></i>}
+                                            {mode === 'glass-light' && <i className="fas fa-gem text-blue-400 text-2xl"></i>}
+                                            {mode === 'glass-dark' && <i className="fas fa-gem text-purple-400 text-2xl"></i>}
+                                        </div>
+                                        <span className="font-semibold text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
+                                            {mode === 'glass-light' ? 'Glass (Light)' : mode === 'glass-dark' ? 'Glass (Dark)' : mode.charAt(0).toUpperCase() + mode.slice(1)}
+                                        </span>
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 

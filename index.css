@@ -177,19 +177,34 @@ body {
 }
 
 /* 4. Landing Page Mode (Glassmorphism) */
+/* Shared Background Effects */
 .theme-landing, .theme-landing body {
-    background-color: #111827 !important; /* Tailwind gray-900 */
+    background-color: #f3f4f6 !important; /* Lighter base for glass-light */
     background-image: 
         radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.15) 0%, transparent 50%), 
         radial-gradient(circle at 0% 100%, rgba(168, 85, 247, 0.15) 0%, transparent 50%) !important;
     background-attachment: fixed !important;
 }
+.theme-landing.dark, .theme-landing.dark body {
+    background-color: #111827 !important; /* Tailwind gray-900 for dark mode */
+}
 
-.theme-landing .bg-white,
-.theme-landing .dark\:bg-gray-800,
-.theme-landing .bg-gray-50,
-.theme-landing .dark\:bg-gray-700\/50,
-.theme-landing .dark\:bg-gray-700 {
+/* Light Glassmorphism Cards */
+.theme-landing:not(.dark) .bg-white,
+.theme-landing:not(.dark) .bg-gray-50 {
+    background-color: rgba(255, 255, 255, 0.4) !important; 
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.7) !important;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Dark Glassmorphism Cards */
+.theme-landing.dark .bg-white,
+.theme-landing.dark .dark\:bg-gray-800,
+.theme-landing.dark .bg-gray-50,
+.theme-landing.dark .dark\:bg-gray-700\/50,
+.theme-landing.dark .dark\:bg-gray-700 {
     background-color: rgba(31, 41, 55, 0.4) !important; /* Tailwind gray-800 at 40% */
     backdrop-filter: blur(16px) !important;
     -webkit-backdrop-filter: blur(16px) !important;
@@ -209,7 +224,29 @@ body {
     box-shadow: none !important;
 }
 
-.theme-landing aside {
+.theme-landing:not(.dark) aside {
+    background-color: rgba(255, 255, 255, 0.5) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Light Glassmorphism Sidebar Text Visibility Overrides */
+.theme-landing:not(.dark) aside .text-white {
+    color: #111827 !important; /* Tailwind gray-900 */
+}
+.theme-landing:not(.dark) aside .text-gray-300 {
+    color: #4b5563 !important; /* Tailwind gray-600 */
+}
+.theme-landing:not(.dark) aside .hover\:text-white:hover {
+    color: #111827 !important; /* Tailwind gray-900 */
+}
+.theme-landing:not(.dark) aside .bg-black\/20 {
+    background-color: rgba(255, 255, 255, 0.4) !important;
+    border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.theme-landing.dark aside {
     background-color: rgba(17, 24, 39, 0.5) !important; /* gray-900/50 */
     backdrop-filter: blur(20px) !important;
     -webkit-backdrop-filter: blur(20px) !important;
