@@ -105,9 +105,9 @@ const Subscription: React.FC = () => {
                 <PlanCard
                     tier="Free"
                     price="Free"
-                    credits="5"
+                    credits="10"
                     color="bg-gray-400"
-                    features={["5 AI Credits (One time)", "Access to basic recipes", "Manual Meal Planner", "Shopping List"]}
+                    features={["10 AI Credits (One time)", "Access to basic recipes", "Manual Meal Planner", "Shopping List"]}
                     buttonText="Active"
                     isCurrent={userProfile.subscriptionTier === 'free'}
                 />

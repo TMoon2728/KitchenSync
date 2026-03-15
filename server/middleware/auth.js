@@ -99,7 +99,7 @@ const populateUser = async (req, res, next) => {
                     // Auto-Provision Admin
                     const isAdmin = auth0Id === 'admin';
                     const tier = isAdmin ? 'pro' : 'free';
-                    const credits = isAdmin ? 9999 : 5;
+                    const credits = isAdmin ? 9999 : 10;
 
                     await db.query(
                         'INSERT INTO users (username, email, password_hash, subscription_tier, credits, preferences) VALUES ($1, $2, $3, $4, $5, $6)',
