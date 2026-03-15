@@ -186,7 +186,7 @@ const Profile: React.FC = () => {
             </div>
 
             {/* Subscription Section */}
-            <div className={`bg-white p-6 rounded-lg shadow-md border-l-4 ${userProfile.subscriptionTier === 'pro' ? 'border-yellow-400' : 'border-gray-300 dark:border-gray-600'}`}>
+            <div className={`bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border-l-4 ${userProfile.subscriptionTier === 'pro' ? 'border-yellow-400' : 'border-gray-300 dark:border-gray-600'}`}>
                 <div className="flex justify-between items-center">
                     <div>
                         <h2 className="text-xl font-bold mb-1 flex items-center">
@@ -219,7 +219,7 @@ const Profile: React.FC = () => {
             </div>
 
             {/* Personal Details */}
-            <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-blue-500">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border-l-4 border-blue-500">
                 <h2 className="text-xl font-bold mb-4 flex items-center">
                     <i className="fas fa-id-card text-blue-500 mr-2"></i> Who are you?
                 </h2>
@@ -230,7 +230,7 @@ const Profile: React.FC = () => {
                             type="text"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            className="w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white text-gray-900"
+                            className="w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900"
                         />
                     </div>
                     <div>
@@ -251,7 +251,7 @@ const Profile: React.FC = () => {
             </div>
 
             {/* Customization Section */}
-            <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-purple-500">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border-l-4 border-purple-500">
                 <h2 className="text-xl font-bold mb-4 flex items-center">
                     <i className="fas fa-paint-brush text-purple-500 mr-2"></i> App Personalization
                 </h2>
@@ -264,7 +264,7 @@ const Profile: React.FC = () => {
                             value={kitchenName}
                             onChange={(e) => setKitchenName(e.target.value)}
                             placeholder={`${userProfile.name}'s Kitchen`}
-                            className="w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white text-gray-900"
+                            className="w-full form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900"
                         />
                     </div>
 
@@ -323,7 +323,7 @@ const Profile: React.FC = () => {
                                             onClick={() => setEnableConfetti(!enableConfetti)}
                                             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${enableConfetti ? 'bg-purple-600' : 'bg-gray-200'}`}
                                         >
-                                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enableConfetti ? 'translate-x-6' : 'translate-x-1'}`} />
+                                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-gray-800 transition-transform ${enableConfetti ? 'translate-x-6' : 'translate-x-1'}`} />
                                         </button>
                                         <span className="ml-3 text-sm text-gray-700 dark:text-gray-200">Enable Celebration Confetti</span>
                                     </div>
@@ -336,7 +336,7 @@ const Profile: React.FC = () => {
                                                     <button
                                                         key={level}
                                                         onClick={() => setConfettiIntensity(level)}
-                                                        className={`px-3 py-1 text-xs rounded-md capitalize transition-colors ${confettiIntensity === level ? 'bg-white shadow-sm text-purple-700 font-semibold' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200'}`}
+                                                        className={`px-3 py-1 text-xs rounded-md capitalize transition-colors ${confettiIntensity === level ? 'bg-white dark:bg-gray-800 shadow-sm text-purple-700 font-semibold' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200'}`}
                                                     >
                                                         {level}
                                                     </button>
@@ -353,7 +353,7 @@ const Profile: React.FC = () => {
                                     onClick={() => setShowSousChef(!showSousChef)}
                                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showSousChef ? 'bg-blue-600' : 'bg-gray-200'}`}
                                 >
-                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showSousChef ? 'translate-x-6' : 'translate-x-1'}`} />
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-gray-800 transition-transform ${showSousChef ? 'translate-x-6' : 'translate-x-1'}`} />
                                 </button>
                                 <span className="ml-3 text-sm text-gray-700 dark:text-gray-200">Show Sous Chef AI</span>
                             </div>
@@ -371,7 +371,7 @@ const Profile: React.FC = () => {
                                     <div
                                         key={item.path}
                                         onClick={() => toggleNavItem(item.path)}
-                                        className={`flex items-center p-3 rounded-lg border-2 cursor-pointer transition-all ${isVisible ? 'border-blue-500 bg-blue-50' : 'border-gray-200 dark:border-gray-700 bg-white opacity-60 grayscale'}`}
+                                        className={`flex items-center p-3 rounded-lg border-2 cursor-pointer transition-all ${isVisible ? 'border-blue-500 bg-blue-50' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 opacity-60 grayscale'}`}
                                     >
                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 transition-colors ${isVisible ? 'bg-blue-200 text-blue-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}`}>
                                             <i className={`fas ${item.icon}`}></i>
@@ -379,7 +379,7 @@ const Profile: React.FC = () => {
                                         <span className={`font-medium text-sm ${isVisible ? 'text-gray-800 dark:text-gray-100' : 'text-gray-500 dark:text-gray-400'}`}>{item.name}</span>
                                         <div className="ml-auto">
                                             <div className={`w-10 h-6 rounded-full p-1 transition-colors ${isVisible ? 'bg-blue-500' : 'bg-gray-300'}`}>
-                                                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${isVisible ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                                                <div className={`w-4 h-4 bg-white dark:bg-gray-800 rounded-full shadow-sm transition-transform ${isVisible ? 'translate-x-4' : 'translate-x-0'}`}></div>
                                             </div>
                                         </div>
                                     </div>
@@ -391,7 +391,7 @@ const Profile: React.FC = () => {
             </div>
 
             {/* Household Section */}
-            <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                 <h2 className="text-xl font-bold mb-4 flex items-center">
                     <i className="fas fa-users text-blue-500 mr-2"></i> Household Management
                 </h2>
@@ -406,7 +406,7 @@ const Profile: React.FC = () => {
                         <input 
                             type="email" 
                             placeholder="Partner's Email" 
-                            className="form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 text-sm p-2 border border-purple-200 rounded flex-grow md:w-48 focus:ring-purple-500 bg-white" 
+                            className="form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 text-sm p-2 border border-purple-200 rounded flex-grow md:w-48 focus:ring-purple-500 bg-white dark:bg-gray-800" 
                             value={linkEmail}
                             onChange={e => setLinkEmail(e.target.value)}
                             required
@@ -464,7 +464,7 @@ const Profile: React.FC = () => {
                                     type="text"
                                     value={newMemberName}
                                     onChange={e => setNewMemberName(e.target.value)}
-                                    className="w-full text-sm form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-blue-200 rounded bg-white text-gray-900"
+                                    className="w-full text-sm form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-blue-200 rounded bg-white dark:bg-gray-800 text-gray-900"
                                     placeholder="e.g. John"
                                     required
                                 />
@@ -475,7 +475,7 @@ const Profile: React.FC = () => {
                                     type="text"
                                     value={newMemberDiet}
                                     onChange={e => setNewMemberDiet(e.target.value)}
-                                    className="w-full text-sm form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-blue-200 rounded bg-white text-gray-900"
+                                    className="w-full text-sm form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-blue-200 rounded bg-white dark:bg-gray-800 text-gray-900"
                                     placeholder="e.g. Vegetarian"
                                 />
                             </div>
@@ -488,7 +488,7 @@ const Profile: React.FC = () => {
             </div>
 
             {/* Grocery Links Section */}
-            <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                 <h2 className="text-xl font-bold mb-4 flex items-center">
                     <i className="fas fa-shopping-cart text-green-500 mr-2"></i> Grocery Stores
                 </h2>
@@ -533,7 +533,7 @@ const Profile: React.FC = () => {
                                     type="text"
                                     value={newStoreName}
                                     onChange={e => setNewStoreName(e.target.value)}
-                                    className="w-full text-sm form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-green-200 rounded bg-white text-gray-900"
+                                    className="w-full text-sm form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-green-200 rounded bg-white dark:bg-gray-800 text-gray-900"
                                     placeholder="e.g. Walmart"
                                     required
                                 />
@@ -544,7 +544,7 @@ const Profile: React.FC = () => {
                                     type="url"
                                     value={newStoreUrl}
                                     onChange={e => setNewStoreUrl(e.target.value)}
-                                    className="w-full text-sm form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-green-200 rounded bg-white text-gray-900"
+                                    className="w-full text-sm form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-green-200 rounded bg-white dark:bg-gray-800 text-gray-900"
                                     placeholder="https://..."
                                     required
                                 />
@@ -558,7 +558,7 @@ const Profile: React.FC = () => {
             </div>
 
             {/* Nutritional Goals */}
-            <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                 <h2 className="text-xl font-bold mb-4 flex items-center">
                     <i className="fas fa-bullseye text-red-500 mr-2"></i> Nutritional Goals
                 </h2>
@@ -570,7 +570,7 @@ const Profile: React.FC = () => {
                                 type="number"
                                 value={calorieGoal}
                                 onChange={e => setCalorieGoal(parseInt(e.target.value) || 0)}
-                                className="w-24 form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-l-md bg-white text-gray-900 focus:ring-red-500"
+                                className="w-24 form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-l-md bg-white dark:bg-gray-800 text-gray-900 focus:ring-red-500"
                                 step="50"
                             />
                             <span className="bg-gray-100 dark:bg-gray-700 border border-l-0 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 px-3 py-2 rounded-r-md text-sm">kcal</span>
@@ -583,7 +583,7 @@ const Profile: React.FC = () => {
                                 type="number"
                                 value={proteinGoal}
                                 onChange={e => setProteinGoal(e.target.value ? parseInt(e.target.value) : '')}
-                                className="w-20 form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-l-md bg-white text-gray-900 focus:ring-blue-500"
+                                className="w-20 form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-l-md bg-white dark:bg-gray-800 text-gray-900 focus:ring-blue-500"
                                 placeholder="Auto"
                             />
                             <span className="bg-gray-100 dark:bg-gray-700 border border-l-0 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 px-3 py-2 rounded-r-md text-sm">g</span>
@@ -596,7 +596,7 @@ const Profile: React.FC = () => {
                                 type="number"
                                 value={carbGoal}
                                 onChange={e => setCarbGoal(e.target.value ? parseInt(e.target.value) : '')}
-                                className="w-20 form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-l-md bg-white text-gray-900 focus:ring-green-500"
+                                className="w-20 form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-l-md bg-white dark:bg-gray-800 text-gray-900 focus:ring-green-500"
                                 placeholder="Auto"
                             />
                             <span className="bg-gray-100 dark:bg-gray-700 border border-l-0 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 px-3 py-2 rounded-r-md text-sm">g</span>
@@ -609,7 +609,7 @@ const Profile: React.FC = () => {
                                 type="number"
                                 value={fatGoal}
                                 onChange={e => setFatGoal(e.target.value ? parseInt(e.target.value) : '')}
-                                className="w-20 form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-l-md bg-white text-gray-900 focus:ring-yellow-500"
+                                className="w-20 form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 border border-gray-300 dark:border-gray-600 rounded-l-md bg-white dark:bg-gray-800 text-gray-900 focus:ring-yellow-500"
                                 placeholder="Auto"
                             />
                             <span className="bg-gray-100 dark:bg-gray-700 border border-l-0 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 px-3 py-2 rounded-r-md text-sm">g</span>
@@ -619,7 +619,7 @@ const Profile: React.FC = () => {
             </div>
 
             {/* Global Save Button */}
-            <div className="sticky bottom-4 z-40 bg-white/90 backdrop-blur-md p-4 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 flex justify-between items-center transition-all">
+            <div className="sticky bottom-4 z-40 bg-white dark:bg-gray-800/90 backdrop-blur-md p-4 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 flex justify-between items-center transition-all">
                 <div className="hidden sm:block">
                     <p className="text-sm text-gray-600 dark:text-gray-300 font-medium"><i className="fas fa-info-circle mr-2 text-blue-500"></i>Save your changes here when you're done editing.</p>
                 </div>

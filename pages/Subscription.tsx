@@ -48,7 +48,7 @@ const Subscription: React.FC = () => {
         onSelect?: () => void;
         popular?: boolean;
     }> = ({ tier, price, credits, features, color, buttonText, isCurrent, onSelect, popular }) => (
-        <div className={`relative flex flex-col p-6 rounded-3xl border-2 transition-all duration-300 ${isCurrent ? 'border-green-500 bg-white shadow-xl scale-105 z-10' : 'border-gray-100 bg-white hover:border-gray-200 hover:shadow-lg'}`}>
+        <div className={`relative flex flex-col p-6 rounded-3xl border-2 transition-all duration-300 ${isCurrent ? 'border-green-500 bg-white dark:bg-gray-800 shadow-xl scale-105 z-10' : 'border-gray-100 bg-white dark:bg-gray-800 hover:border-gray-200 hover:shadow-lg'}`}>
             {popular && (
                 <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-md uppercase tracking-wider">
                     Most Popular
@@ -57,7 +57,7 @@ const Subscription: React.FC = () => {
             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 text-white text-xl shadow-md ${color}`}>
                 <i className={`fas ${tier === 'Pro' ? 'fa-crown' : tier === 'Starter' ? 'fa-bolt' : 'fa-seedling'}`}></i>
             </div>
-            <h3 className="text-xl font-bold text-gray-800">{tier}</h3>
+            <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">{tier}</h3>
             <div className="mt-2 mb-1">
                 <span className="text-3xl font-extrabold text-gray-900">{price}</span>
                 {price !== 'Free' && <span className="text-gray-500 font-medium">/mo</span>}
@@ -137,7 +137,7 @@ const Subscription: React.FC = () => {
             </div>
 
             <div className="mt-12 text-center bg-blue-50 p-6 rounded-2xl max-w-2xl mx-auto">
-                <h4 className="font-bold text-gray-800 mb-2">How do credits work?</h4>
+                <h4 className="font-bold text-gray-800 dark:text-gray-100 mb-2">How do credits work?</h4>
                 <div className="flex justify-center gap-8 text-sm text-gray-600">
                     <div className="flex flex-col items-center">
                         <i className="fas fa-scroll text-blue-400 mb-1"></i>

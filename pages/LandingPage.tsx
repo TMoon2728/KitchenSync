@@ -58,7 +58,7 @@ const LandingPage: React.FC = () => {
                             </div>
 
                             <div className="text-center transform transition-transform group-hover:scale-110">
-                                <div className="w-20 h-20 bg-white/10 backdrop-blur rounded-full flex items-center justify-center mb-4 mx-auto border border-white/20 shadow-[0_0_30px_rgba(255,255,255,0.1)]">
+                                <div className="w-20 h-20 bg-white dark:bg-gray-800/10 backdrop-blur rounded-full flex items-center justify-center mb-4 mx-auto border border-white/20 shadow-[0_0_30px_rgba(255,255,255,0.1)]">
                                     <i className="fas fa-play text-3xl text-white ml-1"></i>
                                 </div>
                                 <p className="text-gray-400 font-medium tracking-wide uppercse text-sm">Watch the Demo</p>

@@ -8,7 +8,7 @@ const Login: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden p-8 text-center">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md overflow-hidden p-8 text-center">
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">KitchenSync</h1>
                     <p className="text-gray-600">Welcome back, Chef!</p>
@@ -38,7 +38,7 @@ const Login: React.FC = () => {
 
                     {/* Dev Tools Section */}
                     {showDevTools && (
-                        <div className="grid grid-cols-1 gap-4 animate-fade-in mt-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                        <div className="grid grid-cols-1 gap-4 animate-fade-in mt-4 bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl border border-gray-100">
                             <div className="text-left text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
                                 Local Development
                             </div>
@@ -57,7 +57,7 @@ const Login: React.FC = () => {
 
                             <button
                                 onClick={() => devLogin('chef_demo')}
-                                className="bg-white border text-gray-700 p-3 rounded-lg font-bold hover:bg-gray-50 transition-all shadow-sm group text-left"
+                                className="bg-white dark:bg-gray-800 border text-gray-700 p-3 rounded-lg font-bold hover:bg-gray-50 dark:bg-gray-700/50 transition-all shadow-sm group text-left"
                             >
                                 <div className="flex items-center justify-between">
                                     <div>

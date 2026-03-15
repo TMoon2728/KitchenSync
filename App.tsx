@@ -152,7 +152,17 @@ const AppContent: React.FC = () => {
     const themeModeClass = `${isDark ? 'dark' : ''} ${displayMode === 'landing' ? 'theme-landing' : ''}`;
 
     return (
-        <div className={`flex h-screen bg-gray-900 text-white ${themeModeClass} ${retroMode ? 'retro-mode' : ''} ${isSpaceMode ? 'zero-g-mode' : ''} overflow-hidden`}>
+        <div className={`flex h-screen relative bg-gray-900 text-white ${themeModeClass} ${retroMode ? 'retro-mode' : ''} ${isSpaceMode ? 'zero-g-mode' : ''} overflow-hidden`}>
+            
+            {/* Landing Mode Ambient Orbs */}
+            {displayMode === 'landing' && (
+                <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+                    <div className="absolute -top-[20%] -left-[10%] w-[70%] h-[70%] bg-blue-600/20 rounded-full blur-[120px]"></div>
+                    <div className="absolute -bottom-[20%] -right-[10%] w-[60%] h-[60%] bg-purple-600/20 rounded-full blur-[100px]"></div>
+                    <div className="absolute top-[40%] left-[60%] w-[40%] h-[40%] bg-emerald-500/10 rounded-full blur-[90px]"></div>
+                </div>
+            )}
+
             {/* Mobile Sidebar Overlay */}
             {!isCookingMode && isMobileMenuOpen && (
                 <div 
@@ -163,7 +173,7 @@ const AppContent: React.FC = () => {
 
             {!isCookingMode && (
                 <aside
-                    className={`fixed inset-y-0 left-0 z-50 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
+                    className={`fixed inset-y-0 left-0 z-40 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
                         isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
                     } flex-shrink-0 ${themeClasses.sidebar} overflow-y-auto flex flex-col border-r border-white/10 ${isSidebarCollapsed && !isMobileMenuOpen ? 'md:w-20 w-64' : 'w-64'}`}
                 >

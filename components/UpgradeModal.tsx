@@ -13,7 +13,7 @@ const UpgradeModal: React.FC = () => {
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
-            <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 animate-scale-in text-center border-4 border-yellow-400">
+            <div className="relative bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-md p-8 animate-scale-in text-center border-4 border-yellow-400">
                 <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 w-24 h-24 bg-gradient-to-br from-yellow-300 to-orange-400 rounded-full flex items-center justify-center shadow-lg border-4 border-white">
                     <i className="fas fa-bolt text-4xl text-white animate-pulse"></i>
                 </div>
@@ -22,12 +22,12 @@ const UpgradeModal: React.FC = () => {
                     <i className="fas fa-times text-xl"></i>
                 </button>
 
-                <h2 className="text-3xl font-black text-gray-800 mt-10 mb-2">Out of Energy!</h2>
+                <h2 className="text-3xl font-black text-gray-800 dark:text-gray-100 mt-10 mb-2">Out of Energy!</h2>
                 <p className="text-gray-600 mb-8 text-lg leading-relaxed">
                     You've used all your AI credits for this period. Refuel your kitchen to keep cooking with AI power.
                 </p>
 
-                <div className="bg-gray-50 rounded-xl p-4 mb-8 border border-gray-100">
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 mb-8 border border-gray-100">
                     <div className="flex items-center justify-between mb-2">
                         <span className="font-bold text-gray-700">Starter Plan</span>
                         <span className="font-bold text-green-600">$5/mo</span>
