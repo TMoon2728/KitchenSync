@@ -75,7 +75,7 @@ router.post('/link', requireAuth, async (req, res) => {
     }
 
     try {
-        const result = await db.query('SELECT * FROM users WHERE email = $1', [targetEmail]);
+        const result = await db.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [targetEmail.toLowerCase()]);
         const targetUser = result.rows[0];
 
         if (!targetUser) {

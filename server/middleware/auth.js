@@ -49,7 +49,7 @@ const populateUser = async (req, res, next) => {
 
             // 2b. Link if email found
             if (email) {
-                userResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+                userResult = await db.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email.toLowerCase()]);
                 user = userResult.rows[0];
 
                 if (user) {
