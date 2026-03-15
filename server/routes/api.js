@@ -1,8 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const { GoogleGenAI } = require("@google/genai");
+const rateLimit = require('express-rate-limit');
 
 const db = require('../db');
+
+// --- AI Rate Limiter ---
+const aiRateLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 10, // Limit each IP to 10 requests per `window`
+    message: { error: "Too many AI requests from this IP, please try again after a minute." },
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
 
 // Initialize Gemini
 const genAI = new GoogleGenAI(process.env.GEMINI_API_KEY);
@@ -270,7 +280,7 @@ const resolveModel = async () => {
 
 
 // 3. Gemini Proxy: Generate Recipe
-router.post('/generate-recipe', async (req, res) => {
+router.post('/generate-recipe', aiRateLimiter, async (req, res) => {
     if (!genAI) {
         return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
     }
@@ -282,9 +292,18 @@ router.post('/generate-recipe', async (req, res) => {
         // Auth Check
         if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
 
-        // Validate Credits
-        if (user.subscriptionTier !== 'pro' && user.credits < 1) {
-            return res.status(402).json({ error: "Insufficient credits" });
+        let currentCredits = user.credits;
+
+        // Pre-Flight Atomic Credit Check & Deduction
+        if (user.subscriptionTier !== 'pro') {
+            const deductResult = await db.query(
+                'UPDATE users SET credits = credits - 1 WHERE id = $1 AND credits >= 1 RETURNING credits',
+                [user.id]
+            );
+            if (deductResult.rowCount === 0) {
+                return res.status(402).json({ error: "Insufficient credits" });
+            }
+            currentCredits = deductResult.rows[0].credits;
         }
 
         const modelName = await resolveModel();
@@ -310,16 +329,8 @@ router.post('/generate-recipe', async (req, res) => {
 
         const responseText = typeof result.text === 'function' ? result.text() : result.text;
 
-        // Deduct Credit only on success
-        if (user.subscriptionTier !== 'pro') {
-            const info = await db.query('UPDATE users SET credits = credits - 1 WHERE id = $1', [user.id]);
-            console.log(`[CreditAudit] Deducted 1 credit from User ${user.id}. Changes: ${info.rowCount}, Previous Credits: ${user.credits}`);
-        } else {
-            console.log(`[CreditAudit] User ${user.id} is PRO. No deduction.`);
-        }
-
         // Refetch credit count
-        const finalCredit = user.subscriptionTier === 'pro' ? '∞' : (user.credits - 1);
+        const finalCredit = user.subscriptionTier === 'pro' ? '∞' : currentCredits;
 
         res.json({
             result: JSON.parse(responseText),
@@ -328,6 +339,16 @@ router.post('/generate-recipe', async (req, res) => {
 
     } catch (error) {
         console.error("Gemini API Error:", error);
+        
+        // Refund credit on failure
+        if (req.user) {
+            const userParams = await getUser(req);
+            if (userParams && userParams.subscriptionTier !== 'pro') {
+                 await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [req.user.id]);
+                 console.log(`[CreditAudit] Refunded 1 credit to User ${req.user.id} due to API failure`);
+            }
+        }
+
         // Reset active model on 404 to trigger re-resolution next time
         if (error.message.includes('404') || error.message.includes('NOT_FOUND')) {
             activeModel = null;
@@ -337,7 +358,7 @@ router.post('/generate-recipe', async (req, res) => {
 });
 
 // 3b. Gemini Proxy: Generate Image
-router.post('/generate-image', async (req, res) => {
+router.post('/generate-image', aiRateLimiter, async (req, res) => {
     if (!genAI) {
         return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
     }
@@ -349,8 +370,18 @@ router.post('/generate-image', async (req, res) => {
         // Auth Check
         if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
 
-        if (user.subscriptionTier !== 'pro' && user.credits < 1) {
-            return res.status(402).json({ error: "Insufficient credits" });
+        let currentCredits = user.credits;
+
+        // Pre-Flight Atomic Credit Check & Deduction
+        if (user.subscriptionTier !== 'pro') {
+            const deductResult = await db.query(
+                'UPDATE users SET credits = credits - 1 WHERE id = $1 AND credits >= 1 RETURNING credits',
+                [user.id]
+            );
+            if (deductResult.rowCount === 0) {
+                return res.status(402).json({ error: "Insufficient credits" });
+            }
+            currentCredits = deductResult.rows[0].credits;
         }
 
         console.log(`Generating image for prompt: ${prompt}`);
@@ -381,12 +412,7 @@ router.post('/generate-image', async (req, res) => {
             base64Image = `https://loremflickr.com/500/500/food,meal`;
         }
 
-        // Deduct Credit only on success
-        if (user.subscriptionTier !== 'pro') {
-            await db.query('UPDATE users SET credits = credits - 1 WHERE id = $1', [user.id]);
-        }
-
-        const finalCredit = user.subscriptionTier === 'pro' ? '∞' : (user.credits - 1);
+        const finalCredit = user.subscriptionTier === 'pro' ? '∞' : currentCredits;
 
         res.json({
             result: base64Image,
@@ -395,6 +421,16 @@ router.post('/generate-image', async (req, res) => {
 
     } catch (error) {
         console.error("Gemini Image Generation Error:", error);
+
+         // Refund credit on failure
+        if (req.user) {
+            const userParams = await getUser(req);
+            if (userParams && userParams.subscriptionTier !== 'pro') {
+                 await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [req.user.id]);
+                 console.log(`[CreditAudit] Refunded 1 credit to User ${req.user.id} due to API Image failure`);
+            }
+        }
+
         res.status(500).json({ error: "Image Generation Failed", details: error.message });
     }
 });
@@ -402,7 +438,7 @@ router.post('/generate-image', async (req, res) => {
 
 
 // 4. Gemini Proxy: Chat (Sous Chef)
-router.post('/chat', async (req, res) => {
+router.post('/chat', aiRateLimiter, async (req, res) => {
     if (!genAI) return res.status(503).json({ error: "AI Service Unavailable" });
 
     try {
@@ -410,8 +446,15 @@ router.post('/chat', async (req, res) => {
         const user = await getUser(req);
         if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-        if (user.subscriptionTier !== 'pro' && user.credits < 1) {
-            return res.status(402).json({ error: "Insufficient credits" });
+        // Pre-Flight Atomic Credit Check & Deduction
+        if (user.subscriptionTier !== 'pro') {
+            const deductResult = await db.query(
+                'UPDATE users SET credits = credits - 1 WHERE id = $1 AND credits >= 1 RETURNING credits',
+                [user.id]
+            );
+            if (deductResult.rowCount === 0) {
+                return res.status(402).json({ error: "Insufficient credits" });
+            }
         }
 
         const { history, message, systemInstruction } = req.body;
@@ -426,23 +469,25 @@ router.post('/chat', async (req, res) => {
         const result = await chat.sendMessage(message);
         const responseText = typeof result.text === 'function' ? result.text() : result.text;
 
-        // 2. Deduct Credit
-        if (user.subscriptionTier !== 'pro') {
-            const info = await db.query('UPDATE users SET credits = credits - 1 WHERE id = $1', [user.id]);
-            console.log(`[CreditAudit] Deducted 1 credit from User ${user.id} (Chat). Changes: ${info.rowCount}`);
-        } else {
-            console.log(`[CreditAudit] User ${user.id} is PRO. No deduction.`);
-        }
-
         res.json({ result: responseText });
     } catch (error) {
         console.error("Chat Error:", error);
+
+        // Refund credit on failure
+        if (req.user) {
+            const userParams = await getUser(req);
+            if (userParams && userParams.subscriptionTier !== 'pro') {
+                 await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [req.user.id]);
+                 console.log(`[CreditAudit] Refunded 1 credit to User ${req.user.id} due to API Chat failure`);
+            }
+        }
+
         res.status(500).json({ error: "Chat Failed" });
     }
 });
 
 // 5. Gemini Proxy: Parse URL for Recipe
-router.post('/ai/parse-url', async (req, res) => {
+router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
     if (!genAI) {
         return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
     }
@@ -454,8 +499,18 @@ router.post('/ai/parse-url', async (req, res) => {
         // Auth & Credit Check
         if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
 
-        if (user.subscriptionTier !== 'pro' && user.credits < 1) {
-            return res.status(402).json({ error: "Insufficient credits" });
+        let currentCredits = user.credits;
+
+        // Pre-Flight Atomic Credit Check & Deduction
+        if (user.subscriptionTier !== 'pro') {
+            const deductResult = await db.query(
+                'UPDATE users SET credits = credits - 1 WHERE id = $1 AND credits >= 1 RETURNING credits',
+                [user.id]
+            );
+            if (deductResult.rowCount === 0) {
+                return res.status(402).json({ error: "Insufficient credits" });
+            }
+            currentCredits = deductResult.rows[0].credits;
         }
 
         console.log(`[ParseURL] Fetching content from: ${url}`);
@@ -508,13 +563,7 @@ router.post('/ai/parse-url', async (req, res) => {
         const responseText = typeof result.text === 'function' ? result.text() : result.text;
         const data = JSON.parse(responseText);
 
-        // 3. Deduct Credit
-        if (user.subscriptionTier !== 'pro') {
-            const info = await db.query('UPDATE users SET credits = credits - 1 WHERE id = $1', [user.id]);
-            console.log(`[CreditAudit] Deducted 1 credit for URL Parse. User ${user.id}`);
-        }
-
-        const finalCredit = user.subscriptionTier === 'pro' ? '∞' : (user.credits - 1);
+        const finalCredit = user.subscriptionTier === 'pro' ? '∞' : currentCredits;
 
         res.json({
             result: data,
@@ -523,12 +572,22 @@ router.post('/ai/parse-url', async (req, res) => {
 
     } catch (error) {
         console.error("URL Parsing Failed:", error);
+
+         // Refund credit on failure
+        if (req.user) {
+            const userParams = await getUser(req);
+            if (userParams && userParams.subscriptionTier !== 'pro') {
+                 await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [req.user.id]);
+                 console.log(`[CreditAudit] Refunded 1 credit to User ${req.user.id} due to API URL Parse failure`);
+            }
+        }
+
         res.status(500).json({ error: "URL Parsing Failed", details: error.message });
     }
 });
 
 // 6. Gemini Proxy: Analyze Receipt
-router.post('/ai/analyze-receipt', async (req, res) => {
+router.post('/ai/analyze-receipt', aiRateLimiter, async (req, res) => {
     if (!genAI) {
         return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
     }
@@ -540,9 +599,18 @@ router.post('/ai/analyze-receipt', async (req, res) => {
         // Auth Check
         if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
 
-        // Validate Credits
-        if (user.subscriptionTier !== 'pro' && user.credits < 1) {
-            return res.status(402).json({ error: "Insufficient credits" });
+        let currentCredits = user.credits;
+
+        // Pre-Flight Atomic Credit Check & Deduction
+        if (user.subscriptionTier !== 'pro') {
+            const deductResult = await db.query(
+                'UPDATE users SET credits = credits - 1 WHERE id = $1 AND credits >= 1 RETURNING credits',
+                [user.id]
+            );
+            if (deductResult.rowCount === 0) {
+                return res.status(402).json({ error: "Insufficient credits" });
+            }
+            currentCredits = deductResult.rows[0].credits;
         }
 
         const prompt = `
@@ -590,15 +658,7 @@ router.post('/ai/analyze-receipt', async (req, res) => {
         const cleanedText = responseText.replace(/```json|```/g, '').trim();
         const data = JSON.parse(cleanedText);
 
-        // Deduct Credit only on success
-        if (user.subscriptionTier !== 'pro') {
-            const info = await db.query('UPDATE users SET credits = credits - 1 WHERE id = $1', [user.id]);
-            console.log(`[CreditAudit] Deducted 1 credit from User ${user.id}. Changes: ${info.rowCount}`);
-        } else {
-            console.log(`[CreditAudit] User ${user.id} is PRO. No deduction.`);
-        }
-
-        const finalCredit = user.subscriptionTier === 'pro' ? '∞' : (user.credits - 1);
+        const finalCredit = user.subscriptionTier === 'pro' ? '∞' : currentCredits;
 
         res.json({
             result: data,
@@ -607,6 +667,16 @@ router.post('/ai/analyze-receipt', async (req, res) => {
 
     } catch (error) {
         console.error("Receipt Analysis Failed:", error);
+
+         // Refund credit on failure
+        if (req.user) {
+            const userParams = await getUser(req);
+            if (userParams && userParams.subscriptionTier !== 'pro') {
+                 await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [req.user.id]);
+                 console.log(`[CreditAudit] Refunded 1 credit to User ${req.user.id} due to API Receipt Parse failure`);
+            }
+        }
+
         res.status(500).json({ error: "Analysis Failed", details: error.message });
     }
 });
@@ -642,7 +712,7 @@ router.get('/ai/models', async (req, res) => {
 });
 
 // 6. Gemini Proxy: Analyze Pantry Photo
-router.post('/ai/scan-pantry', async (req, res) => {
+router.post('/ai/scan-pantry', aiRateLimiter, async (req, res) => {
     if (!genAI) {
         return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
     }
@@ -653,8 +723,18 @@ router.post('/ai/scan-pantry', async (req, res) => {
 
         if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
 
-        if (user.subscriptionTier !== 'pro' && user.credits < 1) {
-            return res.status(402).json({ error: "Insufficient credits" });
+        let currentCredits = user.credits;
+
+        // Pre-Flight Atomic Credit Check & Deduction
+        if (user.subscriptionTier !== 'pro') {
+            const deductResult = await db.query(
+                'UPDATE users SET credits = credits - 1 WHERE id = $1 AND credits >= 1 RETURNING credits',
+                [user.id]
+            );
+            if (deductResult.rowCount === 0) {
+                return res.status(402).json({ error: "Insufficient credits" });
+            }
+            currentCredits = deductResult.rows[0].credits;
         }
 
         const prompt = `
@@ -691,17 +771,22 @@ router.post('/ai/scan-pantry', async (req, res) => {
         const cleanedText = responseText.replace(/```json|```/g, '').trim();
         const data = JSON.parse(cleanedText);
 
-        if (user.subscriptionTier !== 'pro') {
-            const info = await db.query('UPDATE users SET credits = credits - 1 WHERE id = $1', [user.id]);
-            console.log(`[CreditAudit] Deducted 1 credit for Pantry Scan. User ${user.id}`);
-        }
-
-        const finalCredit = user.subscriptionTier === 'pro' ? '∞' : (user.credits - 1);
+        const finalCredit = user.subscriptionTier === 'pro' ? '∞' : currentCredits;
 
         res.json({ result: data, creditsRemaining: finalCredit });
 
     } catch (error) {
         console.error("Pantry Scan Failed:", error);
+
+         // Refund credit on failure
+        if (req.user) {
+            const userParams = await getUser(req);
+            if (userParams && userParams.subscriptionTier !== 'pro') {
+                 await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [req.user.id]);
+                 console.log(`[CreditAudit] Refunded 1 credit to User ${req.user.id} due to API Pantry Scan failure`);
+            }
+        }
+
         res.status(500).json({ error: "Scan Failed", details: error.message });
     }
 });
