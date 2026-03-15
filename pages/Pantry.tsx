@@ -7,6 +7,7 @@ import { useUser } from '../context/UserContext';
 import { suggestRecipesFromPantry } from '../services/geminiService';
 import Spinner from '../components/Spinner';
 import { generateRecipeFromIngredients } from '../services/geminiService';
+import { formatQuantity, parseQuantity } from '../utils/formatters';
 
 const INGREDIENT_CATEGORIES = ['Produce', 'Meat', 'Seafood', 'Dairy & Eggs', 'Pantry Staples', 'Spices & Seasonings', 'Bakery', 'Frozen', 'Other'];
 
@@ -249,6 +250,31 @@ const Pantry: React.FC = () => {
         <button onClick={() => setView(value)} className={`flex-1 md:flex-none px-6 py-2 text-sm font-bold rounded-xl transition-all ${view === value ? 'bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-800 dark:text-gray-100 shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200/50'}`}>{children}</button>
     );
 
+    const QuantityInput: React.FC<{ value: number, onChange: (val: number) => void, className: string }> = ({ value, onChange, className }) => {
+        const [localVal, setLocalVal] = useState(formatQuantity(value));
+        const [isFocused, setIsFocused] = useState(false);
+
+        React.useEffect(() => {
+            if (!isFocused) setLocalVal(formatQuantity(value));
+        }, [value, isFocused]);
+
+        const handleBlur = () => {
+            setIsFocused(false);
+            onChange(parseQuantity(localVal));
+        };
+
+        return (
+            <input 
+                type="text" 
+                value={isFocused ? localVal : formatQuantity(value)} 
+                onChange={e => setLocalVal(e.target.value)} 
+                onFocus={() => setIsFocused(true)}
+                onBlur={handleBlur}
+                className={className} 
+            />
+        );
+    };
+
     const handlePantryCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -370,7 +396,7 @@ const Pantry: React.FC = () => {
                                             <span className="font-bold text-gray-700 dark:text-gray-200 sm:col-span-4 truncate text-lg sm:text-base border-b sm:border-b-0 pb-2 sm:pb-0 mb-2 sm:mb-0" title={item.name}>{item.name}</span>
                                             
                                             <div className="grid grid-cols-3 sm:col-span-4 gap-2">
-                                                <input type="number" value={item.quantity} onChange={e => handleUpdate(item.id, 'quantity', parseFloat(e.target.value))} className="form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-50 text-center col-span-1" />
+                                                <QuantityInput value={item.quantity} onChange={val => handleUpdate(item.id, 'quantity', val)} className="form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-50 text-center col-span-1" />
                                                 <input type="text" value={item.unit} onChange={e => handleUpdate(item.id, 'unit', e.target.value)} className="form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 p-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-50 col-span-2" />
                                             </div>
 

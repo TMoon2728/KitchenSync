@@ -7,6 +7,7 @@ import { useKitchen } from '../context/KitchenContext';
 import { useUser } from '../context/UserContext';
 import confetti from 'canvas-confetti';
 import { convertQuantity } from '../utils/unitConversion';
+import { formatQuantity } from '../utils/formatters';
 
 interface NeededIngredient {
     name: string;
@@ -539,7 +540,7 @@ const ShoppingList: React.FC = () => {
                                                     </span>
                                                 </div>
                                                 <span className={`text-sm font-bold px-3 py-1 rounded-full ${isChecked ? 'bg-gray-200 text-gray-500 dark:text-gray-400' : 'bg-blue-50 text-blue-600'}`}>
-                                                    {item.quantity.toFixed(2)} {item.unit}
+                                                    {formatQuantity(item.quantity)} {item.unit}
                                                 </span>
                                                 {(item as any).isManual && (item as any).id && (
                                                     <button 

@@ -42,3 +42,41 @@ export const formatQuantity = (quantity: number | string): string => {
     
     return fraction;
 };
+
+/**
+ * Parses a string that might be a fraction (like "1 1/2" or "1/2") into a decimal number.
+ * Returns the original number if it's already a number or standard decimal string.
+ */
+export const parseQuantity = (input: string | number): number => {
+    if (typeof input === 'number') return input;
+    
+    const str = input.trim();
+    if (!str) return 0;
+    
+    const parts = str.split(' ');
+    if (parts.length === 2) {
+        const whole = parseFloat(parts[0]);
+        const fractionParts = parts[1].split('/');
+        if (fractionParts.length === 2) {
+            const num = parseFloat(fractionParts[0]);
+            const den = parseFloat(fractionParts[1]);
+            if (!isNaN(whole) && !isNaN(num) && !isNaN(den) && den !== 0) {
+                return whole + (num / den);
+            }
+        }
+    } else if (parts.length === 1) {
+        const fractionParts = str.split('/');
+        if (fractionParts.length === 2) {
+            const num = parseFloat(fractionParts[0]);
+            const den = parseFloat(fractionParts[1]);
+            if (!isNaN(num) && !isNaN(den) && den !== 0) {
+                return num / den;
+            }
+        } else {
+            const num = parseFloat(str);
+            if (!isNaN(num)) return num;
+        }
+    }
+    
+    return 0;
+};
