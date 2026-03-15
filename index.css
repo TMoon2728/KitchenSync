@@ -205,11 +205,11 @@ body {
 .theme-landing.dark .bg-gray-50,
 .theme-landing.dark .dark\:bg-gray-700\/50,
 .theme-landing.dark .dark\:bg-gray-700 {
-    background-color: rgba(31, 41, 55, 0.4) !important; /* Tailwind gray-800 at 40% */
+    background-color: rgba(17, 24, 39, 0.7) !important; /* Tailwind gray-900 at 70% for stark text contrast */
     backdrop-filter: blur(16px) !important;
     -webkit-backdrop-filter: blur(16px) !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1) !important;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2) !important;
 }
 
 /* Ensure structural elements DO NOT get the glassmorphism double-blur */
@@ -247,7 +247,7 @@ body {
 }
 
 .theme-landing.dark aside {
-    background-color: rgba(17, 24, 39, 0.5) !important; /* gray-900/50 */
+    background-color: rgba(17, 24, 39, 0.7) !important; /* gray-900/70 */
     backdrop-filter: blur(20px) !important;
     -webkit-backdrop-filter: blur(20px) !important;
     border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
