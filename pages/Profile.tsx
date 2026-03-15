@@ -424,23 +424,31 @@ const Profile: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="md:col-span-2 space-y-3">
                         {userProfile.householdMembers.length > 0 ? (
-                            userProfile.householdMembers.map(member => (
-                                <div key={member.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-md border border-gray-200">
+                            userProfile.householdMembers.map(member => {
+                                const isLinked = (typeof member.id === 'string' && member.id.startsWith('linked-')) || !!(member as any)._sourceUserId;
+                                return (
+                                <div key={member.id} className={`flex justify-between items-center p-3 rounded-md border ${isLinked ? 'bg-purple-50 border-purple-200' : 'bg-gray-50 border-gray-200'}`}>
                                     <div>
-                                        <p className="font-semibold text-gray-800">{member.name}</p>
+                                        <p className={`font-semibold ${isLinked ? 'text-purple-800' : 'text-gray-800'}`}>
+                                            {member.name} 
+                                            {isLinked && <span className="ml-2 text-[10px] bg-purple-200 text-purple-700 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">Linked</span>}
+                                        </p>
                                         {member.dietaryRestrictions && (
-                                            <p className="text-xs text-gray-500">{member.dietaryRestrictions}</p>
+                                            <p className={`text-xs ${isLinked ? 'text-purple-600' : 'text-gray-500'}`}>{member.dietaryRestrictions}</p>
                                         )}
                                     </div>
-                                    <button
-                                        onClick={() => handleRemoveMember(member.id)}
-                                        className="text-red-500 hover:text-red-700"
-                                        title="Remove Member"
-                                    >
-                                        <i className="fas fa-trash"></i>
-                                    </button>
+                                    {!isLinked && (
+                                        <button
+                                            onClick={() => handleRemoveMember(member.id as number)}
+                                            className="text-red-500 hover:text-red-700"
+                                            title="Remove Member"
+                                        >
+                                            <i className="fas fa-trash"></i>
+                                        </button>
+                                    )}
                                 </div>
-                            ))
+                                );
+                            })
                         ) : (
                             <p className="text-gray-500 italic">No household members added yet.</p>
                         )}

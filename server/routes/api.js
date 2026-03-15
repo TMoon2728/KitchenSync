@@ -48,13 +48,15 @@ const getUser = async (req) => {
                 });
             }
 
-            // Merge any manually added members/stores from the linked user's preferences
             const hPrefs = typeof hUser.preferences === 'string' ? JSON.parse(hUser.preferences || '{}') : (hUser.preferences || {});
             if (hPrefs.householdMembers) {
                 hPrefs.householdMembers.forEach(m => {
                     // Prevent exact duplicates by name
                     if (!allHouseholdMembers.find(existing => existing.name === m.name)) {
-                        allHouseholdMembers.push(m);
+                        allHouseholdMembers.push({
+                            ...m,
+                            _sourceUserId: hUser.id // Flag this so the frontend/backend knows it's borrowed
+                        });
                     }
                 });
             }
@@ -125,8 +127,19 @@ router.put('/user/profile', async (req, res) => {
         // We can store all these extras inside the `preferences` JSONB column to avoid immediate schema migrations.
         const currentPreferences = user.preferences || {};
         
-        // Filter out linked accounts from being saved back as manual members
-        const filteredMembers = (householdMembers || []).filter(m => !m.id || !m.id.toString().startsWith('linked-'));
+        // Filter out linked accounts and borrowed members from being saved back as manual members
+        const filteredMembers = (householdMembers || []).filter(m => {
+            if (m.id && m.id.toString().startsWith('linked-')) return false;
+            if (m._sourceUserId) return false; // Belongs to a linked partner's preferences
+            return true;
+        });
+
+        // Strip our temporary _sourceUserId flag if it somehow snuck through
+        const cleanMembers = filteredMembers.map(m => {
+            const copy = { ...m };
+            delete copy._sourceUserId;
+            return copy;
+        });
 
         const updatedPreferences = {
             ...currentPreferences,
@@ -135,7 +148,7 @@ router.put('/user/profile', async (req, res) => {
             proteinGoal,
             carbGoal,
             fatGoal,
-            householdMembers: filteredMembers,
+            householdMembers: cleanMembers,
             groceryStores,
             appPreferences: preferences, // the actual preferences object (confetti, etc)
             avatar,
