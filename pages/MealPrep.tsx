@@ -4,9 +4,11 @@ import type { Ingredient } from '../types';
 import { useKitchen } from '../context/KitchenContext';
 
 const MealPrep: React.FC = () => {
-    const { recipes } = useKitchen();
+    const { recipes, addManualShoppingItem } = useKitchen();
     const [selectedRecipes, setSelectedRecipes] = useState<{ [recipeId: number]: number }>({});
     const [prepPlan, setPrepPlan] = useState<PrepPlan | null>(null);
+    const [isAdded, setIsAdded] = useState(false);
+    const [isAdding, setIsAdding] = useState(false);
 
     const handleSelectRecipe = (recipeId: number, isChecked: boolean) => {
         setSelectedRecipes(prev => {
@@ -20,6 +22,7 @@ const MealPrep: React.FC = () => {
             return newSelection;
         });
         setPrepPlan(null);
+        setIsAdded(false);
     };
 
     const handleServingsChange = (recipeId: number, servings: number) => {
@@ -28,6 +31,7 @@ const MealPrep: React.FC = () => {
             [recipeId]: servings > 0 ? servings : 1,
         }));
         setPrepPlan(null);
+        setIsAdded(false);
     };
 
 
@@ -76,6 +80,31 @@ const MealPrep: React.FC = () => {
             shoppingList: Object.values(shoppingList).sort((a, b) => a.name.localeCompare(b.name)),
             nutrition: totalNutrition,
         });
+        setIsAdded(false);
+    };
+
+    const handleAddToShoppingList = async () => {
+        if (!prepPlan) return;
+        setIsAdding(true);
+
+        try {
+            // Push all mapped ingredients to the manualShoppingList context
+            for (const item of prepPlan.shoppingList) {
+                await addManualShoppingItem({
+                    name: item.name,
+                    quantity: Number(item.quantity.toFixed(2)),
+                    unit: item.unit || '',
+                    is_checked: false,
+                    is_ai_generated: false,
+                    added_at: new Date().toISOString()
+                });
+            }
+            setIsAdded(true);
+        } catch (error) {
+            console.error("Failed to add to shopping list", error);
+        } finally {
+            setIsAdding(false);
+        }
     };
 
     const mealPrepRecipes = useMemo(() => recipes.filter(r => r.meal_type === 'Meal Prep' || r.meal_type === 'Main Course'), [recipes]);
@@ -172,8 +201,30 @@ const MealPrep: React.FC = () => {
                                     </div>
                                 </div>
                             </div>
-                            <div className="text-xs text-gray-500 italic text-center">
-                                <p>Now, go shopping and start cooking! Once done, head to the <a href="#/planner" className="text-blue-600 underline">Meal Planner</a> to schedule your prepped meals for the week.</p>
+                            
+                            <div className="pt-4 border-t border-gray-100">
+                                <button
+                                    onClick={handleAddToShoppingList}
+                                    disabled={isAdded || isAdding}
+                                    className={`w-full py-3 rounded-md font-bold text-white transition-colors shadow-sm flex justify-center items-center ${isAdded ? 'bg-indigo-500' : 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300'}`}
+                                >
+                                    {isAdding ? (
+                                        <><i className="fas fa-spinner fa-spin mr-2"></i>Sending to List...</>
+                                    ) : isAdded ? (
+                                        <><i className="fas fa-check-circle mr-2"></i>Added to Shopping List!</>
+                                    ) : (
+                                        <><i className="fas fa-paper-plane mr-2"></i>Send to Shopping List</>
+                                    )}
+                                </button>
+                                {isAdded && (
+                                    <div className="mt-3 text-center text-sm font-medium text-blue-600">
+                                        <a href="#/shopping-list" className="hover:underline">View Shopping List <i className="fas fa-arrow-right text-xs ml-1"></i></a>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="text-xs text-gray-500 italic text-center mt-4">
+                                <p>Once done, head to the <a href="#/planner" className="text-blue-600 underline">Meal Planner</a> to schedule your prepped meals for the week.</p>
                             </div>
                         </div>
                     )}
