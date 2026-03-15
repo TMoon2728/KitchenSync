@@ -22,15 +22,20 @@ const populateUser = async (req, res, next) => {
 
         if (user) {
             req.authLog.push("User found by ID.");
-        } else {
-            req.authLog.push("User NOT found by ID. Attempting linking.");
+        }
+        
+        // We ALWAYS want to fetch the email if it's missing from the payload, 
+        // even if the user is found, so we can repair placeholder emails.
+        if (!user || (user && user.email.includes('placeholder'))) {
+            req.authLog.push(user ? "User has placeholder email. Fetching real email..." : "User NOT found by ID. Attempting linking.");
 
             // 2. Fetch Email
             let email = payload.email;
             if (!email && req.headers['authorization'] && !req.headers['authorization'].includes('eyJhbGciOiJub25lIi')) {
                 req.authLog.push("Email missing in token. Fetching /userinfo...");
                 try {
-                    const userInfoUrl = `${process.env.AUTH0_ISSUER_BASE_URL}/userinfo`;
+                    const baseUrl = process.env.AUTH0_ISSUER_BASE_URL.replace(/\/$/, '');
+                    const userInfoUrl = `${baseUrl}/userinfo`;
                     const userRes = await fetch(userInfoUrl, {
                         headers: { Authorization: req.headers['authorization'] }
                     });
@@ -39,6 +44,13 @@ const populateUser = async (req, res, next) => {
                         const profile = await userRes.json();
                         email = profile.email;
                         req.authLog.push(`Fetched /userinfo. Email: ${email}`);
+                        
+                        // Self-healing: If user exists but has a placeholder or mismatched email (legacy edge case), update it
+                        if (user && email && user.email.includes('placeholder')) {
+                            req.authLog.push(`Repairing placeholder email ${user.email} -> ${email}`);
+                            await db.query('UPDATE users SET email = $1 WHERE id = $2', [email, user.id]);
+                            user.email = email;
+                        }
                     } else {
                         req.authLog.push(`Fetch failed status: ${userRes.status}`);
                     }
