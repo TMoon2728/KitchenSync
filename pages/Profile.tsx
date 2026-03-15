@@ -301,7 +301,7 @@ const Profile: React.FC = () => {
                                 <button
                                     key={mode}
                                     onClick={() => setDisplayMode(mode)}
-                                    className={`flex-1 p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${displayMode === mode ? 'border-blue-500 bg-blue-50' : 'border-gray-200 dark:border-gray-700 hover:border-blue-300'}`}
+                                    className={`flex-1 p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${displayMode === mode ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100' : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 text-gray-700 dark:text-gray-200'}`}
                                 >
                                     {mode === 'light' && <i className="fas fa-sun text-yellow-500 text-xl"></i>}
                                     {mode === 'dark' && <i className="fas fa-moon text-indigo-400 text-xl"></i>}
@@ -336,7 +336,7 @@ const Profile: React.FC = () => {
                                                     <button
                                                         key={level}
                                                         onClick={() => setConfettiIntensity(level)}
-                                                        className={`px-3 py-1 text-xs rounded-md capitalize transition-colors ${confettiIntensity === level ? 'bg-white dark:bg-gray-800 shadow-sm text-purple-700 font-semibold' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200'}`}
+                                                        className={`px-3 py-1 text-xs rounded-md capitalize transition-colors ${confettiIntensity === level ? 'bg-white dark:bg-gray-800 shadow-sm text-purple-700 dark:text-purple-300 font-semibold' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200'}`}
                                                     >
                                                         {level}
                                                     </button>
@@ -371,7 +371,7 @@ const Profile: React.FC = () => {
                                     <div
                                         key={item.path}
                                         onClick={() => toggleNavItem(item.path)}
-                                        className={`flex items-center p-3 rounded-lg border-2 cursor-pointer transition-all ${isVisible ? 'border-blue-500 bg-blue-50' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 opacity-60 grayscale'}`}
+                                        className={`flex items-center p-3 rounded-lg border-2 cursor-pointer transition-all ${isVisible ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 opacity-60 grayscale'}`}
                                     >
                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 transition-colors ${isVisible ? 'bg-blue-200 text-blue-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}`}>
                                             <i className={`fas ${item.icon}`}></i>

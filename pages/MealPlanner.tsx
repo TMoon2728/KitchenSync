@@ -369,7 +369,7 @@ const MealPlanner: React.FC = () => {
                                 setSelectedMobileRecipe(isSelected ? null : { customName: customItemInput });
                             }
                         }}
-                        className={`p-3 rounded-xl cursor-pointer md:cursor-grab md:active:cursor-grabbing border-2 border-dashed text-center transition-colors group relative ${selectedMobileRecipe && 'customName' in selectedMobileRecipe ? 'bg-yellow-100 border-yellow-400 ring-2 ring-yellow-200 shadow-md' : 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100'}`}
+                        className={`p-3 rounded-xl cursor-pointer md:cursor-grab md:active:cursor-grabbing border-2 border-dashed text-center transition-colors group relative ${selectedMobileRecipe && 'customName' in selectedMobileRecipe ? 'bg-yellow-100 dark:bg-yellow-900/60 border-yellow-400 dark:border-yellow-600 ring-2 ring-yellow-200 dark:ring-yellow-700 shadow-md' : 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-700/50 hover:bg-yellow-100 hover:dark:bg-yellow-800/50'}`}
                     >
                         <i className={`fas fa-hand-pointer mb-2 hidden md:block transition-transform group-hover:scale-110 ${selectedMobileRecipe && 'customName' in selectedMobileRecipe ? 'text-yellow-600' : 'text-yellow-400'}`}></i>
                         {selectedMobileRecipe && 'customName' in selectedMobileRecipe && <i className="fas fa-check-circle text-yellow-600 absolute top-2 right-2 md:hidden block"></i>}
@@ -391,7 +391,7 @@ const MealPlanner: React.FC = () => {
                                     setSelectedMobileRecipe(isSelected ? null : { customName: customItemInput });
                                 }
                             }}
-                            className={`mt-2 w-full text-xs font-bold py-1.5 rounded-lg md:hidden transition-colors ${selectedMobileRecipe && 'customName' in selectedMobileRecipe ? 'bg-yellow-200 text-yellow-800' : 'bg-yellow-400 text-white'}`}
+                            className={`mt-2 w-full text-xs font-bold py-1.5 rounded-lg md:hidden transition-colors ${selectedMobileRecipe && 'customName' in selectedMobileRecipe ? 'bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-100' : 'bg-yellow-400 dark:bg-yellow-600 text-white'}`}
                         >
                             {selectedMobileRecipe && 'customName' in selectedMobileRecipe ? 'Deselect' : 'Select'}
                         </button>
