@@ -6,6 +6,7 @@ import { useKitchen } from '../context/KitchenContext';
 import { useUser } from '../context/UserContext';
 import { remixRecipe, generateRecipeImage } from '../services/geminiService';
 import Spinner from '../components/Spinner';
+import { formatQuantity } from '../utils/formatters';
 
 const RecipeDetail: React.FC = () => {
     const { recipes, updateRecipe } = useKitchen();
@@ -229,7 +230,7 @@ const RecipeDetail: React.FC = () => {
                             {recipe.ingredients.map((ing, i) => (
                                 <li key={i} className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-2 last:border-0">
                                     <span className="font-medium text-gray-700 dark:text-gray-200">{ing.name}</span>
-                                    <span className="text-gray-500 dark:text-gray-400 text-sm bg-white dark:bg-gray-800 dark:text-gray-100 px-2 py-1 rounded-md shadow-sm">{ing.quantity} {ing.unit}</span>
+                                    <span className="text-gray-500 dark:text-gray-400 text-sm bg-white dark:bg-gray-800 dark:text-gray-100 px-2 py-1 rounded-md shadow-sm">{formatQuantity(ing.quantity)} {ing.unit}</span>
                                 </li>
                             ))}
                         </ul>

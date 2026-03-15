@@ -5,6 +5,7 @@ import type { Recipe, Ingredient, PantryItem } from '../types';
 import { useKitchen } from '../context/KitchenContext';
 import confetti from 'canvas-confetti';
 import { convertQuantity } from '../utils/unitConversion';
+import { formatQuantity } from '../utils/formatters';
 
 const CookingMode: React.FC = () => {
     const { recipes, pantry, setPantry } = useKitchen();
@@ -252,7 +253,7 @@ const CookingMode: React.FC = () => {
                         {recipe.ingredients.map((ing, i) => (
                             <li key={i} className="flex justify-between items-center text-sm border-b border-gray-700/50 pb-2 last:border-0">
                                 <span className="font-medium text-gray-200">{ing.name}</span>
-                                <span className="text-gray-400 bg-gray-700 px-2 py-1 rounded-md text-xs">{ing.quantity} {ing.unit}</span>
+                                <span className="text-gray-400 bg-gray-700 px-2 py-1 rounded-md text-xs">{formatQuantity(ing.quantity)} {ing.unit}</span>
                             </li>
                         ))}
                     </ul>
