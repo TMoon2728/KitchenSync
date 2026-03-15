@@ -190,11 +190,11 @@ body {
 .theme-landing .bg-gray-50,
 .theme-landing .dark\:bg-gray-700\/50,
 .theme-landing .dark\:bg-gray-700 {
-    background-color: rgba(17, 24, 39, 0.4) !important; /* Slightly more opaque glass for better text readability */
-    backdrop-filter: blur(24px) !important;
-    -webkit-backdrop-filter: blur(24px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+    background-color: rgba(31, 41, 55, 0.4) !important; /* Tailwind gray-800 at 40% */
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1) !important;
 }
 
 /* Ensure structural elements DO NOT get the glassmorphism double-blur */
@@ -210,7 +210,7 @@ body {
 }
 
 .theme-landing aside {
-    background-color: rgba(17, 24, 39, 0.3) !important; /* More transparent sidebar glass */
+    background-color: rgba(17, 24, 39, 0.5) !important; /* gray-900/50 */
     backdrop-filter: blur(20px) !important;
     -webkit-backdrop-filter: blur(20px) !important;
     border-right: 1px solid rgba(255, 255, 255, 0.1) !important;

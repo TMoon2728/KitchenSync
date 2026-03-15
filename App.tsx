@@ -181,7 +181,7 @@ const AppContent: React.FC = () => {
                     <div className="hidden">{(() => { /* dummy block to not break JSX */ })()}</div>
                     <div className={`p-4 flex items-center h-16 ${isSidebarCollapsed && !isMobileMenuOpen ? 'justify-center' : 'justify-between'}`}>
                         {!(isSidebarCollapsed && !isMobileMenuOpen) && (
-                            <h1 className="text-2xl font-bold flex items-center truncate">
+                            <h1 className="text-2xl font-bold flex items-center truncate text-white">
                                 <img src="/logo.svg" alt="Logo" className="h-12 w-12 mr-2 object-contain" />
                                 {retroMode ? '8-BIT KITCHEN' : 'KitchenSync'}
                             </h1>
@@ -273,7 +273,7 @@ const AppContent: React.FC = () => {
                     <header className="md:hidden flex items-center justify-between p-4 pt-[max(1rem,env(safe-area-inset-top))] bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 z-30">
                         <div className="flex items-center gap-3">
                             <img src="/logo.svg" alt="Logo" className="h-8 w-8 object-contain" />
-                            <span className="font-bold text-lg">{retroMode ? '8-BIT KITCHEN' : 'KitchenSync'}</span>
+                            <span className="font-bold text-lg text-gray-900 dark:text-white">{retroMode ? '8-BIT KITCHEN' : 'KitchenSync'}</span>
                         </div>
                         <button 
                             onClick={() => setIsMobileMenuOpen(true)}

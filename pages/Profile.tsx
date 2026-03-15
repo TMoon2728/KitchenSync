@@ -305,7 +305,7 @@ const Profile: React.FC = () => {
                                 >
                                     {mode === 'light' && <i className="fas fa-sun text-yellow-500 text-xl"></i>}
                                     {mode === 'dark' && <i className="fas fa-moon text-indigo-400 text-xl"></i>}
-                                    {mode === 'landing' && <i className="fas fa-sparkles text-purple-400 text-xl"></i>}
+                                    {mode === 'landing' && <i className="fas fa-gem text-purple-400 text-xl"></i>}
                                     <span className="font-semibold capitalize text-sm">{mode === 'landing' ? 'Glassmorphism' : mode}</span>
                                 </button>
                             ))}
