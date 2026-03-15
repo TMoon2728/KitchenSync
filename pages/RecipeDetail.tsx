@@ -116,10 +116,10 @@ const RecipeDetail: React.FC = () => {
     };
 
     const InfoChip: React.FC<{ icon: string, label: string, value: string | number }> = ({ icon, label, value }) => (
-        <div className="flex flex-col items-center bg-blue-50 p-3 rounded-lg">
-            <i className={`fas ${icon} text-blue-500 text-xl mb-1`}></i>
+        <div className="flex flex-col items-center bg-blue-50 dark:bg-gray-700/50 p-3 rounded-lg border border-blue-100 dark:border-gray-600">
+            <i className={`fas ${icon} text-blue-500 dark:text-blue-400 text-xl mb-1`}></i>
             <span className="text-sm text-gray-600 dark:text-gray-300">{label}</span>
-            <span className="font-bold">{value}</span>
+            <span className="font-bold text-gray-900 dark:text-gray-100">{value}</span>
         </div>
     );
 
@@ -242,17 +242,17 @@ const RecipeDetail: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="mt-10 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-100">
+                <div className="mt-10 p-6 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-800 rounded-xl border border-blue-100 dark:border-gray-700 shadow-sm">
                     <h3 className="text-xl font-bold mb-2 flex items-center text-gray-800 dark:text-gray-100">
-                        <i className="fas fa-robot mr-2 text-purple-600"></i>AI Recipe Remix
+                        <i className="fas fa-robot mr-2 text-purple-600 dark:text-purple-400"></i>AI Recipe Remix
                         <span className="ml-3 text-[10px] bg-yellow-400 text-black px-2 py-1 rounded-full font-bold">1 Credit</span>
                     </h3>
                     
                     {/* Household Tip */}
-                    <div className="mb-4 p-3 bg-white dark:bg-gray-800 dark:text-gray-100/60 text-purple-800 rounded-lg border border-purple-100/50 text-xs flex items-start">
-                        <i className="fas fa-lightbulb text-yellow-500 mt-0.5 mr-2"></i>
+                    <div className="mb-4 p-3 bg-white dark:bg-gray-700 text-purple-800 dark:text-purple-200 rounded-lg border border-purple-100 dark:border-purple-800/50 text-xs flex items-start shadow-sm">
+                        <i className="fas fa-lightbulb text-yellow-500 dark:text-yellow-400 mt-0.5 mr-2"></i>
                         <div>
-                            <strong>Tip:</strong> The Sous Chef automatically adjusts remixed recipe serving sizes to perfectly feed your <a href="#/profile" className="underline font-bold hover:text-purple-600">Household</a> (Currently: {1 + userProfile.householdMembers.length}!).
+                            <strong>Tip:</strong> The Sous Chef automatically adjusts remixed recipe serving sizes to perfectly feed your <a href="#/profile" className="underline font-bold hover:text-purple-600 dark:hover:text-purple-300">Household</a> (Currently: {1 + userProfile.householdMembers.length}!).
                         </div>
                     </div>
 
