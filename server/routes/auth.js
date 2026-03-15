@@ -4,7 +4,7 @@ const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 
 // GET /api/auth/me (Sync & Return Profile)
-router.get('/me', requireAuth, (req, res) => {
+router.get('/me', requireAuth, async (req, res) => {
     // Middleware handles JIT provisioning and linking now.
     // req.user should be the full user object.
 
@@ -14,6 +14,19 @@ router.get('/me', requireAuth, (req, res) => {
         // Should catch cases where JIT failed
         console.error("User resolution failed in middleware for /me", req.authLog);
         return res.status(500).json({ error: "Failed to sync user", trace: req.authLog });
+    }
+
+    // Check shared household subscription
+    const householdId = user.household_id || String(user.id);
+    const householdResult = await db.query('SELECT subscription_tier FROM users WHERE household_id = $1 OR id = $2', [householdId, user.id]);
+    let effectiveTier = user.subscription_tier;
+    let effectiveCredits = user.credits;
+    
+    for (const hUser of householdResult.rows) {
+        if (hUser.subscription_tier === 'pro') {
+            effectiveTier = 'pro';
+            effectiveCredits = '∞';
+        }
     }
 
     // JSONB in Postgres might already be an object, handle both cases
@@ -28,11 +41,11 @@ router.get('/me', requireAuth, (req, res) => {
             id: user.id,
             username: user.username,
             email: user.email,
-            subscription_tier: user.subscription_tier,
-            credits: user.credits,
+            subscription_tier: effectiveTier,
+            credits: effectiveCredits,
             kitchenName: user.kitchen_name, // if exists
             preferences: preferences,
-            payment_status: user.subscription_tier
+            payment_status: effectiveTier
         }
     });
 });

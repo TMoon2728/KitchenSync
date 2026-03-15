@@ -30,9 +30,14 @@ const getUser = async (req) => {
     
     let allHouseholdMembers = [...(preferences.householdMembers || [])];
     let allGroceryStores = [...(preferences.groceryStores || [])];
+    let effectiveSubscriptionTier = row.subscription_tier;
 
     // Merge members and partner accounts
     for (const hUser of householdResult.rows) {
+        if (hUser.subscription_tier === 'pro') {
+            effectiveSubscriptionTier = 'pro';
+        }
+
         if (hUser.id !== row.id) {
             // Add the linked user themselves as a household member automatically
             if (!allHouseholdMembers.find(m => m.name === hUser.username || m.name === hUser.email)) {
@@ -79,7 +84,8 @@ const getUser = async (req) => {
         householdMembers: allHouseholdMembers,
         groceryStores: allGroceryStores,
         preferences: appPreferences,
-        subscriptionTier: row.subscription_tier // map snake_case to camelCase
+        subscriptionTier: effectiveSubscriptionTier, // shared pro tier
+        credits: effectiveSubscriptionTier === 'pro' ? '∞' : row.credits // show infinite if pro
     };
 };
 
