@@ -31,6 +31,15 @@ const populateUser = async (req, res, next) => {
 
             // 2. Fetch Email
             let email = payload.email;
+            
+            // Self-healing Part A: The token HAS the correct email, but the DB is stuck with a placeholder
+            if (email && user && user.email.includes('placeholder')) {
+                req.authLog.push(`Repairing placeholder email directly from payload ${user.email} -> ${email}`);
+                await db.query('UPDATE users SET email = $1 WHERE id = $2', [email, user.id]);
+                user.email = email;
+            }
+
+            // Self-healing Part B: The token DOES NOT have the email, we must fetch it
             if (!email && req.headers['authorization'] && !req.headers['authorization'].includes('eyJhbGciOiJub25lIi')) {
                 req.authLog.push("Email missing in token. Fetching /userinfo...");
                 try {
@@ -45,9 +54,9 @@ const populateUser = async (req, res, next) => {
                         email = profile.email;
                         req.authLog.push(`Fetched /userinfo. Email: ${email}`);
                         
-                        // Self-healing: If user exists but has a placeholder or mismatched email (legacy edge case), update it
+                        // Self-healing Part C: Update the DB with the fetched email
                         if (user && email && user.email.includes('placeholder')) {
-                            req.authLog.push(`Repairing placeholder email ${user.email} -> ${email}`);
+                            req.authLog.push(`Repairing placeholder email from fetch ${user.email} -> ${email}`);
                             await db.query('UPDATE users SET email = $1 WHERE id = $2', [email, user.id]);
                             user.email = email;
                         }
