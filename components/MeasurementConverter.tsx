@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { convertQuantity } from '../utils/unitConversion';
 import { formatQuantity, parseQuantity } from '../utils/formatters';
 
@@ -8,6 +8,84 @@ const MeasurementConverter: React.FC = () => {
     const [fromUnit, setFromUnit] = useState<string>('cup');
     const [toUnit, setToUnit] = useState<string>('ml');
     
+    // Draggable state
+    const [position, setPosition] = useState({ x: 24, y: typeof window !== 'undefined' ? window.innerHeight - 80 : 800 });
+    const isDragging = useRef(false);
+    const hasDragged = useRef(false);
+    const dragStart = useRef({ x: 0, y: 0 });
+    const posStart = useRef({ x: 0, y: 0 });
+
+    const handleMouseUp = () => {
+        isDragging.current = false;
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('touchmove', handleMouseMove);
+        document.removeEventListener('touchend', handleMouseUp);
+    };
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            setPosition({ x: 24, y: window.innerHeight - 80 });
+        }
+        return () => handleMouseUp();
+    }, []);
+
+    const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
+        isDragging.current = true;
+        hasDragged.current = false;
+        
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+        dragStart.current = { x: clientX, y: clientY };
+        posStart.current = { ...position };
+        
+        document.addEventListener('mousemove', handleMouseMove, { passive: false });
+        document.addEventListener('mouseup', handleMouseUp);
+        document.addEventListener('touchmove', handleMouseMove, { passive: false });
+        document.addEventListener('touchend', handleMouseUp);
+    };
+
+    const handleMouseMove = (e: MouseEvent | TouchEvent) => {
+        if (!isDragging.current) return;
+        
+        if ('touches' in e && e.cancelable) e.preventDefault();
+
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+        const dx = clientX - dragStart.current.x;
+        const dy = clientY - dragStart.current.y;
+
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+            hasDragged.current = true;
+            if (isOpen) setIsOpen(false); // Close when dragging
+        }
+
+        const newX = Math.min(Math.max(10, posStart.current.x + dx), window.innerWidth - 70);
+        const newY = Math.min(Math.max(10, posStart.current.y + dy), window.innerHeight - 70);
+
+        setPosition({ x: newX, y: newY });
+    };
+
+    const handleClick = () => {
+        if (!hasDragged.current) {
+            setIsOpen(!isOpen);
+        }
+    };
+
+    // Calculate smart popup placement based on current position
+    const isRightHalf = typeof window !== 'undefined' && position.x > window.innerWidth / 2;
+    const isBottomHalf = typeof window !== 'undefined' && position.y > window.innerHeight / 2;
+
+    const popupOriginClass = isRightHalf ? (isBottomHalf ? 'origin-bottom-right' : 'origin-top-right') : (isBottomHalf ? 'origin-bottom-left' : 'origin-top-left');
+    
+    const popupPositionStyle: React.CSSProperties = {
+        position: 'absolute',
+        ...(isRightHalf ? { right: 0 } : { left: 0 }),
+        ...(isBottomHalf ? { bottom: '70px' } : { top: '70px' })
+    };
+
     // Group units for the dropdown
     const units = {
         Volume: ['ml', 'l', 'tsp', 'tbsp', 'cup', 'pt', 'qt', 'gal', 'floz'],
@@ -18,9 +96,15 @@ const MeasurementConverter: React.FC = () => {
     const result = convertQuantity(parsedAmount, fromUnit, toUnit);
 
     return (
-        <div className="fixed bottom-6 left-6 z-50 flex flex-col items-start hide-on-print">
+        <div 
+            className="fixed z-[100] flex flex-col hide-on-print"
+            style={{ left: `${position.x}px`, top: `${position.y}px` }}
+        >
             {isOpen && (
-                <div className="mb-4 w-72 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-scale-in origin-bottom-left">
+                <div 
+                    className={`w-72 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-scale-in ${popupOriginClass}`}
+                    style={popupPositionStyle}
+                >
                     <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-4 text-white flex justify-between items-center">
                         <h3 className="font-bold flex items-center"><i className="fas fa-balance-scale mr-2"></i> Converter</h3>
                         <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white"><i className="fas fa-times"></i></button>
@@ -83,11 +167,14 @@ const MeasurementConverter: React.FC = () => {
             )}
             
             <button
-                onClick={() => setIsOpen(!isOpen)}
+                onMouseDown={handleMouseDown}
+                onTouchStart={handleMouseDown}
+                onClick={handleClick}
                 className={`w-14 h-14 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex items-center justify-center transition-all hover:scale-110 active:scale-95 text-white border-2 border-white/20 dark:border-gray-700/50 ${isOpen ? 'bg-gray-800 rotate-90' : 'bg-gradient-to-br from-indigo-500 to-blue-600'}`}
-                title="Measurement Converter"
+                title="Measurement Converter (Drag to move)"
+                style={{ cursor: 'grab' }}
             >
-                <i className={`fas ${isOpen ? 'fa-times' : 'fa-calculator'} text-xl`}></i>
+                <i className={`fas ${isOpen ? 'fa-times' : 'fa-calculator'} text-xl pointer-events-none`}></i>
             </button>
         </div>
     );
