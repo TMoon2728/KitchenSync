@@ -187,11 +187,11 @@ body {
 .theme-landing .bg-white,
 .theme-landing .dark\:bg-gray-800,
 .theme-landing .dark\:bg-gray-900 {
-    background-color: rgba(31, 41, 55, 0.4) !important; /* Tailwind gray-800 at 40% */
-    backdrop-filter: blur(16px) !important;
-    -webkit-backdrop-filter: blur(16px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1) !important;
+    background-color: rgba(17, 24, 39, 0.25) !important; /* Lighter, more transparent gray */
+    backdrop-filter: blur(24px) !important;
+    -webkit-backdrop-filter: blur(24px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
 }
 
 .theme-landing header, .theme-landing main {

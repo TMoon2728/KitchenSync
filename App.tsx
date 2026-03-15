@@ -152,7 +152,7 @@ const AppContent: React.FC = () => {
     const themeModeClass = `${isDark ? 'dark' : ''} ${displayMode === 'landing' ? 'theme-landing' : ''}`;
 
     return (
-        <div className={`flex h-screen relative bg-gray-900 text-white ${themeModeClass} ${retroMode ? 'retro-mode' : ''} ${isSpaceMode ? 'zero-g-mode' : ''} overflow-hidden`}>
+        <div className={`flex h-screen relative bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 ${themeModeClass} ${retroMode ? 'retro-mode' : ''} ${isSpaceMode ? 'zero-g-mode' : ''} overflow-hidden`}>
             
             {/* Landing Mode Ambient Orbs */}
             {displayMode === 'landing' && (
@@ -270,7 +270,7 @@ const AppContent: React.FC = () => {
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                 {/* Mobile Header Block */}
                 {!isCookingMode && (
-                    <header className="md:hidden flex items-center justify-between p-4 pt-[max(1rem,env(safe-area-inset-top))] bg-gray-900 border-b border-gray-800 z-30">
+                    <header className="md:hidden flex items-center justify-between p-4 pt-[max(1rem,env(safe-area-inset-top))] bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 z-30">
                         <div className="flex items-center gap-3">
                             <img src="/logo.svg" alt="Logo" className="h-8 w-8 object-contain" />
                             <span className="font-bold text-lg">{retroMode ? '8-BIT KITCHEN' : 'KitchenSync'}</span>

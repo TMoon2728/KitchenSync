@@ -381,8 +381,7 @@ const MealPlanner: React.FC = () => {
                                 setCustomItemInput(e.target.value);
                                 if (selectedMobileRecipe && 'customName' in selectedMobileRecipe) setSelectedMobileRecipe(null);
                             }}
-                            onClick={(e) => e.stopPropagation()} // Let user type without toggling selection immediately
-                            className="w-full bg-transparent text-sm font-bold text-yellow-800 placeholder-yellow-500/50 text-center outline-none"
+                            className="w-full bg-transparent text-sm font-bold text-yellow-900 dark:text-yellow-100 placeholder-yellow-600/60 dark:placeholder-yellow-300/60 text-center outline-none"
                         />
                         <button 
                             onClick={(e) => {
@@ -477,7 +476,7 @@ const MealPlanner: React.FC = () => {
                                                                 e.dataTransfer.setData("sourceSlot", slot);
                                                                 e.dataTransfer.setData("sourceIndex", index.toString());
                                                             }}
-                                                            className={`relative p-2 rounded-lg shadow-sm border text-xs group transition-all hover:scale-105 hover:z-10 cursor-grab active:cursor-grabbing ${recipe ? (isCompleted ? 'bg-green-50 text-green-800 border-green-200 opacity-70' : 'bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-800 dark:text-gray-100 border-gray-100 dark:border-gray-700 hover:border-blue-300') : 'bg-yellow-50 text-yellow-800 border-yellow-100'}`}
+                                                            className={`relative p-2 rounded-lg shadow-sm border text-xs group transition-all hover:scale-105 hover:z-10 cursor-grab active:cursor-grabbing ${recipe ? (isCompleted ? 'bg-green-50 text-green-800 border-green-200 opacity-70' : 'bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-800 dark:text-gray-100 border-gray-100 dark:border-gray-700 hover:border-blue-300') : 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-900 dark:text-yellow-100 border-yellow-300 dark:border-yellow-700'}`}
                                                         >
                                                             <span className={`font-bold line-clamp-2 leading-tight ${isCompleted ? 'line-through' : ''}`}>
                                                                 {recipe ? recipe.name : item.custom_item_name}
