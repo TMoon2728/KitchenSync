@@ -516,6 +516,7 @@ router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
         console.log(`[ParseURL] Fetching content from: ${url}`);
         
         let rawHtml = '';
+        let useSearchFallback = false;
         
         try {
             // 1. primary attempt
@@ -528,24 +529,40 @@ router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
             });
             
             if (!pageResponse.ok) {
-                 if (pageResponse.status === 403 || pageResponse.status === 401) {
+                 if (pageResponse.status === 403 || pageResponse.status === 401 || pageResponse.status === 460) {
+                     useSearchFallback = true;
                      throw new Error('Bot protection detected'); // Trigger fallback
                  }
                 throw new Error(`Failed to fetch URL: ${pageResponse.status} ${pageResponse.statusText}`);
             }
             rawHtml = await pageResponse.text();
-        } catch (fetchErr) {
-            console.warn(`[ParseURL] Primary fetch failed (${fetchErr.message}). Attempting fallback proxy...`);
             
-            // 2. Fallback attempt using a free CORS/Scraping proxy to bypass basic IP blocks
-            // encoding the URL is necessary for the proxy
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-            const proxyResponse = await fetch(proxyUrl);
-            
-            if (!proxyResponse.ok) {
-                throw new Error(`Fallback proxy failed to fetch URL: ${proxyResponse.status} ${proxyResponse.statusText}`);
+            // Check if we got a generic captcha/challenge page despite 200 OK
+            if (rawHtml.includes('Cloudflare') || rawHtml.includes('<title>Simple Page</title>') || rawHtml.length < 5000) {
+                 useSearchFallback = true;
             }
-            rawHtml = await proxyResponse.text();
+        } catch (fetchErr) {
+            console.warn(`[ParseURL] Primary fetch failed (${fetchErr.message}). Attempting proxy...`);
+            
+            try {
+                // 2. Fallback attempt using a free CORS proxy
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+                const proxyResponse = await fetch(proxyUrl);
+                
+                if (!proxyResponse.ok) {
+                    throw new Error(`Fallback proxy failed.`);
+                }
+                rawHtml = await proxyResponse.text();
+                
+                if (rawHtml.includes('Cloudflare') || rawHtml.includes('<title>Simple Page</title>') || rawHtml.length < 5000) {
+                    useSearchFallback = true;
+                } else {
+                    useSearchFallback = false; // Successfully proxied
+                }
+            } catch (proxyErr) {
+                console.warn(`[ParseURL] Proxy also failed. Falling back to Gemini Search Grounding.`);
+                useSearchFallback = true;
+            }
         }
         
         // Basic cleanup: remove script and style tags to save tokens
@@ -555,24 +572,41 @@ router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
             .substring(0, 100000); // Cap length to avoid token limits
 
         // 2. Feed to Gemini
-        const prompt = `
-        You are an expert recipe extractor. Read the following HTML/text extracted from a webpage and identify the core recipe.
-        Ignore ads, life stories, comments, and navigation.
-        Extract the recipe name, servings, ingredients, instructions, and other details.
-        CRITICAL INSTRUCTION: You must try to extract the main image URL for the recipe if it is available in the content (look for image tags, source attributes, or meta og:image). This should be returned as imageUrl.
-        ${familySize ? `\nCRITICAL INSTRUCTION: You MUST scale the ingredient quantities from the web page to yield exactly ${familySize} servings instead of the website's default. Update the 'servings' field to ${familySize}.` : ''}
-        
-        Extracted Webpage Content:
-        ${cleanText}
-        `;
-
-        const modelName = await resolveModel();
+        let prompt;
         const config = {
             responseMimeType: "application/json"
         };
         if (schema) {
             config.responseSchema = schema;
         }
+
+        if (useSearchFallback) {
+             console.log(`[ParseURL] Activating Google Search Grounding for blocked URL: ${url}`);
+             prompt = `
+             You are an expert recipe extractor. The user wants to import the recipe from this URL: ${url}
+             However, the website blocked our server from reading the HTML directly.
+             
+             CRITICAL INSTRUCTION: You MUST use your Google Search tool to search for the recipe at that exact URL, or search for the title of the recipe from that URL to find the ingredients and instructions.
+             Extract the recipe name, servings, ingredients, instructions, and other details.
+             Try to find the main image URL for the recipe if it is available. This should be returned as imageUrl.
+             ${familySize ? `\nCRITICAL INSTRUCTION: You MUST scale the ingredient quantities to yield exactly ${familySize} servings instead of the website's default. Update the 'servings' field to ${familySize}.` : ''}
+             `;
+             // Enable Google Search
+             config.tools = [{ googleSearch: {} }];
+        } else {
+             prompt = `
+             You are an expert recipe extractor. Read the following HTML/text extracted from a webpage and identify the core recipe.
+             Ignore ads, life stories, comments, and navigation.
+             Extract the recipe name, servings, ingredients, instructions, and other details.
+             CRITICAL INSTRUCTION: You must try to extract the main image URL for the recipe if it is available in the content (look for image tags, source attributes, or meta og:image). This should be returned as imageUrl.
+             ${familySize ? `\nCRITICAL INSTRUCTION: You MUST scale the ingredient quantities from the web page to yield exactly ${familySize} servings instead of the website's default. Update the 'servings' field to ${familySize}.` : ''}
+             
+             Extracted Webpage Content:
+             ${cleanText}
+             `;
+        }
+
+        const modelName = await resolveModel();
         
         const result = await genAI.models.generateContent({
             model: modelName,
