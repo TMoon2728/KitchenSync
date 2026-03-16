@@ -125,8 +125,8 @@ const GroceryExportModal: React.FC<GroceryExportModalProps> = ({
                                 <p className="mb-2"><i className="fas fa-info-circle text-blue-500 mr-2"></i> How to use this:</p>
                                 <ol className="list-decimal list-inside text-left space-y-1">
                                     <li>Click the button below to open <b>{favoriteStoreName}</b></li>
-                                    <li>Find their <b>"Paste List"</b> or search feature</li>
-                                    <li>Simply Paste (<kbd className="font-sans px-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">Ctrl+V</kbd> or long-press)</li>
+                                    <li>Your entire list is now on your clipboard!</li>
+                                    <li>Paste it into a note-taking app, or use your phone's clipboard history so you don't have to switch apps while searching!</li>
                                 </ol>
                             </div>
 
