@@ -8,6 +8,7 @@ import { useUser } from '../context/UserContext';
 import confetti from 'canvas-confetti';
 import { convertQuantity } from '../utils/unitConversion';
 import { formatQuantity } from '../utils/formatters';
+import GroceryExportModal from '../components/GroceryExportModal';
 
 interface NeededIngredient {
     name: string;
@@ -33,6 +34,11 @@ const ShoppingList: React.FC = () => {
     const [newItemUnit, setNewItemUnit] = useState('each');
     const [newItemCategory, setNewItemCategory] = useState('Other');
     const [isAdding, setIsAdding] = useState(false);
+
+    // Export State
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+    const [exportStoreName, setExportStoreName] = useState('Instacart');
+    const [exportStoreUrl, setExportStoreUrl] = useState('https://instacart.com');
 
 
 
@@ -316,40 +322,63 @@ const ShoppingList: React.FC = () => {
                         </button>
                     )}
 
-                    {/* Store Links Dropdown/Button */}
                     <div className="relative">
                         <button
                             onClick={() => setShowStoreLinks(!showStoreLinks)}
-                            className="bg-white dark:bg-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-xl font-bold hover:bg-gray-50 dark:bg-gray-700/50 transition-colors flex items-center shadow-sm"
+                            className="bg-purple-600 text-white dark:text-gray-100 border border-purple-700 px-4 py-2 rounded-xl font-bold hover:bg-purple-700 transition-colors flex items-center shadow-md animate-pulse-glow"
                         >
-                            <i className="fas fa-shopping-cart mr-2 text-green-500"></i> <span className="hidden sm:inline">Stores</span> <i className="fas fa-chevron-down ml-2 text-xs"></i>
+                            <i className="fas fa-truck-fast mr-2"></i> <span className="hidden sm:inline">Export List</span> <i className="fas fa-chevron-down ml-2 text-xs opacity-70"></i>
                         </button>
 
                         {showStoreLinks && (
                             <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 dark:text-gray-100 rounded-xl shadow-xl py-2 z-20 border border-gray-100 dark:border-gray-700 animate-scale-in">
                                 <div className="px-4 py-2 text-xs text-gray-400 font-bold uppercase tracking-wider">
-                                    Your Stores
+                                    Send to Store
                                 </div>
-                                {userProfile?.groceryStores?.length > 0 ? (
-                                    userProfile.groceryStores.map(store => (
-                                        <a
-                                            key={store.id}
-                                            href={store.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="block px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-green-50 hover:text-green-700 transition-colors flex justify-between items-center group"
-                                        >
-                                            <span className="font-semibold">{store.name}</span>
-                                            <i className="fas fa-external-link-alt text-xs text-gray-300 group-hover:text-green-500"></i>
-                                        </a>
-                                    ))
-                                ) : (
-                                    <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 italic">
-                                        No stores configured. <br />
-                                        <Link to="/profile" className="text-blue-500 hover:underline">Add in Profile</Link>
+                                <button
+                                    onClick={() => {
+                                        setExportStoreName('Instacart');
+                                        setExportStoreUrl('https://instacart.com');
+                                        setIsExportModalOpen(true);
+                                        setShowStoreLinks(false);
+                                    }}
+                                    className="w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-600 transition-colors flex items-center group font-semibold"
+                                >
+                                    <div className="w-6 h-6 rounded bg-orange-100 text-orange-600 flex items-center justify-center mr-3">
+                                        <i className="fas fa-carrot text-xs"></i>
                                     </div>
-
-                                )}
+                                    Instacart
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setExportStoreName('Walmart');
+                                        setExportStoreUrl('https://walmart.com');
+                                        setIsExportModalOpen(true);
+                                        setShowStoreLinks(false);
+                                    }}
+                                    className="w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 transition-colors flex items-center group font-semibold border-t border-gray-50 dark:border-gray-700"
+                                >
+                                    <div className="w-6 h-6 rounded bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
+                                        <i className="fas fa-star text-xs"></i>
+                                    </div>
+                                    Walmart
+                                </button>
+                                <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                                {userProfile?.groceryStores?.map(store => (
+                                        <button
+                                            key={store.id}
+                                            onClick={() => {
+                                                setExportStoreName(store.name);
+                                                setExportStoreUrl(store.url);
+                                                setIsExportModalOpen(true);
+                                                setShowStoreLinks(false);
+                                            }}
+                                            className="w-full text-left px-4 py-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-purple-50 hover:text-purple-700 transition-colors flex items-center"
+                                        >
+                                            <i className="fas fa-store w-6 text-center mr-2 opacity-50"></i>
+                                            {store.name}
+                                        </button>
+                                    ))}
                             </div>
                         )}
                     </div>
@@ -580,6 +609,14 @@ const ShoppingList: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            <GroceryExportModal 
+                isOpen={isExportModalOpen}
+                onClose={() => setIsExportModalOpen(false)}
+                shoppingList={Object.values(shoppingList).flat()} // Flatten grouped list for the export
+                favoriteStoreName={exportStoreName}
+                favoriteStoreUrl={exportStoreUrl}
+            />
         </div>
     );
 };
