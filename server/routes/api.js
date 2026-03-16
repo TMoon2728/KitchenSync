@@ -515,18 +515,38 @@ router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
 
         console.log(`[ParseURL] Fetching content from: ${url}`);
         
-        // 1. Fetch the raw HTML from the target URL
-        const pageResponse = await fetch(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) KitchenSync/1.0'
+        let rawHtml = '';
+        
+        try {
+            // 1. primary attempt
+            const pageResponse = await fetch(url, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 KitchenSync/1.0',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5'
+                }
+            });
+            
+            if (!pageResponse.ok) {
+                 if (pageResponse.status === 403 || pageResponse.status === 401) {
+                     throw new Error('Bot protection detected'); // Trigger fallback
+                 }
+                throw new Error(`Failed to fetch URL: ${pageResponse.status} ${pageResponse.statusText}`);
             }
-        });
-        
-        if (!pageResponse.ok) {
-            throw new Error(`Failed to fetch URL: ${pageResponse.status} ${pageResponse.statusText}`);
+            rawHtml = await pageResponse.text();
+        } catch (fetchErr) {
+            console.warn(`[ParseURL] Primary fetch failed (${fetchErr.message}). Attempting fallback proxy...`);
+            
+            // 2. Fallback attempt using a free CORS/Scraping proxy to bypass basic IP blocks
+            // encoding the URL is necessary for the proxy
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+            const proxyResponse = await fetch(proxyUrl);
+            
+            if (!proxyResponse.ok) {
+                throw new Error(`Fallback proxy failed to fetch URL: ${proxyResponse.status} ${proxyResponse.statusText}`);
+            }
+            rawHtml = await proxyResponse.text();
         }
-        
-        const rawHtml = await pageResponse.text();
         
         // Basic cleanup: remove script and style tags to save tokens
         const cleanText = rawHtml
