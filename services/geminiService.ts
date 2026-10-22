@@ -51,7 +51,9 @@ const handleApiResponse = async <T>(response: Response): Promise<T | null> => {
     if (!response.ok) {
         if (response.status === 402) {
             console.warn("Insufficient credits");
-            // Optionally trigger a global event or throw a specific error
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('ks:insufficient-credits'));
+            }
             throw new Error("INSUFFICIENT_CREDITS");
         }
         console.error("API Error:", await response.text());
@@ -131,10 +133,15 @@ export const generateMealPlan = async (
     includedSlots: string[],
     token: string,
     complexity: string = 'Moderate',
-    dietaryRestrictions: string = ''
+    dietaryRestrictions: string = '',
+    pantryItems: PantryItem[] = [],
+    cost: number = 1
 ): Promise<any | null> => {
 
     const recipeList = recipes.map(r => `${r.name} (${r.meal_type}) ${r.is_favorite ? "[FAVORITE]" : ""} [RATING: ${r.rating}/5] [CALORIES: ${r.calories}]`).join('\n');
+    const pantryList = usePantry && pantryItems.length > 0
+        ? `\n    **Current Pantry Inventory (Prioritize recipes using these items):**\n    ${pantryItems.map(p => `${p.name} (${p.quantity} ${p.unit})`).join(', ')}\n`
+        : '';
 
     const prompt = `You are an expert meal plan architect. Create a ${durationDays}-day meal plan starting on ${startDate}.
     
@@ -147,7 +154,7 @@ export const generateMealPlan = async (
     - Prioritize highest-rated recipes: ${useHighestRated}
     - **Daily Calorie Goal: Approx ${caloriesPerDay} calories total per day across the requested meals.**
     - **Meals to include:** ${includedSlots.join(', ')}. Do not generate slots for meals not listed.
-    
+    ${pantryList}
     **Available Recipes:**
     ${recipeList}
     
@@ -182,12 +189,10 @@ export const generateMealPlan = async (
     };
 
     try {
-        // Reuse generate-recipe endpoint for generic generation or create a new one?
-        // generate-recipe accepts schema, so it works for anything.
         const response = await authFetch(`${API_BASE}/generate-recipe`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, schema: mealPlanSchema }),
+            body: JSON.stringify({ prompt, schema: mealPlanSchema, cost }),
             token
         });
         return handleApiResponse<any>(response);

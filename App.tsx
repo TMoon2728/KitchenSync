@@ -35,30 +35,16 @@ const KONAMI_CODE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft'
 const SPACE_NAMES = ['iss', 'nasa', 'the enterprise', 'enterprise', 'voyager', 'deep space 9', 'zero g', 'orbit'];
 
 const AppContent: React.FC = () => {
-    // --- PUBLIC ROUTING ---
+    // --- PUBLIC & PROTECTED HOOKS (must run unconditionally before early returns) ---
     const { userProfile, updatePreferences, retroMode, setRetroMode, isAuthenticated, isLoading, logout } = useUser();
     const { isSidebarCollapsed, toggleSidebar, navItems, setNavItems, isMobileMenuOpen, setIsMobileMenuOpen } = useUI();
-
-    if (isLoading) {
-        return <div className="flex h-screen items-center justify-center bg-gray-900 text-white"><Spinner size="lg" /></div>;
-    }
-
-    if (!isAuthenticated) {
-        return (
-            <Routes>
-                <Route path="/" element={<LandingPage />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Login />} />
-                <Route path="/privacy" element={<Suspense fallback={<div>Loading...</div>}><PrivacyPolicy /></Suspense>} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-        );
-    }
-
-    // --- PROTECTED ROUTING ---
     const [konamiIndex, setKonamiIndex] = useState(0);
+    const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
+    const location = useLocation();
+    const navigate = useNavigate();
 
     useEffect(() => {
+        if (!isAuthenticated) return;
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === KONAMI_CODE[konamiIndex]) {
                 const nextIndex = konamiIndex + 1;
@@ -81,13 +67,11 @@ const AppContent: React.FC = () => {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [konamiIndex, setRetroMode]);
-
-    const location = useLocation();
-    const navigate = useNavigate();
+    }, [konamiIndex, setRetroMode, isAuthenticated]);
 
     // --- Share Target Listener ---
     useEffect(() => {
+        if (!isAuthenticated) return;
         const listener = CapacitorShareTarget.addListener('shareReceived', (event) => {
             console.log('ShareReceived:', event);
             // The event contains texts (array of strings, typically just one URL)
@@ -103,7 +87,25 @@ const AppContent: React.FC = () => {
         return () => {
             listener.then(l => l.remove());
         };
-    }, [navigate]);
+    }, [navigate, isAuthenticated]);
+
+    if (isLoading) {
+        return <div className="flex h-screen items-center justify-center bg-gray-900 text-white"><Spinner size="lg" /></div>;
+    }
+
+    if (!isAuthenticated) {
+        return (
+            <Routes>
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Login />} />
+                <Route path="/privacy" element={<Suspense fallback={<div>Loading...</div>}><PrivacyPolicy /></Suspense>} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+        );
+    }
+
+    // --- PROTECTED ROUTING ---
 
     // Theme Logic
     const themeColor = userProfile.preferences?.themeColor || 'blue';
@@ -117,7 +119,6 @@ const AppContent: React.FC = () => {
     }[themeColor] || { sidebar: 'bg-blue-900', active: 'bg-blue-600', hover: 'hover:bg-blue-800' };
 
     // DnD Handlers (omitted helper funcs for brevity if reused, but keeping inline for logic preservation)
-    const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
 
     const handleDragStart = (e: React.DragEvent, index: number) => {
         setDraggedItemIndex(index);

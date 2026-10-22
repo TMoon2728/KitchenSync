@@ -94,9 +94,7 @@ const MealPrep: React.FC = () => {
                     name: item.name,
                     quantity: Number(item.quantity.toFixed(2)),
                     unit: item.unit || '',
-                    is_checked: false,
-                    is_ai_generated: false,
-                    added_at: new Date().toISOString()
+                    category: item.category || 'Other'
                 });
             }
             setIsAdded(true);

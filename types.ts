@@ -97,5 +97,6 @@ export interface UserProfile {
     preferences?: UserPreferences;
     subscriptionTier: 'free' | 'starter' | 'pro';
     credits: number;
+    inviteCode?: string;
     hasUsedFreeImageGeneration?: boolean;
 }

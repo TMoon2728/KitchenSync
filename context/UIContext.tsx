@@ -57,6 +57,12 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         localStorage.setItem('ks_nav_order', JSON.stringify(navItems));
     }, [navItems]);
 
+    useEffect(() => {
+        const handleInsufficientCredits = () => setShowUpgradeModal(true);
+        window.addEventListener('ks:insufficient-credits', handleInsufficientCredits);
+        return () => window.removeEventListener('ks:insufficient-credits', handleInsufficientCredits);
+    }, []);
+
     const toggleSidebar = () => setIsSidebarCollapsed(prev => !prev);
 
     return (

@@ -127,6 +127,7 @@ export const MOCK_MEAL_PLAN: MealPlan = {
 
 export const MOCK_PROFILE: UserProfile = {
     name: 'Chef',
+    email: 'chef@kitchensync.local',
     avatar: '👨‍🍳',
     kitchenName: "Chef's Kitchen",
     dailyCalorieGoal: 2000,

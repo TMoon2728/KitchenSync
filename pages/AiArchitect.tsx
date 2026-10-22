@@ -8,7 +8,7 @@ import { generateMealPlan } from '../services/geminiService';
 import Spinner from '../components/Spinner';
 
 const AiArchitect: React.FC = () => {
-    const { recipes, setMealPlan } = useKitchen();
+    const { recipes, pantry, setMealPlan } = useKitchen();
     const { userProfile, consumeCredits, getAccessToken } = useUser();
     // Core Directives
     const [theme, setTheme] = useState('A Balanced and Varied Plan');
@@ -58,14 +58,13 @@ const AiArchitect: React.FC = () => {
             return;
         }
 
-        if (!consumeCredits(creditCost)) return;
+        if (!consumeCredits(creditCost, true)) return;
 
         setIsLoading(true);
         setError(null);
         setGeneratedPlan(null);
         try {
             const token = await getAccessToken();
-            const familySize = 1 + userProfile.householdMembers.length;
             const plan = await generateMealPlan(
                 recipes,
                 theme,
@@ -78,7 +77,9 @@ const AiArchitect: React.FC = () => {
                 Array.from(includedSlots),
                 token,
                 complexity,
-                customDiet
+                customDiet,
+                pantry,
+                creditCost
             );
 
             if (plan && Array.isArray(plan)) {

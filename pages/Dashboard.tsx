@@ -34,7 +34,7 @@ const FOOD_FACTS = [
 
 
 const Dashboard: React.FC = () => {
-    const { recipes, pantry, mealPlan, setPantry, setMealPlan, addRecipe } = useKitchen();
+    const { recipes, pantry, mealPlan, setPantry, setMealPlan, addRecipe, deductPantryIngredients, batchAddPantryItems } = useKitchen();
     const { userProfile, consumeCredits, getAccessToken } = useUser();
 
     const [aiIngredients, setAiIngredients] = useState('');
@@ -125,9 +125,6 @@ const Dashboard: React.FC = () => {
     const handleMarkAsCooked = () => {
         if (!todaysDinnerRecipe) return;
 
-        // Trigger Confetti ... wait, only confetti if NO missing ingredients!
-        const missingIngs: Ingredient[] = [];
-
         // 1. Update Meal Plan
         setMealPlan(prev => {
             const newPlan = JSON.parse(JSON.stringify(prev));
@@ -137,31 +134,8 @@ const Dashboard: React.FC = () => {
             return newPlan;
         });
 
-        // 2. Update Pantry (Deduct Ingredients)
-        setPantry(prevPantry => {
-            const newPantry = prevPantry.map(item => ({ ...item }));
-
-            todaysDinnerRecipe.ingredients.forEach(ing => {
-                const pantryItemIndex = newPantry.findIndex(
-                    p => p.name.toLowerCase() === ing.name.toLowerCase()
-                );
-
-                if (pantryItemIndex > -1) {
-                    const pantryItem = newPantry[pantryItemIndex];
-                    const conversionResult = convertQuantity(ing.quantity, ing.unit, pantryItem.unit);
-
-                    if (conversionResult !== null) {
-                        const currentQty = pantryItem.quantity;
-                        pantryItem.quantity = Math.max(0, currentQty - conversionResult);
-                    } else {
-                        console.warn(`Unit mismatch for ${ing.name} in Dashboard deduction.`);
-                    }
-                } else {
-                    missingIngs.push(ing);
-                }
-            });
-            return newPantry;
-        });
+        // 2. Update Pantry (Deduct Ingredients and sync to DB + localStorage)
+        const { missing: missingIngs } = deductPantryIngredients(todaysDinnerRecipe.ingredients, false);
 
         if (missingIngs.length > 0) {
             setMissingIngredientsPrompt({ recipeName: todaysDinnerRecipe.name, missing: missingIngs });
@@ -178,7 +152,7 @@ const Dashboard: React.FC = () => {
         }
     };
 
-    const handleAddMissingToPantry = (ingredientsToAdd: Ingredient[]) => {
+    const handleAddMissingToPantry = async (ingredientsToAdd: Ingredient[]) => {
         const itemsToAdd: Omit<PantryItem, 'id'>[] = ingredientsToAdd.map((ing) => ({
             name: ing.name,
             quantity: 1, 
@@ -187,8 +161,7 @@ const Dashboard: React.FC = () => {
             expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
         }));
         
-        let newItemsWithIds = itemsToAdd.map((item, i) => ({ ...item, id: Date.now() + i }));
-        setPantry(prev => [...prev, ...newItemsWithIds]);
+        await batchAddPantryItems(itemsToAdd);
         
         setMissingIngredientsPrompt(null);
         

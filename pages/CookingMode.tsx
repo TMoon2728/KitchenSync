@@ -8,7 +8,7 @@ import { convertQuantity } from '../utils/unitConversion';
 import { formatQuantity } from '../utils/formatters';
 
 const CookingMode: React.FC = () => {
-    const { recipes, pantry, setPantry } = useKitchen();
+    const { recipes, pantry, setPantry, deductPantryIngredients, batchAddPantryItems } = useKitchen();
     const { id } = useParams();
     const recipe = recipes.find(r => r.id === Number(id));
 
@@ -47,28 +47,7 @@ const CookingMode: React.FC = () => {
             fireConfetti();
             
             // Deduct from pantry and track missing
-            const missingIngs: Ingredient[] = [];
-            
-            setPantry(prevPantry => {
-                const newPantry = prevPantry.map(item => ({ ...item }));
-                recipe.ingredients.forEach(ing => {
-                    const pantryItemIndex = newPantry.findIndex(
-                        p => p.name.toLowerCase() === ing.name.toLowerCase()
-                    );
-
-                    if (pantryItemIndex > -1) {
-                        const pantryItem = newPantry[pantryItemIndex];
-                        const conversionResult = convertQuantity(ing.quantity, ing.unit, pantryItem.unit);
-
-                        if (conversionResult !== null) {
-                            pantryItem.quantity = Math.max(0, pantryItem.quantity - conversionResult);
-                        }
-                    } else {
-                        missingIngs.push(ing);
-                    }
-                });
-                return newPantry;
-            });
+            const { missing: missingIngs } = deductPantryIngredients(recipe.ingredients, false);
 
             if (missingIngs.length > 0) {
                 setMissingIngredients(missingIngs);
@@ -76,7 +55,7 @@ const CookingMode: React.FC = () => {
         }
     };
 
-    const handleAddMissingToPantry = () => {
+    const handleAddMissingToPantry = async () => {
         const itemsToAdd: Omit<PantryItem, 'id'>[] = missingIngredients.map((ing) => ({
             name: ing.name,
             quantity: 1, // Default
@@ -85,8 +64,7 @@ const CookingMode: React.FC = () => {
             expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
         }));
 
-        let newItemsWithIds = itemsToAdd.map((item, i) => ({ ...item, id: Date.now() + i }));
-        setPantry(prev => [...prev, ...newItemsWithIds]);
+        await batchAddPantryItems(itemsToAdd);
         
         setMissingIngredients([]);
         fireConfetti();

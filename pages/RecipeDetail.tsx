@@ -9,7 +9,7 @@ import Spinner from '../components/Spinner';
 import { formatQuantity } from '../utils/formatters';
 
 const RecipeDetail: React.FC = () => {
-    const { recipes, updateRecipe } = useKitchen();
+    const { recipes, addRecipe, updateRecipe } = useKitchen();
     const { userProfile, updateProfile, consumeCredits, getAccessToken } = useUser();
 
     // Helper adapter for setUserProfile to match old signature if needed, 
@@ -58,20 +58,16 @@ const RecipeDetail: React.FC = () => {
         }
     };
 
-    const saveRemixedRecipe = () => {
+    const saveRemixedRecipe = async () => {
         if (!remixResult) return;
-        const newRecipe = {
+        const created = await addRecipe({
             ...recipe,
             ...remixResult,
-            id: Date.now(), // new ID
             name: remixResult.name || `${recipe.name} (Remixed)`,
-            is_favorite: false,
-            rating: 0,
             imageUrl: undefined // Reset image for new recipe
-        };
-        updateRecipe(newRecipe);
-        navigate(`/recipes/${newRecipe.id}`);
+        });
         setRemixResult(null);
+        navigate(`/recipes/${created.id}`);
     };
 
     const toggleFavorite = () => {

@@ -35,6 +35,7 @@ const init = async () => {
         await pool.query(`
             ALTER TABLE users ADD COLUMN IF NOT EXISTS household_id TEXT;
             ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_code TEXT UNIQUE;
         `);
 
         // Recipes Table
@@ -57,8 +58,13 @@ const init = async () => {
                 name TEXT NOT NULL,
                 quantity REAL,
                 unit TEXT,
-                category TEXT
+                category TEXT,
+                expiry_date TEXT
             )
+        `);
+
+        await pool.query(`
+            ALTER TABLE pantry ADD COLUMN IF NOT EXISTS expiry_date TEXT;
         `);
 
         // Manual Shopping List Table
@@ -71,6 +77,23 @@ const init = async () => {
                 unit TEXT,
                 category TEXT
             )
+        `);
+
+        // Meal Plans Table (keyed by household_id)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS meal_plans (
+                household_id TEXT PRIMARY KEY,
+                data JSONB NOT NULL DEFAULT '{}',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Performance Indexes
+        await pool.query(`
+            CREATE INDEX IF NOT EXISTS idx_recipes_user_id ON recipes(user_id);
+            CREATE INDEX IF NOT EXISTS idx_pantry_user_id ON pantry(user_id);
+            CREATE INDEX IF NOT EXISTS idx_shopping_user_id ON shopping_list(user_id);
+            CREATE INDEX IF NOT EXISTS idx_users_household_id ON users(household_id);
         `);
 
         console.log('PostgreSQL Database initialized');

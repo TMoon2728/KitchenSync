@@ -8,7 +8,7 @@ interface UserContextType {
     userProfile: UserProfile;
     updateProfile: (updates: Partial<UserProfile>) => void;
     updatePreferences: (updates: Partial<UserPreferences>) => void;
-    consumeCredits: (cost: number) => boolean;
+    consumeCredits: (cost: number, skipBackendSync?: boolean) => boolean;
     setRetroMode: React.Dispatch<React.SetStateAction<boolean>>;
     retroMode: boolean;
     login: () => Promise<void>;
@@ -44,59 +44,69 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, [error]);
 
-    const [userProfile, setUserProfile] = useState<UserProfile>(MOCK_PROFILE);
+    const [userProfile, setUserProfile] = useState<UserProfile>(() => {
+        try {
+            const cached = localStorage.getItem('ks_profile');
+            if (cached) return { ...MOCK_PROFILE, ...JSON.parse(cached) };
+        } catch (e) {
+            console.error("Failed to parse cached profile", e);
+        }
+        return MOCK_PROFILE;
+    });
     const [retroMode, setRetroMode] = useState(false);
     const [loading, setLoading] = useState(true);
 
+    useEffect(() => {
+        try {
+            localStorage.setItem('ks_profile', JSON.stringify(userProfile));
+        } catch (e) {
+            console.error("Failed to cache profile", e);
+        }
+    }, [userProfile]);
+
+    const getAccessToken = async () => {
+        const currentDevToken = devToken || localStorage.getItem('ks_token');
+        if (currentDevToken) return currentDevToken;
+        return await getAccessTokenSilently();
+    };
+
+    const buildProfileFromData = (data: any): UserProfile => ({
+        name: data.name || user?.name || user?.nickname || data.username || 'Chef',
+        email: data.email || user?.email || '',
+        avatar: data.avatar || user?.picture || '👨‍🍳',
+        kitchenName: data.kitchenName,
+        dailyCalorieGoal: data.dailyCalorieGoal || 2000,
+        proteinGoal: data.proteinGoal,
+        carbGoal: data.carbGoal,
+        fatGoal: data.fatGoal,
+        householdMembers: data.householdMembers || [],
+        groceryStores: data.groceryStores || [],
+        preferences: data.preferences || {},
+        subscriptionTier: data.subscriptionTier || 'free',
+        credits: data.credits === '∞' ? 999999 : (typeof data.credits === 'number' ? data.credits : 0),
+        inviteCode: data.inviteCode,
+        hasUsedFreeImageGeneration: data.hasUsedFreeImageGeneration
+    });
+
     // Fetch backend profile (credits, tier)
     const refreshProfile = async () => {
-        if (!isAuthenticated || !user) return;
+        if (!isAuthenticated && !localStorage.getItem('ks_token')) return;
 
         try {
-            const token = await getAccessTokenSilently();
-            // Wait, we need to make sure the user is in the DB, middleware usually handles this on any auth route.
+            const token = await getAccessToken();
             const res = await authFetch('/api/user/profile', { token });
 
             if (res.ok) {
-                const data = await res.json(); // data is the user object from getUser()
-
-                // Merge Auth0 user data with Backend data
-                const profile: UserProfile = {
-                    name: data.name || user.name || user.nickname || 'Chef',
-                    email: user.email || '',
-                    avatar: data.avatar || user.picture || '👨‍🍳',
-                    kitchenName: data.kitchenName,
-                    dailyCalorieGoal: data.dailyCalorieGoal || 2000,
-                    householdMembers: data.householdMembers || [],
-                    groceryStores: data.groceryStores || [],
-                    preferences: data.preferences || {},
-                    subscriptionTier: data.subscriptionTier || 'free',
-                    credits: data.credits || 0,
-                    hasUsedFreeImageGeneration: data.hasUsedFreeImageGeneration
-                };
-                setUserProfile(profile);
+                const data = await res.json();
+                setUserProfile(buildProfileFromData(data));
             } else if (res.status === 404 || res.status === 401) {
                 // Fallback to /api/auth/me to trigger middleware JIT provisioning if /user/profile didn't
                 const initRes = await authFetch('/api/auth/me', { token });
                 if (initRes.ok) {
-                    // Try fetching profile again
                     const retryRes = await authFetch('/api/user/profile', { token });
                     if (retryRes.ok) {
                         const data = await retryRes.json();
-                        const profile: UserProfile = {
-                            name: data.name || user.name || user.nickname || 'Chef',
-                            email: user.email || '',
-                            avatar: data.avatar || user.picture || '👨‍🍳',
-                            kitchenName: data.kitchenName,
-                            dailyCalorieGoal: data.dailyCalorieGoal || 2000,
-                            householdMembers: data.householdMembers || [],
-                            groceryStores: data.groceryStores || [],
-                            preferences: data.preferences || {},
-                            subscriptionTier: data.subscriptionTier || 'free',
-                            credits: data.credits || 0,
-                            hasUsedFreeImageGeneration: data.hasUsedFreeImageGeneration
-                        };
-                        setUserProfile(profile);
+                        setUserProfile(buildProfileFromData(data));
                     }
                 }
             }
@@ -115,7 +125,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setLoading(false);
             }
         }
-    }, [auth0Loading, isAuthenticated]);
+    }, [auth0Loading, isAuthenticated, devToken]);
 
     const login = async () => {
         await loginWithRedirect({
@@ -141,7 +151,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const token = data.access_token;
                 localStorage.setItem('ks_token', token);
                 setDevToken(token);
-                setTimeout(refreshProfile, 100);
             } else {
                 alert("Login failed");
             }
@@ -158,21 +167,26 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const logout = () => {
         localStorage.removeItem('ks_token');
+        localStorage.removeItem('ks_profile');
         setDevToken(null);
         setUserProfile(MOCK_PROFILE);
-        auth0Logout({ logoutParams: { returnTo: window.location.origin } });
+        if (isAuth0Authenticated) {
+            auth0Logout({ logoutParams: { returnTo: window.location.origin } });
+        }
     };
 
     const updateProfile = (updates: Partial<UserProfile>) => {
         setUserProfile(prev => {
             const newProfile = { ...prev, ...updates };
-            getAccessToken().then(token => {
-                authFetch('/api/user/profile', {
-                    method: 'PUT',
-                    body: JSON.stringify(newProfile),
-                    token
-                }).catch(e => console.error("Profile sync failed:", e));
-            });
+            if (isAuthenticated) {
+                getAccessToken().then(token => {
+                    authFetch('/api/user/profile', {
+                        method: 'PUT',
+                        body: JSON.stringify(newProfile),
+                        token
+                    }).catch(e => console.error("Profile sync failed:", e));
+                });
+            }
             return newProfile;
         });
     };
@@ -183,13 +197,15 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 ...prev,
                 preferences: { ...prev.preferences!, ...updates }
             };
-            getAccessToken().then(token => {
-                authFetch('/api/user/profile', {
-                    method: 'PUT',
-                    body: JSON.stringify(newProfile),
-                    token
-                }).catch(e => console.error("Preferences sync failed:", e));
-            });
+            if (isAuthenticated) {
+                getAccessToken().then(token => {
+                    authFetch('/api/user/profile', {
+                        method: 'PUT',
+                        body: JSON.stringify(newProfile),
+                        token
+                    }).catch(e => console.error("Preferences sync failed:", e));
+                });
+            }
             return newProfile;
         });
     };
@@ -203,7 +219,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUserProfile(prev => ({ ...prev, credits: prev.credits - cost }));
 
             // Sync with backend ONLY if not skipped
-            if (!skipBackendSync) {
+            if (!skipBackendSync && isAuthenticated) {
                 getAccessToken().then(token => {
                     authFetch('/api/credits/consume', {
                         method: 'POST',
@@ -216,12 +232,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
             return true;
         }
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('ks:insufficient-credits'));
+        }
         return false;
-    };
-
-    const getAccessToken = async () => {
-        if (devToken) return devToken;
-        return await getAccessTokenSilently();
     };
 
     return (

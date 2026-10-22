@@ -15,7 +15,7 @@ const aiRateLimiter = rateLimit({
 });
 
 // Initialize Gemini
-const genAI = new GoogleGenAI(process.env.GEMINI_API_KEY);
+const genAI = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
 
 // --- Helpers ---
 const getUser = async (req) => {
@@ -91,6 +91,15 @@ const getUser = async (req) => {
     const avatar = preferences.avatar || '👨‍🍳';
     const name = preferences.name || row.username;
 
+    if (!row.invite_code) {
+        const crypto = require('crypto');
+        const newCode = 'KS-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+        try {
+            await db.query('UPDATE users SET invite_code = $1 WHERE id = $2', [newCode, row.id]);
+            row.invite_code = newCode;
+        } catch (e) { /* ignore collision */ }
+    }
+
     return {
         ...row,
         name,
@@ -103,6 +112,9 @@ const getUser = async (req) => {
         householdMembers: allHouseholdMembers,
         groceryStores: allGroceryStores,
         preferences: appPreferences,
+        rawPreferences: preferences,
+        inviteCode: row.invite_code,
+        hasUsedFreeImageGeneration: !!preferences.hasUsedFreeImageGeneration,
         subscriptionTier: effectiveSubscriptionTier, // shared pro tier
         credits: effectiveSubscriptionTier === 'pro' ? '∞' : row.credits // show infinite if pro
     };
@@ -115,7 +127,8 @@ router.get('/user/profile', async (req, res) => {
     try {
         const user = await getUser(req);
         if (!user) return res.status(401).json({ error: "Unauthorized" });
-        res.json(user);
+        const { rawPreferences, password_hash, ...safeUser } = user;
+        res.json(safeUser);
     } catch (e) {
         console.error("Profile Error:", e);
         res.status(500).json({ error: "Failed to fetch profile" });
@@ -138,14 +151,17 @@ router.put('/user/profile', async (req, res) => {
             groceryStores,
             preferences,
             avatar,
-            name
+            name,
+            hasUsedFreeImageGeneration
         } = req.body;
 
-        // We can store all these extras inside the `preferences` JSONB column to avoid immediate schema migrations.
-        const currentPreferences = user.preferences || {};
+        // Read the raw DB JSONB preferences so we don't lose nested keys
+        const currentRaw = user.rawPreferences || {};
+        const currentAppPrefs = user.preferences || {};
         
         // Filter out linked accounts and borrowed members from being saved back as manual members
-        const filteredMembers = (householdMembers || []).filter(m => {
+        const rawMembers = householdMembers !== undefined ? householdMembers : (currentRaw.householdMembers || []);
+        const filteredMembers = rawMembers.filter(m => {
             if (m.id && m.id.toString().startsWith('linked-')) return false;
             if (m._sourceUserId) return false; // Belongs to a linked partner's preferences
             return true;
@@ -159,17 +175,20 @@ router.put('/user/profile', async (req, res) => {
         });
 
         const updatedPreferences = {
-            ...currentPreferences,
-            kitchenName,
-            dailyCalorieGoal: req.body.dailyCalorieGoal ?? req.body.calorieGoal,
-            proteinGoal,
-            carbGoal,
-            fatGoal,
+            ...currentRaw,
+            kitchenName: kitchenName !== undefined ? kitchenName : currentRaw.kitchenName,
+            dailyCalorieGoal: req.body.dailyCalorieGoal ?? req.body.calorieGoal ?? currentRaw.dailyCalorieGoal ?? 2000,
+            proteinGoal: proteinGoal !== undefined ? proteinGoal : currentRaw.proteinGoal,
+            carbGoal: carbGoal !== undefined ? carbGoal : currentRaw.carbGoal,
+            fatGoal: fatGoal !== undefined ? fatGoal : currentRaw.fatGoal,
             householdMembers: cleanMembers,
-            groceryStores,
-            appPreferences: preferences, // the actual preferences object (confetti, etc)
-            avatar,
-            name
+            groceryStores: groceryStores !== undefined ? groceryStores : (currentRaw.groceryStores || []),
+            appPreferences: preferences !== undefined ? { ...currentAppPrefs, ...preferences } : currentAppPrefs,
+            avatar: avatar !== undefined ? avatar : currentRaw.avatar,
+            name: name !== undefined ? name : currentRaw.name,
+            hasUsedFreeImageGeneration: hasUsedFreeImageGeneration !== undefined
+                ? hasUsedFreeImageGeneration
+                : currentRaw.hasUsedFreeImageGeneration
         };
 
         await db.query(
@@ -221,7 +240,7 @@ const resolveModel = async () => {
     if (activeModel) return activeModel;
 
     // 1. Try Configured/Default
-    const preferred = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+    const preferred = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
     try {
         // Test validity (lightweight check if possible, or just list)
@@ -241,24 +260,30 @@ const resolveModel = async () => {
         }
 
         // Fallback Strategy
-        // 1. Look for 'flash'
+        // 1. Look for 'gemini-2.5-flash' or 'gemini-2.0-flash'
+        const flash25 = modelNames.find(n => n.includes('flash') && n.includes('2.5'));
+        if (flash25) {
+            activeModel = flash25;
+            return activeModel;
+        }
+
+        const flash20 = modelNames.find(n => n.includes('flash') && n.includes('2.0'));
+        if (flash20) {
+            activeModel = flash20;
+            return activeModel;
+        }
+
+        // 2. Look for 'flash' (1.5)
         const flash = modelNames.find(n => n.includes('flash') && n.includes('1.5'));
         if (flash) {
             activeModel = flash;
             return activeModel;
         }
 
-        // 2. Look for 'pro'
-        const pro = modelNames.find(n => n.includes('pro') && n.includes('1.5'));
+        // 3. Look for 'pro'
+        const pro = modelNames.find(n => n.includes('pro') && (n.includes('2.5') || n.includes('1.5')));
         if (pro) {
             activeModel = pro;
-            return activeModel;
-        }
-
-        // 3. Look for 'gemini-pro' (1.0)
-        const geminiPro = modelNames.find(n => n.includes('gemini-pro'));
-        if (geminiPro) {
-            activeModel = geminiPro;
             return activeModel;
         }
 
@@ -285,6 +310,9 @@ router.post('/generate-recipe', aiRateLimiter, async (req, res) => {
         return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
     }
 
+    const rawCost = req.body?.cost;
+    const creditCost = (typeof rawCost === 'number' && Number.isInteger(rawCost) && rawCost >= 1) ? rawCost : 1;
+
     try {
         const { prompt, schema, familySize } = req.body;
         const user = await getUser(req);
@@ -297,8 +325,8 @@ router.post('/generate-recipe', aiRateLimiter, async (req, res) => {
         // Pre-Flight Atomic Credit Check & Deduction
         if (user.subscriptionTier !== 'pro') {
             const deductResult = await db.query(
-                'UPDATE users SET credits = credits - 1 WHERE id = $1 AND credits >= 1 RETURNING credits',
-                [user.id]
+                'UPDATE users SET credits = credits - $1 WHERE id = $2 AND credits >= $1 RETURNING credits',
+                [creditCost, user.id]
             );
             if (deductResult.rowCount === 0) {
                 return res.status(402).json({ error: "Insufficient credits" });
@@ -344,13 +372,13 @@ router.post('/generate-recipe', aiRateLimiter, async (req, res) => {
         if (req.user) {
             const userParams = await getUser(req);
             if (userParams && userParams.subscriptionTier !== 'pro') {
-                 await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [req.user.id]);
-                 console.log(`[CreditAudit] Refunded 1 credit to User ${req.user.id} due to API failure`);
+                 await db.query('UPDATE users SET credits = credits + $1 WHERE id = $2', [creditCost, req.user.id]);
+                 console.log(`[CreditAudit] Refunded ${creditCost} credit(s) to User ${req.user.id} due to API failure`);
             }
         }
 
         // Reset active model on 404 to trigger re-resolution next time
-        if (error.message.includes('404') || error.message.includes('NOT_FOUND')) {
+        if (error.message && (error.message.includes('404') || error.message.includes('NOT_FOUND'))) {
             activeModel = null;
         }
         res.status(500).json({ error: "AI Generation Failed", details: error.message });
@@ -498,6 +526,30 @@ router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
 
         // Auth & Credit Check
         if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
+
+        // SSRF Protection: Validate URL protocol and block private/loopback hosts
+        let parsedUrl;
+        try {
+            parsedUrl = new URL(url);
+        } catch (_) {
+            return res.status(400).json({ error: "Invalid URL provided" });
+        }
+        if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+            return res.status(400).json({ error: "Only http and https URLs are supported" });
+        }
+        const host = parsedUrl.hostname.toLowerCase();
+        if (
+            host === 'localhost' ||
+            host === '127.0.0.1' ||
+            host === '0.0.0.0' ||
+            host === '::1' ||
+            host.startsWith('10.') ||
+            host.startsWith('192.168.') ||
+            host.startsWith('169.254.') ||
+            /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)
+        ) {
+            return res.status(400).json({ error: "Restricted URL host" });
+        }
 
         let currentCredits = user.credits;
 

@@ -12,7 +12,7 @@ import { formatQuantity, parseQuantity } from '../utils/formatters';
 const INGREDIENT_CATEGORIES = ['Produce', 'Meat', 'Seafood', 'Dairy & Eggs', 'Pantry Staples', 'Spices & Seasonings', 'Bakery', 'Frozen', 'Other'];
 
 const Pantry: React.FC = () => {
-    const { pantry, setPantry, recipes, batchAddPantryItems, addRecipe } = useKitchen();
+    const { pantry, setPantry, recipes, addPantryItem, updatePantryItem, removePantryItem, batchAddPantryItems, addRecipe } = useKitchen();
     const { consumeCredits, userProfile, setUserProfile, getAccessToken } = useUser();
     const [view, setView] = useState<'inPantry' | 'all'>('inPantry');
     const [isLoading, setIsLoading] = useState(false);
@@ -146,11 +146,14 @@ const Pantry: React.FC = () => {
     };
 
     const handleUpdate = (id: number, field: keyof PantryItem, value: string | number) => {
-        setPantry(pantry.map(item => item.id === id ? { ...item, [field]: value } : item));
+        const existing = pantry.find(item => item.id === id);
+        if (existing) {
+            updatePantryItem({ ...existing, [field]: value });
+        }
     };
 
     const handleDelete = (id: number) => {
-        setPantry(pantry.filter(item => item.id !== id));
+        removePantryItem(id);
     };
 
     // Toggle selection for batch add
@@ -167,15 +170,13 @@ const Pantry: React.FC = () => {
     };
 
     // Add all selected items to pantry
-    const handleBatchAdd = () => {
-        const newItems: PantryItem[] = [];
-        let timestampOffset = 0;
+    const handleBatchAdd = async () => {
+        const newItems: Omit<PantryItem, 'id'>[] = [];
 
         selectedIngredients.forEach(name => {
             const ing = allIngredients.find(i => i.name === name);
             if (ing) {
                 newItems.push({
-                    id: Date.now() + timestampOffset++,
                     name: ing.name,
                     quantity: 1, // Default quantity
                     unit: ing.unit,
@@ -184,7 +185,7 @@ const Pantry: React.FC = () => {
             }
         });
 
-        setPantry(prev => [...prev, ...newItems]);
+        await batchAddPantryItems(newItems);
         setSelectedIngredients(new Set());
         setView('inPantry');
     };
@@ -200,7 +201,7 @@ const Pantry: React.FC = () => {
         const regex = /^(\d+(\.\d+)?)\s*([a-zA-Z]+)?\s+(.*)$/;
         const match = input.match(regex);
 
-        let newItem: PantryItem;
+        let newItem: Omit<PantryItem, 'id'>;
 
         if (match) {
             const qty = parseFloat(match[1]);
@@ -221,7 +222,6 @@ const Pantry: React.FC = () => {
             }
 
             newItem = {
-                id: Date.now(),
                 name: finalName,
                 quantity: qty,
                 unit: finalUnit,
@@ -230,7 +230,6 @@ const Pantry: React.FC = () => {
         } else {
             // No number found, assume 1 unit of item
             newItem = {
-                id: Date.now(),
                 name: input,
                 quantity: 1,
                 unit: 'units',
@@ -242,7 +241,7 @@ const Pantry: React.FC = () => {
         const existingIng = allIngredients.find(i => i.name.toLowerCase().includes(newItem.name.toLowerCase()));
         if (existingIng) newItem.category = existingIng.category;
 
-        setPantry(prev => [...prev, newItem]);
+        addPantryItem(newItem);
         setQuickAdd('');
     };
 

@@ -23,7 +23,7 @@ const getStartOfWeek = (date: Date) => {
 };
 
 const MealPlanner: React.FC = () => {
-    const { recipes, mealPlan, setMealPlan, pantry, setPantry } = useKitchen();
+    const { recipes, mealPlan, setMealPlan, pantry, setPantry, deductPantryIngredients, batchAddPantryItems } = useKitchen();
     const { userProfile } = useUser();
     const [weekStartDate, setWeekStartDate] = useState(getStartOfWeek(new Date()));
 
@@ -152,35 +152,11 @@ const MealPlanner: React.FC = () => {
 
         // 2. Sync with Pantry and Track Missing
         const recipe = recipes.find(r => r.id === recipeId);
-        const missingIngs: Ingredient[] = [];
+        let missingIngs: Ingredient[] = [];
 
         if (recipe) {
-            setPantry(prevPantry => {
-                const newPantry = prevPantry.map(item => ({ ...item }));
-
-                recipe.ingredients.forEach(ing => {
-                    const pantryItemIndex = newPantry.findIndex(
-                        p => p.name.toLowerCase() === ing.name.toLowerCase()
-                    );
-
-                    if (pantryItemIndex > -1) {
-                        const pantryItem = newPantry[pantryItemIndex];
-                        const conversionResult = convertQuantity(ing.quantity, ing.unit, pantryItem.unit);
-
-                        if (conversionResult !== null) {
-                            if (isUndo) {
-                                pantryItem.quantity += conversionResult;
-                            } else {
-                                pantryItem.quantity = Math.max(0, pantryItem.quantity - conversionResult);
-                            }
-                        }
-                    } else if (!isUndo) {
-                        // Not in pantry when cooking! Let's track it for the new workflow.
-                        missingIngs.push(ing);
-                    }
-                });
-                return newPantry;
-            });
+            const res = deductPantryIngredients(recipe.ingredients, isUndo);
+            missingIngs = res.missing;
         }
 
         setPendingAction(null);
@@ -212,17 +188,7 @@ const MealPlanner: React.FC = () => {
             expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // Default 14 days
         }));
 
-        const { batchAddPantryItems } = await import('../context/KitchenContext').then(m => ({ batchAddPantryItems: m.useKitchen().batchAddPantryItems })).catch(() => ({batchAddPantryItems: null}));
-        // Actually context is already imported at top: const { batchAddPantryItems } = useKitchen()  // Wait we need to add it to the destructured list at line 26
-        // Let's just update the top level destructure if needed, but since it's a multi-replace, I'll assume batchAddPantryItems is available or I can import it.
-        // Wait, batchAddPantryItems is NOT destructured at line 26.
-        // Let's safely call setPantry directly since we don't want to re-render the whole hook string right now
-        // Or wait, I can just use setPantry for local state, but it won't sync to backend unless I use addPantryItem.
-        // It's better to just add `batchAddPantryItems` to the destructure on line 26 in another chunk if needed. 
-        // Actually, because I'm in a hurry, I'll just map over setPantry and optimistically add them.
-        
-        let newItemsWithIds = itemsToAdd.map((item, i) => ({ ...item, id: Date.now() + i }));
-        setPantry(prev => [...prev, ...newItemsWithIds]);
+        await batchAddPantryItems(itemsToAdd);
         
         setMissingIngredientsPrompt(null);
         

@@ -9,7 +9,7 @@ import Spinner from '../components/Spinner';
 import { generateRecipeFromIngredients, generateRecipeFromUrl } from '../services/geminiService';
 
 const Recipes: React.FC = () => {
-    const { recipes, pantry, addRecipe, setRecipes, deleteRecipe } = useKitchen();
+    const { recipes, pantry, addRecipe, updateRecipe, setRecipes, deleteRecipe } = useKitchen();
     const { userProfile, consumeCredits, getAccessToken } = useUser();
     const location = useLocation();
     const navigate = useNavigate();
@@ -153,11 +153,10 @@ const Recipes: React.FC = () => {
     }, [location.search, navigate, consumeCredits, getAccessToken, addRecipe]);
 
     const toggleFavorite = (id: number) => {
-        setRecipes(prev =>
-            prev.map(recipe =>
-                recipe.id === id ? { ...recipe, is_favorite: !recipe.is_favorite } : recipe
-            )
-        );
+        const target = recipes.find(r => r.id === id);
+        if (target) {
+            updateRecipe({ ...target, is_favorite: !target.is_favorite });
+        }
     };
 
     const toggleTag = (tag: string) => {

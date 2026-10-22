@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { HouseholdMember, GroceryStore } from '../types';
 import { useUser } from '../context/UserContext';
 import { manageSubscription } from '../services/stripeService';
@@ -40,8 +40,9 @@ const Profile: React.FC = () => {
     const [newMemberDiet, setNewMemberDiet] = useState('');
 
     // Account Link State
-    const [linkEmail, setLinkEmail] = useState('');
+    const [linkInviteCode, setLinkInviteCode] = useState('');
     const [isLinking, setIsLinking] = useState(false);
+    const [copiedCode, setCopiedCode] = useState(false);
     const [linkMessage, setLinkMessage] = useState<{type: 'success'|'error', text: string} | null>(null);
 
     // Grocery Store State
@@ -59,11 +60,30 @@ const Profile: React.FC = () => {
     const [enableConfetti, setEnableConfetti] = useState(userProfile.preferences?.enableConfetti ?? true);
     const [confettiIntensity, setConfettiIntensity] = useState<'low' | 'medium' | 'high'>(userProfile.preferences?.confettiIntensity || 'medium');
     const [themeColor, setThemeColor] = useState(userProfile.preferences?.themeColor || 'blue');
-    const [displayMode, setDisplayMode] = useState<'light' | 'dark' | 'landing'>(userProfile.preferences?.displayMode || 'light');
+    const [displayMode, setDisplayMode] = useState<'light' | 'dark' | 'landing' | 'glass-light' | 'glass-dark'>(userProfile.preferences?.displayMode || 'light');
     const [showSousChef, setShowSousChef] = useState(userProfile.preferences?.showSousChef ?? true);
     const [hiddenNavItems, setHiddenNavItems] = useState<string[]>(userProfile.preferences?.hiddenNavItems || []);
 
     const [isSavingGoals, setIsSavingGoals] = useState(false);
+
+    // Sync local form state when userProfile updates from backend
+    useEffect(() => {
+        setName(userProfile.name);
+        setAvatar(userProfile.avatar || '👨‍🍳');
+        setCalorieGoal(userProfile.dailyCalorieGoal);
+        setProteinGoal(userProfile.proteinGoal || '');
+        setCarbGoal(userProfile.carbGoal || '');
+        setFatGoal(userProfile.fatGoal || '');
+        setKitchenName(userProfile.kitchenName || '');
+        setHouseholdMembers(userProfile.householdMembers || []);
+        setGroceryStores(userProfile.groceryStores || []);
+        setEnableConfetti(userProfile.preferences?.enableConfetti ?? true);
+        setConfettiIntensity(userProfile.preferences?.confettiIntensity || 'medium');
+        setThemeColor(userProfile.preferences?.themeColor || 'blue');
+        setDisplayMode(userProfile.preferences?.displayMode || 'light');
+        setShowSousChef(userProfile.preferences?.showSousChef ?? true);
+        setHiddenNavItems(userProfile.preferences?.hiddenNavItems || []);
+    }, [userProfile]);
 
     // Handlers for Household
     const handleAddMember = (e: React.FormEvent) => {
@@ -88,20 +108,20 @@ const Profile: React.FC = () => {
     const handleLinkAccount = async (e: React.FormEvent) => {
         e.preventDefault();
         setLinkMessage(null);
-        if (!linkEmail.trim()) return;
+        if (!linkInviteCode.trim()) return;
 
         setIsLinking(true);
         try {
             const token = await getAccessToken();
             const res = await authFetch('/api/auth/link', {
                 method: 'POST',
-                body: JSON.stringify({ targetEmail: linkEmail.trim() }),
+                body: JSON.stringify({ inviteCode: linkInviteCode.trim().toUpperCase() }),
                 token
             });
             const data = await res.json();
             if (res.ok) {
                 setLinkMessage({ type: 'success', text: data.message || "Account linked!" });
-                setLinkEmail('');
+                setLinkInviteCode('');
                 // Reload to fetch merged household data
                 setTimeout(() => window.location.reload(), 2000);
             } else {
@@ -201,7 +221,10 @@ const Profile: React.FC = () => {
                     <div>
                         {userProfile.subscriptionTier === 'pro' ? (
                             <button
-                                onClick={manageSubscription}
+                                onClick={async () => {
+                                    const token = await getAccessToken();
+                                    await manageSubscription(token);
+                                }}
                                 className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg font-semibold hover:bg-gray-200 transition-colors"
                             >
                                 <i className="fas fa-cog mr-2"></i> Manage Billing
@@ -404,19 +427,39 @@ const Profile: React.FC = () => {
                     <i className="fas fa-users text-blue-500 mr-2"></i> Household Management
                 </h2>
 
-                {/* Account Linking */}
-                <div className="mb-6 p-4 bg-purple-50 rounded-lg border border-purple-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div>
-                        <h3 className="font-bold text-purple-800 flex items-center"><i className="fas fa-link mr-2"></i>Link Accounts</h3>
-                        <p className="text-sm text-purple-600">Connect with a spouse or roommate to share your Recipes and Pantry automatically.</p>
+                {/* Account Linking via Secure Household Invite Code */}
+                <div className="mb-6 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-100 dark:border-purple-800/40 flex flex-col gap-4">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div>
+                            <h3 className="font-bold text-purple-800 dark:text-purple-200 flex items-center"><i className="fas fa-link mr-2"></i>Link Household Accounts</h3>
+                            <p className="text-sm text-purple-600 dark:text-purple-300">Share your invite code with a spouse or roommate, or enter theirs below to share Recipes, Pantry, Meal Plans, and Shopping Lists.</p>
+                        </div>
+                        {userProfile.inviteCode && (
+                            <div className="flex items-center gap-2 bg-white dark:bg-gray-800 px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-700 shadow-sm">
+                                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Your Code:</span>
+                                <span className="font-mono font-bold text-purple-700 dark:text-purple-300 tracking-wider">{userProfile.inviteCode}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(userProfile.inviteCode || '');
+                                        setCopiedCode(true);
+                                        setTimeout(() => setCopiedCode(false), 2000);
+                                    }}
+                                    className="text-xs bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-200 px-2 py-1 rounded hover:bg-purple-200 transition-colors font-semibold ml-1"
+                                    title="Copy Invite Code"
+                                >
+                                    {copiedCode ? <><i className="fas fa-check mr-1"></i>Copied</> : <><i className="fas fa-copy mr-1"></i>Copy</>}
+                                </button>
+                            </div>
+                        )}
                     </div>
                     <form onSubmit={handleLinkAccount} className="flex w-full md:w-auto gap-2">
                         <input 
-                            type="email" 
-                            placeholder="Partner's Email" 
-                            className="form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 text-sm p-2 border border-purple-200 rounded flex-grow md:w-48 focus:ring-purple-500 bg-white dark:bg-gray-800" 
-                            value={linkEmail}
-                            onChange={e => setLinkEmail(e.target.value)}
+                            type="text" 
+                            placeholder="Partner's Invite Code (e.g. KS-A1B2C3)" 
+                            className="form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 text-sm p-2 border border-purple-200 rounded flex-grow md:w-64 focus:ring-purple-500 bg-white dark:bg-gray-800 font-mono uppercase" 
+                            value={linkInviteCode}
+                            onChange={e => setLinkInviteCode(e.target.value)}
                             required
                         />
                         <button type="submit" disabled={isLinking} className="bg-purple-600 text-white px-4 py-2 rounded text-sm font-bold shadow hover:bg-purple-700 transition disabled:opacity-50 whitespace-nowrap">

@@ -1,12 +1,17 @@
 const { auth } = require('express-oauth2-jwt-bearer');
+const crypto = require('crypto');
 const db = require('../db');
 
-// Configured via Envs or defaults
-const jwtCheck = auth({
-    audience: process.env.AUTH0_AUDIENCE,
-    issuerBaseURL: process.env.AUTH0_ISSUER_BASE_URL,
-    tokenSigningAlg: 'RS256'
-});
+const generateInviteCode = () => 'KS-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+
+// Configured via Envs or defaults (graceful fallback if local dev lacks Auth0 env vars)
+const jwtCheck = (process.env.AUTH0_ISSUER_BASE_URL && process.env.AUTH0_AUDIENCE)
+    ? auth({
+        audience: process.env.AUTH0_AUDIENCE,
+        issuerBaseURL: process.env.AUTH0_ISSUER_BASE_URL,
+        tokenSigningAlg: 'RS256'
+    })
+    : (req, res, next) => next(new Error('Auth0 RS256 is not configured in environment'));
 
 // Quick global log for diagnostics
 global.recentAuthLogs = global.recentAuthLogs || [];
@@ -100,10 +105,11 @@ const populateUser = async (req, res, next) => {
                     const isAdmin = auth0Id === 'admin';
                     const tier = isAdmin ? 'pro' : 'free';
                     const credits = isAdmin ? 9999 : 10;
+                    const inviteCode = generateInviteCode();
 
                     await db.query(
-                        'INSERT INTO users (username, email, password_hash, subscription_tier, credits, preferences) VALUES ($1, $2, $3, $4, $5, $6)',
-                        [auth0Id, resolvedEmail, 'auth0-linked', tier, credits, JSON.stringify({})]
+                        'INSERT INTO users (username, email, password_hash, subscription_tier, credits, preferences, invite_code) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+                        [auth0Id, resolvedEmail, 'auth0-linked', tier, credits, JSON.stringify({}), inviteCode]
                     );
 
                     userResult = await db.query('SELECT * FROM users WHERE username = $1', [auth0Id]);
@@ -118,6 +124,15 @@ const populateUser = async (req, res, next) => {
         }
 
         if (user) {
+            if (!user.invite_code) {
+                const newInviteCode = generateInviteCode();
+                try {
+                    await db.query('UPDATE users SET invite_code = $1 WHERE id = $2', [newInviteCode, user.id]);
+                    user.invite_code = newInviteCode;
+                } catch (e) {
+                    req.authLog.push(`Invite code backfill skipped: ${e.message}`);
+                }
+            }
             // Auto-grant admin to the user specifically (fallback to Auth0 ID if email missing)
             if ((user.email === 'tmoon2728@gmail.com' || user.email === 'moonimages@hotmail.com' || user.username === 'google-oauth2|114194546667526169200') && user.subscription_tier !== 'pro') {
                 try {
