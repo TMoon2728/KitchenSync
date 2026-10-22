@@ -514,6 +514,296 @@ router.post('/chat', aiRateLimiter, async (req, res) => {
     }
 });
 
+// --- URL Scraping & Pinterest Unwrapping Helpers ---
+const isSafePublicUrl = (urlStr) => {
+    try {
+        const parsed = new URL(urlStr);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+            return { ok: false, error: "Only http and https URLs are supported" };
+        }
+        const host = parsed.hostname.toLowerCase();
+        if (
+            host === 'localhost' ||
+            host === '127.0.0.1' ||
+            host === '0.0.0.0' ||
+            host === '::1' ||
+            host.startsWith('10.') ||
+            host.startsWith('192.168.') ||
+            host.startsWith('169.254.') ||
+            /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)
+        ) {
+            return { ok: false, error: "Restricted URL host" };
+        }
+        return { ok: true, parsed };
+    } catch (_) {
+        return { ok: false, error: "Invalid URL provided" };
+    }
+};
+
+const IGNORED_OUTBOUND_DOMAINS = [
+    'pinterest.', 'pinimg.com', 'pin.it', 'facebook.com', 'instagram.com',
+    'twitter.com', 'x.com', 'google.com', 'apple.com', 'play.google.com',
+    'cloudflare.com', 'w3.org', 'schema.org', 'example.com', ' doubleclick.net'
+];
+
+const isCandidateRecipeUrl = (candidateStr) => {
+    const check = isSafePublicUrl(candidateStr);
+    if (!check.ok) return false;
+    const host = check.parsed.hostname.toLowerCase();
+    if (IGNORED_OUTBOUND_DOMAINS.some(d => host.includes(d.trim()))) return false;
+    if (/\.(jpg|jpeg|png|gif|webp|svg|css|js|woff2?|ttf|ico)(\?|$)/i.test(check.parsed.pathname)) return false;
+    return true;
+};
+
+const extractHtmlInsights = (rawHtml = '') => {
+    if (!rawHtml) {
+        return { metaSummary: '', jsonLdSummary: '', pinterestSummary: '', outboundUrl: null, ogImage: null, cleanText: '' };
+    }
+
+    // 1. Extract <title> and <meta> tags
+    const metaLines = [];
+    let ogImage = null;
+    const titleMatch = rawHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    if (titleMatch && titleMatch[1]) {
+        metaLines.push(`Title: ${titleMatch[1].replace(/\s+/g, ' ').trim()}`);
+    }
+
+    const metaRegex = /<meta\s+[^>]*>/gi;
+    let metaTag;
+    while ((metaTag = metaRegex.exec(rawHtml)) !== null) {
+        const tag = metaTag[0];
+        const propMatch = tag.match(/(?:property|name)=["']([^"']+)["']/i);
+        const contentMatch = tag.match(/content=["']([^"']+)["']/i);
+        if (propMatch && contentMatch) {
+            const key = propMatch[1].toLowerCase();
+            const val = contentMatch[1].trim();
+            if (
+                key.startsWith('og:') ||
+                key.startsWith('twitter:') ||
+                key.includes('description') ||
+                key.includes('title') ||
+                key.startsWith('pinterestapp:')
+            ) {
+                metaLines.push(`${key}: ${val}`);
+                if ((key === 'og:image' || key === 'twitter:image') && !ogImage && val.startsWith('http')) {
+                    ogImage = val;
+                }
+            }
+        }
+    }
+
+    // 2. Extract <script type="application/ld+json"> before stripping scripts
+    const jsonLdBlocks = [];
+    const ldRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+    let ldMatch;
+    while ((ldMatch = ldRegex.exec(rawHtml)) !== null) {
+        const content = (ldMatch[1] || '').trim();
+        if (content) {
+            jsonLdBlocks.push(content.substring(0, 25000));
+        }
+    }
+
+    // 3. Extract Pinterest hydration JSON (__PWS_INITIAL_PROPS__, __PWS_DATA__, data-relay-response)
+    let outboundUrl = null;
+    const pinterestSnippets = [];
+    const pwsRegex = /<script[^>]*(?:id=["']__PWS_(?:INITIAL_PROPS|DATA)__["']|data-relay-response=["']true["'])[^>]*>([\s\S]*?)<\/script>/gi;
+    let pwsMatch;
+    while ((pwsMatch = pwsRegex.exec(rawHtml)) !== null) {
+        const rawJson = (pwsMatch[1] || '').trim();
+        if (!rawJson) continue;
+
+        // Look for outbound recipe URL inside Pinterest JSON
+        const linkPatterns = [
+            /"link"\s*:\s*"(https?:\/\/[^"]+)"/gi,
+            /"tracked_link"\s*:\s*"(https?:\/\/[^"]+)"/gi,
+            /"rich_metadata"\s*:\s*\{[^}]*"url"\s*:\s*"(https?:\/\/[^"]+)"/gi,
+            /"attribution"\s*:\s*\{[^}]*"url"\s*:\s*"(https?:\/\/[^"]+)"/gi
+        ];
+        for (const pat of linkPatterns) {
+            let m;
+            while ((m = pat.exec(rawJson)) !== null) {
+                const unescaped = m[1].replace(/\\u002F/g, '/').replace(/\\\//g, '/');
+                if (isCandidateRecipeUrl(unescaped)) {
+                    outboundUrl = unescaped;
+                    break;
+                }
+            }
+            if (outboundUrl) break;
+        }
+
+        // Extract meaningful text fields from Pinterest JSON (descriptions, titles, rich_metadata.recipe)
+        const textFieldRegex = /"(?:description|closeup_unified_description|grid_title|title|display_description|article_body|ingredient|ingredients|instructions)"\s*:\s*(\[[^\]]*\]|"[^"]{5,2000}")/gi;
+        let tf;
+        while ((tf = textFieldRegex.exec(rawJson)) !== null && pinterestSnippets.length < 25) {
+            pinterestSnippets.push(tf[0]);
+        }
+
+        if (!ogImage) {
+            const imgMatch = rawJson.match(/"orig"\s*:\s*\{\s*[^}]*"url"\s*:\s*"(https:\/\/i\.pinimg\.com\/[^"]+)"/i);
+            if (imgMatch) ogImage = imgMatch[1];
+        }
+    }
+
+    // 4. Strip scripts/styles/svg to get visible body text
+    const cleanText = rawHtml
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
+        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
+        .replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .substring(0, 60000);
+
+    return {
+        metaSummary: metaLines.slice(0, 30).join('\n'),
+        jsonLdSummary: jsonLdBlocks.join('\n---\n').substring(0, 40000),
+        pinterestSummary: pinterestSnippets.join('\n').substring(0, 15000),
+        outboundUrl,
+        ogImage,
+        cleanText
+    };
+};
+
+const fetchViaJinaReader = async (targetUrl) => {
+    try {
+        const res = await fetch(`https://r.jina.ai/${targetUrl}`, {
+            headers: {
+                'Accept': 'text/plain',
+                'X-Return-Format': 'markdown'
+            },
+            signal: AbortSignal.timeout(12000)
+        });
+        if (!res.ok) return '';
+        const text = await res.text();
+        return text ? text.substring(0, 60000) : '';
+    } catch (e) {
+        console.warn(`[ParseURL] Jina Reader failed for ${targetUrl}: ${e.message}`);
+        return '';
+    }
+};
+
+const fetchSingleUrlInsights = async (targetUrl) => {
+    let finalUrl = targetUrl;
+    let rawHtml = '';
+    let blockedOrEmpty = false;
+
+    try {
+        const pageResponse = await fetch(targetUrl, {
+            redirect: 'follow',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9'
+            },
+            signal: AbortSignal.timeout(10000)
+        });
+        if (pageResponse.url && isSafePublicUrl(pageResponse.url).ok) {
+            finalUrl = pageResponse.url;
+        }
+        if (!pageResponse.ok) {
+            blockedOrEmpty = true;
+        } else {
+            rawHtml = await pageResponse.text();
+            if (rawHtml.includes('Just a moment...') || rawHtml.includes('cf-browser-verification') || rawHtml.length < 1000) {
+                blockedOrEmpty = true;
+            }
+        }
+    } catch (err) {
+        console.warn(`[ParseURL] Direct fetch failed for ${targetUrl}: ${err.message}`);
+        blockedOrEmpty = true;
+    }
+
+    const insights = extractHtmlInsights(rawHtml);
+    let jinaMarkdown = '';
+
+    const isPinterest = /(^|\.)pinterest\.|(^|\.)pin\.it$/i.test(new URL(finalUrl).hostname);
+    const hasEnoughContent = insights.jsonLdSummary.length > 100 || insights.cleanText.length > 800 || insights.pinterestSummary.length > 200;
+
+    if (blockedOrEmpty || !hasEnoughContent || (isPinterest && !insights.outboundUrl)) {
+        jinaMarkdown = await fetchViaJinaReader(finalUrl);
+        if (isPinterest && !insights.outboundUrl && jinaMarkdown) {
+            // Look for external recipe blog links in Jina markdown
+            const mdLinkRegex = /https?:\/\/[^\s)>\]"']+/gi;
+            let m;
+            while ((m = mdLinkRegex.exec(jinaMarkdown)) !== null) {
+                if (isCandidateRecipeUrl(m[0])) {
+                    insights.outboundUrl = m[0];
+                    break;
+                }
+            }
+        }
+    }
+
+    return { finalUrl, isPinterest, insights, jinaMarkdown };
+};
+
+const parseQuantityNumber = (val) => {
+    if (typeof val === 'number' && !Number.isNaN(val)) return val;
+    if (typeof val === 'string') {
+        const trimmed = val.trim();
+        const fracMatch = trimmed.match(/^(\d+)\s+(\d+)\/(\d+)$/);
+        if (fracMatch) return Number(fracMatch[1]) + Number(fracMatch[2]) / Number(fracMatch[3]);
+        const simpleFrac = trimmed.match(/^(\d+)\/(\d+)$/);
+        if (simpleFrac) return Number(simpleFrac[1]) / Number(simpleFrac[2]);
+        const num = parseFloat(trimmed.replace(/[^0-9.]/g, ''));
+        if (!Number.isNaN(num) && num > 0) return num;
+    }
+    return 1;
+};
+
+const normalizeExtractedRecipe = (rawData, sourceUrl, fallbackImage, familySize) => {
+    if (!rawData || typeof rawData !== 'object') return null;
+    const validMealTypes = ['Main Course', 'Side Dish', 'Dessert', 'Snack', 'Meal Prep'];
+    const mealType = validMealTypes.includes(rawData.meal_type) ? rawData.meal_type : 'Main Course';
+
+    let instructions = rawData.instructions || '';
+    if (Array.isArray(instructions)) {
+        instructions = instructions
+            .map((step, idx) => {
+                const text = typeof step === 'string' ? step : (step?.text || '');
+                return /^\d+\./.test(text.trim()) ? text.trim() : `${idx + 1}. ${text.trim()}`;
+            })
+            .filter(Boolean)
+            .join('\n\n');
+    }
+
+    const rawIngredients = Array.isArray(rawData.ingredients) ? rawData.ingredients : [];
+    const ingredients = rawIngredients
+        .map(ing => {
+            if (typeof ing === 'string') {
+                return { name: ing, quantity: 1, unit: 'unit', category: 'Other' };
+            }
+            return {
+                name: String(ing?.name || '').trim(),
+                quantity: parseQuantityNumber(ing?.quantity),
+                unit: String(ing?.unit || 'unit').trim() || 'unit',
+                category: String(ing?.category || 'Other').trim() || 'Other'
+            };
+        })
+        .filter(ing => ing.name.length > 0);
+
+    if (!rawData.name || ingredients.length === 0 || !instructions) {
+        return null;
+    }
+
+    return {
+        name: String(rawData.name).trim(),
+        servings: Number(familySize || rawData.servings || 4),
+        prep_time: String(rawData.prep_time || '15 mins'),
+        cook_time: String(rawData.cook_time || '30 mins'),
+        calories: Number(rawData.calories || 400),
+        protein: Number(rawData.protein || 20),
+        fat: Number(rawData.fat || 15),
+        carbs: Number(rawData.carbs || 40),
+        ingredients,
+        instructions: String(instructions).trim(),
+        meal_type: mealType,
+        tags: Array.isArray(rawData.tags) ? rawData.tags.map(String) : [],
+        imageUrl: rawData.imageUrl || fallbackImage || undefined,
+        source: sourceUrl
+    };
+};
+
 // 5. Gemini Proxy: Parse URL for Recipe
 router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
     if (!genAI) {
@@ -528,27 +818,9 @@ router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
         if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
 
         // SSRF Protection: Validate URL protocol and block private/loopback hosts
-        let parsedUrl;
-        try {
-            parsedUrl = new URL(url);
-        } catch (_) {
-            return res.status(400).json({ error: "Invalid URL provided" });
-        }
-        if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
-            return res.status(400).json({ error: "Only http and https URLs are supported" });
-        }
-        const host = parsedUrl.hostname.toLowerCase();
-        if (
-            host === 'localhost' ||
-            host === '127.0.0.1' ||
-            host === '0.0.0.0' ||
-            host === '::1' ||
-            host.startsWith('10.') ||
-            host.startsWith('192.168.') ||
-            host.startsWith('169.254.') ||
-            /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)
-        ) {
-            return res.status(400).json({ error: "Restricted URL host" });
+        const safetyCheck = isSafePublicUrl(url);
+        if (!safetyCheck.ok) {
+            return res.status(400).json({ error: safetyCheck.error });
         }
 
         let currentCredits = user.credits;
@@ -566,113 +838,140 @@ router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
         }
 
         console.log(`[ParseURL] Fetching content from: ${url}`);
-        
-        let rawHtml = '';
-        let useSearchFallback = false;
-        
-        try {
-            // 1. primary attempt
-            const pageResponse = await fetch(url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 KitchenSync/1.0',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5'
+
+        // Step 1: Scrape primary URL (and unwrap Pinterest pins if applicable)
+        const primary = await fetchSingleUrlInsights(url);
+        let effectiveSourceUrl = primary.finalUrl;
+        let fallbackImage = primary.insights.ogImage;
+        const contextBlocks = [];
+
+        if (primary.insights.metaSummary) {
+            contextBlocks.push(`=== PAGE METADATA (${primary.finalUrl}) ===\n${primary.insights.metaSummary}`);
+        }
+        if (primary.insights.jsonLdSummary) {
+            contextBlocks.push(`=== JSON-LD STRUCTURED DATA (${primary.finalUrl}) ===\n${primary.insights.jsonLdSummary}`);
+        }
+        if (primary.insights.pinterestSummary) {
+            contextBlocks.push(`=== PINTEREST PIN DATA ===\n${primary.insights.pinterestSummary}`);
+        }
+        if (primary.jinaMarkdown) {
+            contextBlocks.push(`=== RENDERED PAGE MARKDOWN (${primary.finalUrl}) ===\n${primary.jinaMarkdown}`);
+        }
+        if (primary.insights.cleanText) {
+            contextBlocks.push(`=== PAGE BODY TEXT (${primary.finalUrl}) ===\n${primary.insights.cleanText}`);
+        }
+
+        // Step 2: If this was a Pinterest URL and we discovered an outbound recipe blog link, follow it!
+        if (primary.isPinterest && primary.insights.outboundUrl) {
+            const outboundUrl = primary.insights.outboundUrl;
+            console.log(`[ParseURL] Following Pinterest outbound recipe link: ${outboundUrl}`);
+            const outbound = await fetchSingleUrlInsights(outboundUrl);
+            effectiveSourceUrl = outbound.finalUrl || outboundUrl;
+            if (outbound.insights.ogImage) {
+                fallbackImage = outbound.insights.ogImage;
+            }
+            if (outbound.insights.jsonLdSummary) {
+                contextBlocks.unshift(`=== LINKED RECIPE BLOG JSON-LD (${effectiveSourceUrl}) ===\n${outbound.insights.jsonLdSummary}`);
+            }
+            if (outbound.insights.metaSummary) {
+                contextBlocks.unshift(`=== LINKED RECIPE BLOG METADATA (${effectiveSourceUrl}) ===\n${outbound.insights.metaSummary}`);
+            }
+            if (outbound.jinaMarkdown) {
+                contextBlocks.push(`=== LINKED RECIPE BLOG MARKDOWN (${effectiveSourceUrl}) ===\n${outbound.jinaMarkdown}`);
+            }
+            if (outbound.insights.cleanText) {
+                contextBlocks.push(`=== LINKED RECIPE BLOG TEXT (${effectiveSourceUrl}) ===\n${outbound.insights.cleanText}`);
+            }
+        }
+
+        const combinedExtractedContent = contextBlocks.join('\n\n').substring(0, 110000);
+        const hasSubstantialContent = combinedExtractedContent.length >= 250;
+        const modelName = await resolveModel();
+        let parsedRecipe = null;
+
+        // Step 3A: Try structured extraction from the scraped content first
+        if (hasSubstantialContent) {
+            try {
+                const extractPrompt = `
+You are an expert recipe extractor. Extract the core recipe from the following webpage/Pin content retrieved from ${effectiveSourceUrl} (original link: ${url}).
+Ignore ads, life stories, comments, and navigation.
+If the source is a social media post or Pinterest Pin with partial instructions, infer reasonable culinary steps and quantities to make the recipe complete and cookable.
+CRITICAL INSTRUCTION: Extract the main image URL for the recipe if available (look for og:image, JSON-LD image, or pinimg URLs) and return it as imageUrl.
+${familySize ? `\nCRITICAL INSTRUCTION: You MUST scale the ingredient quantities to yield exactly ${familySize} servings. Update the 'servings' field to ${familySize}.` : ''}
+
+Extracted Webpage Content:
+${combinedExtractedContent}
+`;
+                const config = { responseMimeType: "application/json" };
+                if (schema) config.responseSchema = schema;
+
+                const result = await genAI.models.generateContent({
+                    model: modelName,
+                    contents: extractPrompt,
+                    config
+                });
+                const responseText = typeof result.text === 'function' ? result.text() : result.text;
+                const rawJson = JSON.parse(responseText.replace(/```json|```/g, '').trim());
+                parsedRecipe = normalizeExtractedRecipe(rawJson, effectiveSourceUrl, fallbackImage, familySize);
+            } catch (extractErr) {
+                console.warn(`[ParseURL] Primary structured extraction failed (${extractErr.message}), falling back to Google Search Grounding.`);
+            }
+        }
+
+        // Step 3B: Fallback to Google Search Grounding (NOTE: Gemini API does not allow responseMimeType/responseSchema alongside googleSearch tool)
+        if (!parsedRecipe) {
+            console.log(`[ParseURL] Activating Google Search Grounding for URL: ${effectiveSourceUrl}`);
+            const searchPrompt = `
+You are an expert recipe extractor. The user wants to import the recipe from this URL: ${effectiveSourceUrl} (originally shared as: ${url}).
+${combinedExtractedContent ? `\nKnown metadata from link:\n${combinedExtractedContent.substring(0, 4000)}\n` : ''}
+Use Google Search to find the recipe at that URL or matching that title/pin, and extract the complete ingredients and step-by-step instructions.
+${familySize ? `Scale the ingredient quantities to yield ${familySize} servings and set "servings" to ${familySize}.` : ''}
+
+Respond ONLY with a valid JSON object (no markdown formatting, no extra commentary) matching this exact structure:
+{
+  "name": "Recipe Title",
+  "servings": 4,
+  "prep_time": "15 mins",
+  "cook_time": "30 mins",
+  "calories": 450,
+  "protein": 25,
+  "fat": 18,
+  "carbs": 42,
+  "ingredients": [
+    { "name": "Ingredient Name", "quantity": 1, "unit": "cup", "category": "Produce" }
+  ],
+  "instructions": "1. First step...\\n\\n2. Second step...",
+  "meal_type": "Main Course",
+  "tags": ["Dinner", "Easy"],
+  "imageUrl": ${fallbackImage ? JSON.stringify(fallbackImage) : 'null'}
+}
+`;
+            const searchResult = await genAI.models.generateContent({
+                model: modelName,
+                contents: searchPrompt,
+                config: {
+                    tools: [{ googleSearch: {} }]
                 }
             });
-            
-            if (!pageResponse.ok) {
-                 if (pageResponse.status === 403 || pageResponse.status === 401 || pageResponse.status === 460) {
-                     useSearchFallback = true;
-                     throw new Error('Bot protection detected'); // Trigger fallback
-                 }
-                throw new Error(`Failed to fetch URL: ${pageResponse.status} ${pageResponse.statusText}`);
-            }
-            rawHtml = await pageResponse.text();
-            
-            // Check if we got a generic captcha/challenge page despite 200 OK
-            if (rawHtml.includes('Cloudflare') || rawHtml.includes('<title>Simple Page</title>') || rawHtml.length < 5000) {
-                 useSearchFallback = true;
-            }
-        } catch (fetchErr) {
-            console.warn(`[ParseURL] Primary fetch failed (${fetchErr.message}). Attempting proxy...`);
-            
-            try {
-                // 2. Fallback attempt using a free CORS proxy
-                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-                const proxyResponse = await fetch(proxyUrl);
-                
-                if (!proxyResponse.ok) {
-                    throw new Error(`Fallback proxy failed.`);
-                }
-                rawHtml = await proxyResponse.text();
-                
-                if (rawHtml.includes('Cloudflare') || rawHtml.includes('<title>Simple Page</title>') || rawHtml.length < 5000) {
-                    useSearchFallback = true;
-                } else {
-                    useSearchFallback = false; // Successfully proxied
-                }
-            } catch (proxyErr) {
-                console.warn(`[ParseURL] Proxy also failed. Falling back to Gemini Search Grounding.`);
-                useSearchFallback = true;
-            }
-        }
-        
-        // Basic cleanup: remove script and style tags to save tokens
-        const cleanText = rawHtml
-            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-            .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-            .substring(0, 100000); // Cap length to avoid token limits
 
-        // 2. Feed to Gemini
-        let prompt;
-        const config = {
-            responseMimeType: "application/json"
-        };
-        if (schema) {
-            config.responseSchema = schema;
+            const rawSearchText = (typeof searchResult.text === 'function' ? searchResult.text() : searchResult.text) || '';
+            const cleanedSearchText = rawSearchText.replace(/```json|```/gi, '').trim();
+            const jsonBraceMatch = cleanedSearchText.match(/\{[\s\S]*\}/);
+            if (!jsonBraceMatch) {
+                throw new Error("Could not extract recipe JSON from search grounding response");
+            }
+            const rawSearchJson = JSON.parse(jsonBraceMatch[0]);
+            parsedRecipe = normalizeExtractedRecipe(rawSearchJson, effectiveSourceUrl, fallbackImage, familySize);
         }
 
-        if (useSearchFallback) {
-             console.log(`[ParseURL] Activating Google Search Grounding for blocked URL: ${url}`);
-             prompt = `
-             You are an expert recipe extractor. The user wants to import the recipe from this URL: ${url}
-             However, the website blocked our server from reading the HTML directly.
-             
-             CRITICAL INSTRUCTION: You MUST use your Google Search tool to search for the recipe at that exact URL, or search for the title of the recipe from that URL to find the ingredients and instructions.
-             Extract the recipe name, servings, ingredients, instructions, and other details.
-             Try to find the main image URL for the recipe if it is available. This should be returned as imageUrl.
-             ${familySize ? `\nCRITICAL INSTRUCTION: You MUST scale the ingredient quantities to yield exactly ${familySize} servings instead of the website's default. Update the 'servings' field to ${familySize}.` : ''}
-             `;
-             // Enable Google Search
-             config.tools = [{ googleSearch: {} }];
-        } else {
-             prompt = `
-             You are an expert recipe extractor. Read the following HTML/text extracted from a webpage and identify the core recipe.
-             Ignore ads, life stories, comments, and navigation.
-             Extract the recipe name, servings, ingredients, instructions, and other details.
-             CRITICAL INSTRUCTION: You must try to extract the main image URL for the recipe if it is available in the content (look for image tags, source attributes, or meta og:image). This should be returned as imageUrl.
-             ${familySize ? `\nCRITICAL INSTRUCTION: You MUST scale the ingredient quantities from the web page to yield exactly ${familySize} servings instead of the website's default. Update the 'servings' field to ${familySize}.` : ''}
-             
-             Extracted Webpage Content:
-             ${cleanText}
-             `;
+        if (!parsedRecipe) {
+            throw new Error("Could not extract a valid recipe from the provided URL");
         }
-
-        const modelName = await resolveModel();
-        
-        const result = await genAI.models.generateContent({
-            model: modelName,
-            contents: prompt,
-            config: config
-        });
-
-        const responseText = typeof result.text === 'function' ? result.text() : result.text;
-        const data = JSON.parse(responseText);
 
         const finalCredit = user.subscriptionTier === 'pro' ? '∞' : currentCredits;
 
         res.json({
-            result: data,
+            result: parsedRecipe,
             creditsRemaining: finalCredit
         });
 

@@ -77,8 +77,10 @@ const Recipes: React.FC = () => {
             setImportError("Please enter a URL.");
             return;
         }
+        const urlMatch = importUrl.trim().match(/(https?:\/\/[^\s]+)/);
+        const extractedUrl = urlMatch ? urlMatch[1] : importUrl.trim();
         try {
-            new URL(importUrl);
+            new URL(extractedUrl);
         } catch (_) {
             setImportError("Please enter a valid URL.");
             return;
@@ -91,9 +93,12 @@ const Recipes: React.FC = () => {
         try {
             const token = await getAccessToken();
             const familySize = 1 + userProfile.householdMembers.length;
-            const result = await generateRecipeFromUrl(importUrl, token, familySize);
+            const result = await generateRecipeFromUrl(extractedUrl, token, familySize);
             if (result && result.name && result.ingredients && result.instructions) {
-                addRecipe(result as Omit<Recipe, 'id' | 'is_favorite' | 'rating'>);
+                await addRecipe({
+                    ...result,
+                    source: result.source || extractedUrl
+                } as Omit<Recipe, 'id' | 'is_favorite' | 'rating'>);
                 setImportUrl('');
             } else {
                 setImportError("AI failed to import the recipe from the URL. Please check the link or try again.");
@@ -298,10 +303,10 @@ const Recipes: React.FC = () => {
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 relative z-10">Paste a URL to extract recipe details.</p>
                         <form onSubmit={handleImportFromUrl} className="flex items-start gap-3 relative z-10">
                             <input
-                                type="url"
+                                type="text"
                                 name="import_url"
                                 className="form-input dark:bg-gray-700 dark:text-white dark:border-gray-600 w-full p-3 border border-gray-200 dark:border-gray-700 rounded-xl flex-grow focus:ring-2 focus:ring-green-500 focus:border-transparent bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-50 text-sm"
-                                placeholder="https://..."
+                                placeholder="https://... or Pinterest link"
                                 value={importUrl}
                                 onChange={(e) => setImportUrl(e.target.value)}
                             />
