@@ -67,7 +67,34 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const getAccessToken = async () => {
         const currentDevToken = devToken || localStorage.getItem('ks_token');
         if (currentDevToken) return currentDevToken;
-        return await getAccessTokenSilently();
+        try {
+            return await getAccessTokenSilently();
+        } catch (err: any) {
+            console.warn("Auth0 silent token refresh failed:", err);
+            const errCode = err?.error || err?.message || '';
+            // If the cached refresh token in localStorage is stale/revoked ("invalid_grant"),
+            // purge stale Auth0 cache entries and re-authenticate cleanly instead of staying in a zombie session.
+            if (
+                errCode.includes('invalid_grant') ||
+                errCode.includes('missing_refresh_token') ||
+                errCode.includes('login_required') ||
+                errCode.includes('consent_required')
+            ) {
+                Object.keys(localStorage).forEach(key => {
+                    if (key.startsWith('@@auth0spajs@@')) {
+                        localStorage.removeItem(key);
+                    }
+                });
+                await loginWithRedirect({
+                    appState: {
+                        returnTo: window.location.hash
+                            ? window.location.hash.replace(/^#/, '')
+                            : window.location.pathname + window.location.search
+                    }
+                });
+            }
+            throw err;
+        }
     };
 
     const buildProfileFromData = (data: any): UserProfile => ({
