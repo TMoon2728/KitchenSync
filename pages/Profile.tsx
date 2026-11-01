@@ -189,7 +189,9 @@ const Profile: React.FC = () => {
                 displayMode,
                 showSousChef,
                 hiddenNavItems,
-                stripeConfig: userProfile.preferences?.stripeConfig
+                stripeConfig: userProfile.preferences?.stripeConfig,
+                scheduleMatrix: userProfile.preferences?.scheduleMatrix,
+                plannerViewMode: userProfile.preferences?.plannerViewMode
             },
             householdMembers,
             groceryStores

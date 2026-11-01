@@ -8,6 +8,7 @@ import { generateRecipeFromIngredients } from '../services/geminiService';
 import Spinner from '../components/Spinner';
 import confetti from 'canvas-confetti';
 import { convertQuantity } from '../utils/unitConversion';
+import { UNSCHEDULED_PLAN_KEY, FLEXIBLE_SLOT_KEY } from '../utils/schedule';
 import type { Ingredient } from '../types';
 
 const StatCard: React.FC<{ icon: string; title: string; value: string | number; color: string; delay: string; to: string; state?: any }> = ({ icon, title, value, color, delay, to, state }) => (
@@ -121,6 +122,50 @@ const Dashboard: React.FC = () => {
     const todaysDinnerSlot = mealPlan[today]?.['Dinner']?.[0];
     const todaysDinnerRecipe = todaysDinnerSlot?.recipeId ? recipes.find(r => r.id === todaysDinnerSlot.recipeId) : null;
     const isDinnerCooked = todaysDinnerSlot?.completed || false;
+
+    // Unscheduled "Pick Throughout the Week" list meals
+    const flexibleListSlots = mealPlan[UNSCHEDULED_PLAN_KEY]?.[FLEXIBLE_SLOT_KEY] || [];
+    const availableFlexibleMeals = useMemo(() => {
+        return flexibleListSlots
+            .map((slot, index) => {
+                const recipe = slot.recipeId ? recipes.find(r => r.id === slot.recipeId) : null;
+                return { slot, index, recipe };
+            })
+            .filter(entry => !entry.slot.completed && (entry.recipe || entry.slot.custom_item_name));
+    }, [flexibleListSlots, recipes]);
+
+    const handleMarkFlexibleCooked = (slotIndex: number) => {
+        const targetSlot = flexibleListSlots[slotIndex];
+        if (!targetSlot) return;
+        const recipe = targetSlot.recipeId ? recipes.find(r => r.id === targetSlot.recipeId) : null;
+
+        setMealPlan(prev => {
+            const newPlan = JSON.parse(JSON.stringify(prev));
+            if (newPlan[UNSCHEDULED_PLAN_KEY]?.[FLEXIBLE_SLOT_KEY]?.[slotIndex]) {
+                newPlan[UNSCHEDULED_PLAN_KEY][FLEXIBLE_SLOT_KEY][slotIndex].completed = true;
+            }
+            return newPlan;
+        });
+
+        if (recipe) {
+            const { missing: missingIngs } = deductPantryIngredients(recipe.ingredients, false);
+            if (missingIngs.length > 0) {
+                setMissingIngredientsPrompt({ recipeName: recipe.name, missing: missingIngs });
+                return;
+            }
+        }
+
+        if (userProfile.preferences?.enableConfetti !== false) {
+            const intensity = userProfile.preferences?.confettiIntensity || 'medium';
+            const count = intensity === 'low' ? 50 : intensity === 'high' ? 300 : 150;
+            confetti({
+                particleCount: count,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#22c55e', '#3b82f6', '#eab308']
+            });
+        }
+    };
 
     const handleMarkAsCooked = () => {
         if (!todaysDinnerRecipe) return;
@@ -328,6 +373,65 @@ const Dashboard: React.FC = () => {
                                             </div>
                                         )}
                                     </div>
+                                </div>
+                            </div>
+                        ) : availableFlexibleMeals.length > 0 ? (
+                            <div className="relative z-10 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-5 border border-gray-100 dark:border-gray-700 space-y-4">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                        <span className="text-xs font-extrabold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                                            <i className="fas fa-list-check"></i> Pick From Your Weekly Meal List ({availableFlexibleMeals.length} ready)
+                                        </span>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                            No fixed meal scheduled for tonight — pick any meal from your weekly list below!
+                                        </p>
+                                    </div>
+                                    <Link to="/planner" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1">
+                                        Open Meal List <i className="fas fa-arrow-right"></i>
+                                    </Link>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {availableFlexibleMeals.slice(0, 4).map(({ slot, index, recipe }) => (
+                                        <div
+                                            key={index}
+                                            className="bg-white dark:bg-gray-800 p-3.5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col justify-between gap-3"
+                                        >
+                                            <div>
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <h4 className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate">
+                                                        {recipe ? recipe.name : slot.custom_item_name}
+                                                    </h4>
+                                                    {slot.meal_type && (
+                                                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300">
+                                                            {slot.meal_type}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {recipe && (
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
+                                                        <span><i className="fas fa-clock mr-1"></i>{recipe.cook_time}</span>
+                                                        {recipe.calories && <span>• {recipe.calories} kcal</span>}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2 pt-1">
+                                                {recipe && (
+                                                    <Link
+                                                        to={`/recipes/${recipe.id}/cook`}
+                                                        className="flex-1 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors text-center"
+                                                    >
+                                                        <i className="fas fa-play mr-1"></i> Cook Now
+                                                    </Link>
+                                                )}
+                                                <button
+                                                    onClick={() => handleMarkFlexibleCooked(index)}
+                                                    className="flex-1 bg-green-100 text-green-700 border border-green-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-200 transition-colors text-center"
+                                                >
+                                                    <i className="fas fa-check mr-1"></i> Mark Cooked
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         ) : (

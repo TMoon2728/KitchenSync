@@ -1,10 +1,19 @@
-
 import React, { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useKitchen } from '../context/KitchenContext';
 import { useUser } from '../context/UserContext';
-import type { Recipe, PantryItem, Ingredient } from '../types';
+import type { Recipe, PantryItem, Ingredient, MealSlotType, WeeklyScheduleMatrix } from '../types';
 import confetti from 'canvas-confetti';
 import { convertQuantity } from '../utils/unitConversion';
+import ScheduleSelector from '../components/ScheduleSelector';
+import {
+    ALL_MEAL_SLOTS,
+    UNSCHEDULED_PLAN_KEY,
+    FLEXIBLE_SLOT_KEY,
+    normalizeScheduleMatrix,
+    getActiveSlotsForDate,
+    countWeeklyTargetSlots
+} from '../utils/schedule';
 
 interface PendingAction {
     date: string;
@@ -23,9 +32,23 @@ const getStartOfWeek = (date: Date) => {
 };
 
 const MealPlanner: React.FC = () => {
-    const { recipes, mealPlan, setMealPlan, pantry, setPantry, deductPantryIngredients, batchAddPantryItems } = useKitchen();
-    const { userProfile } = useUser();
+    const { recipes, mealPlan, setMealPlan, pantry, deductPantryIngredients, batchAddPantryItems } = useKitchen();
+    const { userProfile, updatePreferences } = useUser();
     const [weekStartDate, setWeekStartDate] = useState(getStartOfWeek(new Date()));
+
+    // Schedule Matrix & View Mode persisted in UserPreferences
+    const scheduleMatrix = useMemo(
+        () => normalizeScheduleMatrix(userProfile.preferences?.scheduleMatrix),
+        [userProfile.preferences?.scheduleMatrix]
+    );
+    const viewMode = userProfile.preferences?.plannerViewMode || 'calendar';
+    const setViewMode = (mode: 'calendar' | 'list') => {
+        updatePreferences({ plannerViewMode: mode });
+    };
+
+    const [showScheduleSetup, setShowScheduleSetup] = useState(false);
+    const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
+    const [assigningListIndex, setAssigningListIndex] = useState<number | null>(null);
 
     // State for the recipe tray
     const [traySearch, setTraySearch] = useState('');
@@ -42,14 +65,29 @@ const MealPlanner: React.FC = () => {
     // State for Mobile Tap-to-Add workflow
     const [selectedMobileRecipe, setSelectedMobileRecipe] = useState<{ id: number, name: string } | { customName: string } | null>(null);
 
+    const handleScheduleMatrixChange = (newMatrix: WeeklyScheduleMatrix) => {
+        updatePreferences({ scheduleMatrix: newMatrix });
+    };
+
+    const flexibleMeals = useMemo(
+        () => mealPlan[UNSCHEDULED_PLAN_KEY]?.[FLEXIBLE_SLOT_KEY] || [],
+        [mealPlan]
+    );
+
+    const pantryItemNames = useMemo(
+        () => new Set(pantry.map(p => p.name.toLowerCase())),
+        [pantry]
+    );
+
     const handleDrop = (date: string, slot: string, e: React.DragEvent) => {
+        e.preventDefault();
         const sourceDate = e.dataTransfer.getData("sourceDate");
         const sourceSlot = e.dataTransfer.getData("sourceSlot");
         const sourceIndex = e.dataTransfer.getData("sourceIndex");
         const recipeId = e.dataTransfer.getData("recipeId");
         const customItemName = e.dataTransfer.getData("customItemName");
         
-        if (sourceDate && sourceSlot && sourceIndex) {
+        if (sourceDate && sourceSlot && sourceIndex !== '') {
             moveMeal(sourceDate, sourceSlot, parseInt(sourceIndex, 10), date, slot);
         } else {
             addMealToSlot(date, slot, recipeId ? Number(recipeId) : null, customItemName || null);
@@ -57,12 +95,15 @@ const MealPlanner: React.FC = () => {
     };
 
     const moveMeal = (sourceDate: string, sourceSlot: string, sourceIndex: number, targetDate: string, targetSlot: string) => {
+        if (sourceDate === targetDate && sourceSlot === targetSlot) return;
         setMealPlan(prev => {
-            const newPlan = JSON.parse(JSON.stringify(prev)); // Deep copy
+            const newPlan = JSON.parse(JSON.stringify(prev));
             if (!newPlan[sourceDate]?.[sourceSlot]?.[sourceIndex]) return prev;
 
             if (!newPlan[targetDate]) {
-                newPlan[targetDate] = { Breakfast: [], Lunch: [], Dinner: [], Snack: [] };
+                newPlan[targetDate] = targetDate === UNSCHEDULED_PLAN_KEY
+                    ? { [FLEXIBLE_SLOT_KEY]: [] }
+                    : { Breakfast: [], Lunch: [], Dinner: [], Snack: [] };
             }
             if (!newPlan[targetDate][targetSlot]) {
                 newPlan[targetDate][targetSlot] = [];
@@ -85,22 +126,24 @@ const MealPlanner: React.FC = () => {
             addMealToSlot(date, slot, null, selectedMobileRecipe.customName);
         }
 
-        // Clear selection after adding
         setSelectedMobileRecipe(null);
     };
 
     const addMealToSlot = (date: string, slot: string, recipeId: number | null, customItemName: string | null) => {
+        if (!recipeId && !customItemName) return;
         setMealPlan(prev => {
-            const newPlan = JSON.parse(JSON.stringify(prev)); // Deep copy
+            const newPlan = JSON.parse(JSON.stringify(prev));
             if (!newPlan[date]) {
-                newPlan[date] = { Breakfast: [], Lunch: [], Dinner: [], Snack: [] };
+                newPlan[date] = date === UNSCHEDULED_PLAN_KEY
+                    ? { [FLEXIBLE_SLOT_KEY]: [] }
+                    : { Breakfast: [], Lunch: [], Dinner: [], Snack: [] };
             }
             if (!newPlan[date][slot]) {
                 newPlan[date][slot] = [];
             }
 
             if (recipeId) {
-                newPlan[date][slot].push({ recipeId: recipeId, completed: false });
+                newPlan[date][slot].push({ recipeId, completed: false });
             } else if (customItemName) {
                 newPlan[date][slot].push({ custom_item_name: customItemName, completed: false });
             }
@@ -111,9 +154,30 @@ const MealPlanner: React.FC = () => {
 
     const removeItemFromPlan = (date: string, slot: string, index: number) => {
         setMealPlan(prev => {
-            const newPlan = JSON.parse(JSON.stringify(prev)); // Deep copy
+            const newPlan = JSON.parse(JSON.stringify(prev));
             if (newPlan[date] && newPlan[date][slot]) {
                 newPlan[date][slot].splice(index, 1);
+            }
+            return newPlan;
+        });
+    };
+
+    const toggleCustomItemCompleted = (date: string, slot: string, index: number) => {
+        setMealPlan(prev => {
+            const newPlan = JSON.parse(JSON.stringify(prev));
+            if (newPlan[date]?.[slot]?.[index]) {
+                newPlan[date][slot][index].completed = !newPlan[date][slot][index].completed;
+            }
+            return newPlan;
+        });
+    };
+
+    const clearCompletedFlexibleMeals = () => {
+        setMealPlan(prev => {
+            const newPlan = JSON.parse(JSON.stringify(prev));
+            if (newPlan[UNSCHEDULED_PLAN_KEY]?.[FLEXIBLE_SLOT_KEY]) {
+                newPlan[UNSCHEDULED_PLAN_KEY][FLEXIBLE_SLOT_KEY] =
+                    newPlan[UNSCHEDULED_PLAN_KEY][FLEXIBLE_SLOT_KEY].filter((m: any) => !m.completed);
             }
             return newPlan;
         });
@@ -126,7 +190,6 @@ const MealPlanner: React.FC = () => {
         if (!recipe) return;
 
         if (!isCurrentlyCompleted) {
-            // If marking as COMPLETE, require confirmation because it modifies pantry
             setPendingAction({
                 date,
                 slot,
@@ -135,7 +198,6 @@ const MealPlanner: React.FC = () => {
                 recipeName: recipe.name
             });
         } else {
-            // If marking as INCOMPLETE (Undo), just do it. Safe operation.
             executeToggle(date, slot, index, recipeId, true);
         }
     };
@@ -161,12 +223,10 @@ const MealPlanner: React.FC = () => {
 
         setPendingAction(null);
 
-        // If not undoing, check if there are missing items to prompt the user to add (Workflow 2)
         if (!isUndo) {
             if (missingIngs.length > 0) {
                 setMissingIngredientsPrompt({ recipeName: recipe?.name || 'Recipe', missing: missingIngs });
             } else if (userProfile.preferences?.enableConfetti !== false) {
-                // Only confetti if there's no modal about to pop up over it
                 const intensity = userProfile.preferences?.confettiIntensity || 'medium';
                 const count = intensity === 'low' ? 50 : intensity === 'high' ? 300 : 150;
                 confetti({
@@ -179,17 +239,15 @@ const MealPlanner: React.FC = () => {
     };
 
     const handleAddMissingToPantry = async (ingredientsToAdd: Ingredient[]) => {
-        // Convert Ingredients to PantryItems
         const itemsToAdd: Omit<PantryItem, 'id'>[] = ingredientsToAdd.map((ing) => ({
             name: ing.name,
-            quantity: 1, // Default to 1 unit to bootstrap their profile
+            quantity: 1,
             unit: ing.unit || 'unit',
             category: ing.category || 'Other',
-            expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // Default 14 days
+            expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
         }));
 
         await batchAddPantryItems(itemsToAdd);
-        
         setMissingIngredientsPrompt(null);
         
         if (userProfile.preferences?.enableConfetti !== false) {
@@ -215,20 +273,31 @@ const MealPlanner: React.FC = () => {
         setWeekStartDate(newDate);
     };
 
-    // Planning Progress Logic
-    const planningProgress = useMemo(() => {
-        let filledSlots = 0;
-        const totalSlots = 7 * 3; // Breakfast, Lunch, Dinner for 7 days
+    // Dynamic Planning Progress Logic based on active scheduleMatrix + flexible list
+    const { planningProgress, plannedCount, targetWeeklySlots } = useMemo(() => {
+        const target = Math.max(1, countWeeklyTargetSlots(scheduleMatrix));
+        let filled = 0;
+
         days.forEach(day => {
             const d = formatDate(day);
-            if (mealPlan[d]) {
-                if (mealPlan[d].Breakfast?.length) filledSlots++;
-                if (mealPlan[d].Lunch?.length) filledSlots++;
-                if (mealPlan[d].Dinner?.length) filledSlots++;
+            const activeSlots = getActiveSlotsForDate(day, scheduleMatrix);
+            const dayData = mealPlan[d];
+            if (dayData) {
+                activeSlots.forEach(slot => {
+                    if (dayData[slot]?.length > 0) filled++;
+                });
             }
         });
-        return Math.min(100, (filledSlots / totalSlots) * 100);
-    }, [mealPlan, days]);
+
+        // Also count unscheduled flexible list meals toward the weekly goal
+        filled += flexibleMeals.length;
+
+        return {
+            plannedCount: filled,
+            targetWeeklySlots: target,
+            planningProgress: Math.min(100, Math.round((filled / target) * 100))
+        };
+    }, [mealPlan, days, scheduleMatrix, flexibleMeals.length]);
 
     // Tray filtering logic
     const mealTypes = useMemo(() => ['All', ...new Set(recipes.map(r => r.meal_type))], [recipes]);
@@ -261,8 +330,12 @@ const MealPlanner: React.FC = () => {
                     <div className="flex justify-between items-center mb-4">
                         <div>
                             <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">Plan Meals</h2>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 md:hidden mt-1">{selectedMobileRecipe ? 'Tap a slot below to add' : 'Tap a recipe to select and then add it to the day below.'}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 hidden md:block mt-1">Drag & Drop</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 md:hidden mt-1">
+                                {selectedMobileRecipe ? 'Tap a slot or list below to add' : 'Tap a recipe to select, then add to your list or day.'}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 hidden md:block mt-1">
+                                {viewMode === 'list' ? 'Drag or click + to add to List' : 'Drag & Drop onto Calendar'}
+                            </p>
                         </div>
                         <button onClick={suggestRandomRecipes} title="Shuffle Recipes" className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-blue-500 hover:bg-blue-100 hover:scale-110 transition-all">
                             <i className="fas fa-random"></i>
@@ -306,11 +379,22 @@ const MealPlanner: React.FC = () => {
                                     onClick={() => setSelectedMobileRecipe(isSelected ? null : { id: recipe.id, name: recipe.name })}
                                     className={`p-3 rounded-xl shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md transition-all group flex items-center justify-between ${isSelected ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-200' : 'bg-white dark:bg-gray-800 dark:text-gray-100 border-gray-100 dark:border-gray-700 hover:border-blue-200'}`}
                                 >
-                                    <div>
+                                    <div className="min-w-0 pr-2">
                                         <p className={`font-bold text-sm line-clamp-1 ${isSelected ? 'text-blue-900' : 'text-gray-800 dark:text-gray-100'}`}>{recipe.name}</p>
                                         <p className={`text-[10px] uppercase tracking-wide font-semibold ${isSelected ? 'text-blue-500' : 'text-gray-500 dark:text-gray-400'}`}>{recipe.meal_type}</p>
                                     </div>
-                                    <div className="flex gap-2">
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                addMealToSlot(UNSCHEDULED_PLAN_KEY, FLEXIBLE_SLOT_KEY, recipe.id, null);
+                                            }}
+                                            title="Add to Pick-Throughout-the-Week List"
+                                            className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white transition-colors flex items-center justify-center text-xs"
+                                        >
+                                            <i className="fas fa-list-check"></i>
+                                        </button>
                                         {isSelected && <i className="fas fa-check-circle text-blue-500 md:hidden"></i>}
                                         <i className="fas fa-grip-vertical text-gray-300 group-hover:text-blue-400 hidden md:block"></i>
                                     </div>
@@ -323,7 +407,7 @@ const MealPlanner: React.FC = () => {
                 {/* Custom Items Widget */}
                 <div className="flex flex-col border-t border-gray-100 dark:border-gray-700 pt-4 mt-auto">
                     <h2 className="text-sm font-bold text-gray-600 dark:text-gray-300 mb-2 uppercase tracking-wide flex justify-between items-center">
-                        Custom Event 
+                        Custom Event / Meal
                         {selectedMobileRecipe && 'customName' in selectedMobileRecipe && <span className="text-[10px] text-yellow-600 italic font-normal bg-yellow-100 px-2 py-0.5 rounded md:hidden">Selected</span>}
                     </h2>
                     <div
@@ -341,7 +425,7 @@ const MealPlanner: React.FC = () => {
                         {selectedMobileRecipe && 'customName' in selectedMobileRecipe && <i className="fas fa-check-circle text-yellow-600 absolute top-2 right-2 md:hidden block"></i>}
                         <input
                             type="text"
-                            placeholder="Type & Drag (Desktop) or Tap (Mobile)"
+                            placeholder="Type & Drag or Add to List"
                             value={customItemInput}
                             onChange={(e) => {
                                 setCustomItemInput(e.target.value);
@@ -349,132 +433,578 @@ const MealPlanner: React.FC = () => {
                             }}
                             className="w-full bg-transparent text-sm font-bold text-yellow-900 dark:text-yellow-100 placeholder-yellow-600/60 dark:placeholder-yellow-300/60 text-center outline-none"
                         />
-                        <button 
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (customItemInput) {
-                                    const isSelected = selectedMobileRecipe && 'customName' in selectedMobileRecipe && selectedMobileRecipe.customName === customItemInput;
-                                    setSelectedMobileRecipe(isSelected ? null : { customName: customItemInput });
-                                }
-                            }}
-                            className={`mt-2 w-full text-xs font-bold py-1.5 rounded-lg md:hidden transition-colors ${selectedMobileRecipe && 'customName' in selectedMobileRecipe ? 'bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-100' : 'bg-yellow-400 dark:bg-yellow-600 text-white'}`}
-                        >
-                            {selectedMobileRecipe && 'customName' in selectedMobileRecipe ? 'Deselect' : 'Select'}
-                        </button>
+                        <div className="flex gap-2 mt-2">
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (customItemInput.trim()) {
+                                        addMealToSlot(UNSCHEDULED_PLAN_KEY, FLEXIBLE_SLOT_KEY, null, customItemInput.trim());
+                                        setCustomItemInput('');
+                                    }
+                                }}
+                                className="w-full text-xs font-bold py-1.5 px-2 rounded-lg bg-yellow-500 hover:bg-yellow-600 text-white transition-colors"
+                            >
+                                + Add to Meal List
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (customItemInput) {
+                                        const isSelected = selectedMobileRecipe && 'customName' in selectedMobileRecipe && selectedMobileRecipe.customName === customItemInput;
+                                        setSelectedMobileRecipe(isSelected ? null : { customName: customItemInput });
+                                    }
+                                }}
+                                className={`w-full text-xs font-bold py-1.5 rounded-lg md:hidden transition-colors ${selectedMobileRecipe && 'customName' in selectedMobileRecipe ? 'bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-100' : 'bg-yellow-400 dark:bg-yellow-600 text-white'}`}
+                            >
+                                {selectedMobileRecipe && 'customName' in selectedMobileRecipe ? 'Deselect' : 'Select'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </aside>
 
-            {/* Calendar */}
+            {/* Main Planner Area */}
             <div className="flex-1 flex flex-col min-w-0">
-                <div className="flex flex-col md:flex-row justify-between items-center mb-6 bg-white dark:bg-gray-800 dark:text-gray-100 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 gap-4">
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
-                            <button onClick={() => changeWeek('prev')} className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white dark:bg-gray-800 dark:text-gray-100 hover:shadow-sm text-gray-600 dark:text-gray-300 transition-all"><i className="fas fa-chevron-left"></i></button>
-                            <button onClick={() => changeWeek('today')} className="px-3 py-1 text-sm font-bold text-gray-700 dark:text-gray-200 hover:bg-white dark:bg-gray-800 dark:text-gray-100 hover:shadow-sm rounded-md transition-all">Today</button>
-                            <button onClick={() => changeWeek('next')} className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white dark:bg-gray-800 dark:text-gray-100 hover:shadow-sm text-gray-600 dark:text-gray-300 transition-all"><i className="fas fa-chevron-right"></i></button>
+                {/* Top Control Bar */}
+                <div className="flex flex-col gap-4 mb-6 bg-white dark:bg-gray-800 dark:text-gray-100 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <div className="flex flex-col xl:flex-row justify-between items-center gap-4">
+                        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-between xl:justify-start">
+                            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl">
+                                <button onClick={() => changeWeek('prev')} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white dark:hover:bg-gray-800 hover:shadow-sm text-gray-600 dark:text-gray-300 transition-all"><i className="fas fa-chevron-left"></i></button>
+                                <button onClick={() => changeWeek('today')} className="px-3 py-1 text-sm font-bold text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800 hover:shadow-sm rounded-lg transition-all">Today</button>
+                                <button onClick={() => changeWeek('next')} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white dark:hover:bg-gray-800 hover:shadow-sm text-gray-600 dark:text-gray-300 transition-all"><i className="fas fa-chevron-right"></i></button>
+                            </div>
+                            <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">
+                                {weekStartDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} Week
+                            </h1>
                         </div>
-                        <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">
-                            {weekStartDate.toLocaleDateString('en-US', { month: 'long' })}
-                        </h1>
+
+                        {/* View Switcher & Schedule Setup Button */}
+                        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-between xl:justify-end">
+                            <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-xl">
+                                <button
+                                    type="button"
+                                    onClick={() => setViewMode('calendar')}
+                                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                        viewMode === 'calendar'
+                                            ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                                            : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
+                                    }`}
+                                >
+                                    <i className="fas fa-calendar-alt"></i>
+                                    Calendar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setViewMode('list')}
+                                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                        viewMode === 'list'
+                                            ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                                            : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
+                                    }`}
+                                >
+                                    <i className="fas fa-list-check"></i>
+                                    Meal List
+                                    {flexibleMeals.length > 0 && (
+                                        <span className="bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-200 px-1.5 py-0.2 rounded-full text-[10px]">
+                                            {flexibleMeals.length}
+                                        </span>
+                                    )}
+                                </button>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setShowScheduleSetup(prev => !prev)}
+                                className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 ${
+                                    showScheduleSetup
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                                        : 'bg-gray-50 dark:bg-gray-700/60 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:border-blue-400'
+                                }`}
+                            >
+                                <i className="fas fa-sliders-h"></i>
+                                <span>Schedule Setup ({targetWeeklySlots}/wk)</span>
+                            </button>
+
+                            {/* Weekly Progress Bar */}
+                            <div className="flex items-center gap-2 w-full sm:w-48">
+                                <span className="text-[11px] font-bold text-gray-400 uppercase whitespace-nowrap">
+                                    {plannedCount}/{targetWeeklySlots} Planned
+                                </span>
+                                <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                                    <div
+                                        className="bg-gradient-to-r from-blue-400 to-purple-500 h-2.5 rounded-full transition-all duration-700 ease-out"
+                                        style={{ width: `${planningProgress}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Weekly Progress Bar */}
-                    <div className="flex items-center gap-3 w-full md:w-64">
-                        <span className="text-xs font-bold text-gray-400 uppercase whitespace-nowrap">Plan Score</span>
-                        <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
-                            <div
-                                className="bg-gradient-to-r from-blue-400 to-purple-500 h-2.5 rounded-full transition-all duration-1000 ease-out"
-                                style={{ width: `${planningProgress}%` }}
-                            ></div>
+                    {/* Collapsible Schedule Setup Drawer */}
+                    {showScheduleSetup && (
+                        <div className="pt-4 border-t border-gray-100 dark:border-gray-700 animate-fade-in">
+                            <div className="flex justify-between items-center mb-3">
+                                <div>
+                                    <h3 className="text-sm font-extrabold text-gray-800 dark:text-gray-100">
+                                        Customize What Needs to Be Scheduled
+                                    </h3>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        Select only the meals you actually plan (e.g. Only Dinners, or Dinners + Wednesday Lunches). Syncs with AI Architect!
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowScheduleSetup(false)}
+                                    className="text-xs font-bold text-blue-600 hover:underline"
+                                >
+                                    Done
+                                </button>
+                            </div>
+                            <ScheduleSelector matrix={scheduleMatrix} onChange={handleScheduleMatrixChange} compact />
                         </div>
-                    </div>
+                    )}
                 </div>
 
-                {/* Responsive Calendar Grid */}
-                {/* Mobile: Vertical List | Desktop: Horizontal Kanban Board */}
-                <div className="flex-grow overflow-y-auto md:overflow-y-hidden md:overflow-x-auto custom-scrollbar">
-                    <div className="flex flex-col md:flex-row gap-4 h-full pb-4">
-                        {days.map(day => {
-                            const dateStr = formatDate(day);
-                            const dayPlan = mealPlan[dateStr] || { Breakfast: [], Lunch: [], Dinner: [], Snack: [] };
-                            const isToday = formatDate(new Date()) === dateStr;
-
-                            return (
-                                <div key={dateStr} className={`flex-shrink-0 w-full md:w-[300px] rounded-2xl flex flex-col p-3 space-y-3 border transition-all md:h-full md:overflow-y-auto custom-scrollbar md:snap-center ${isToday ? 'bg-blue-50/50 border-blue-200 shadow-md ring-2 ring-blue-100' : 'bg-white dark:bg-gray-800 dark:text-gray-100 border-gray-100 dark:border-gray-700 shadow-sm'}`}>
-                                    <div className="text-center pb-2 border-b border-gray-100 dark:border-gray-700/50 sticky top-0 bg-inherit z-10 backdrop-blur-sm">
-                                        <h3 className={`font-black uppercase tracking-wider text-xs ${isToday ? 'text-blue-600' : 'text-gray-400'}`}>{day.toLocaleDateString('en-US', { weekday: 'short' })}</h3>
-                                        <p className={`text-xl font-bold ${isToday ? 'text-blue-800' : 'text-gray-800 dark:text-gray-100'}`}>{day.getDate()}</p>
+                {/* VIEW 1: FLEXIBLE LIST VIEW ("Pick Throughout the Week" + Weekly Agenda) */}
+                {viewMode === 'list' ? (
+                    <div className="flex-grow overflow-y-auto space-y-6 pb-8 custom-scrollbar">
+                        {/* Flexible Weekly Pick-List Card */}
+                        <div
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => handleDrop(UNSCHEDULED_PLAN_KEY, FLEXIBLE_SLOT_KEY, e)}
+                            className="bg-white dark:bg-gray-800 dark:text-gray-100 p-6 rounded-2xl shadow-md border-2 border-indigo-100 dark:border-indigo-900/50"
+                        >
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 pb-3 border-b border-gray-100 dark:border-gray-700">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 flex items-center justify-center font-bold">
+                                            <i className="fas fa-list-check"></i>
+                                        </span>
+                                        <h2 className="text-xl font-extrabold text-gray-800 dark:text-gray-100">
+                                            Pick Throughout the Week
+                                        </h2>
+                                        <span className="text-xs font-bold bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 px-2.5 py-0.5 rounded-full">
+                                            {flexibleMeals.filter(m => !m.completed).length} ready • {flexibleMeals.filter(m => m.completed).length} done
+                                        </span>
                                     </div>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        Build your list of meals for the week and pick what to cook whenever you're ready. All uncompleted meals automatically sync to your Shopping List!
+                                    </p>
+                                </div>
 
-                                    {['Breakfast', 'Lunch', 'Dinner', 'Snack'].map(slot => (
-                                        <div
-                                            key={slot}
-                                            onDragOver={(e) => e.preventDefault()}
-                                            onDrop={(e) => handleDrop(dateStr, slot, e)}
-                                            className="flex-grow flex flex-col gap-2 transition-colors rounded-xl p-1 relative group/slot min-h-[80px]"
+                                <div className="flex items-center gap-2">
+                                    {selectedMobileRecipe && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleMobileSlotTap(UNSCHEDULED_PLAN_KEY, FLEXIBLE_SLOT_KEY)}
+                                            className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold animate-pulse shadow-sm"
                                         >
-                                            <div className="flex justify-between items-center px-1">
-                                                <h4 className="font-bold text-[10px] text-gray-400 uppercase tracking-wide">{slot}</h4>
-                                                <button 
-                                                    onClick={() => handleMobileSlotTap(dateStr, slot)}
-                                                    className={`md:hidden w-6 h-6 rounded-full flex items-center justify-center transition-all ${selectedMobileRecipe ? 'bg-blue-100 text-blue-600 animate-pulse' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}`}
-                                                >
-                                                    <i className="fas fa-plus text-[10px]"></i>
-                                                </button>
-                                                {dayPlan[slot]?.length === 0 && (
-                                                    <i className="fas fa-plus text-[10px] text-gray-300 opacity-0 group-hover/slot:opacity-100 transition-opacity hidden md:block"></i>
+                                            <i className="fas fa-plus mr-1"></i> Add Selected Here
+                                        </button>
+                                    )}
+                                    {flexibleMeals.some(m => m.completed) && (
+                                        <button
+                                            type="button"
+                                            onClick={clearCompletedFlexibleMeals}
+                                            className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-red-50 hover:text-red-600 rounded-xl text-xs font-bold transition-colors"
+                                        >
+                                            <i className="fas fa-broom mr-1"></i> Clear Completed
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {flexibleMeals.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {flexibleMeals.map((item, idx) => {
+                                        const recipe = item.recipeId ? recipes.find(r => r.id === item.recipeId) : null;
+                                        const isCompleted = !!item.completed;
+                                        const canMakeNow = recipe
+                                            ? recipe.ingredients.every(ing => pantryItemNames.has(ing.name.toLowerCase()))
+                                            : false;
+
+                                        return (
+                                            <div
+                                                key={idx}
+                                                draggable
+                                                onDragStart={(e) => {
+                                                    e.dataTransfer.setData("sourceDate", UNSCHEDULED_PLAN_KEY);
+                                                    e.dataTransfer.setData("sourceSlot", FLEXIBLE_SLOT_KEY);
+                                                    e.dataTransfer.setData("sourceIndex", idx.toString());
+                                                }}
+                                                className={`p-4 rounded-xl border transition-all flex flex-col justify-between gap-3 ${
+                                                    isCompleted
+                                                        ? 'bg-green-50/60 dark:bg-green-900/20 border-green-200 dark:border-green-800/50 opacity-75'
+                                                        : 'bg-gray-50/70 dark:bg-gray-700/40 border-gray-200 dark:border-gray-700 hover:border-indigo-300 hover:shadow-md'
+                                                }`}
+                                            >
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                                            {recipe ? (
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-200">
+                                                                    {recipe.meal_type}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800">
+                                                                    Custom Meal
+                                                                </span>
+                                                            )}
+                                                            {recipe && canMakeNow && !isCompleted && (
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                                                    <i className="fas fa-check-circle mr-1"></i>In Pantry
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        {recipe ? (
+                                                            <Link
+                                                                to={`/recipes/${recipe.id}`}
+                                                                className={`font-extrabold text-base hover:text-indigo-600 transition-colors block truncate ${
+                                                                    isCompleted ? 'line-through text-green-800 dark:text-green-300' : 'text-gray-800 dark:text-gray-100'
+                                                                }`}
+                                                            >
+                                                                {recipe.name}
+                                                            </Link>
+                                                        ) : (
+                                                            <p className={`font-extrabold text-base ${isCompleted ? 'line-through text-green-800' : 'text-gray-800 dark:text-gray-100'}`}>
+                                                                {item.custom_item_name}
+                                                            </p>
+                                                        )}
+
+                                                        {recipe && (
+                                                            <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                <span><i className="fas fa-clock mr-1"></i>{recipe.cook_time || recipe.prep_time}</span>
+                                                                <span><i className="fas fa-fire mr-1"></i>{recipe.calories} kcal</span>
+                                                                <span><i className="fas fa-users mr-1"></i>{recipe.servings} serv</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeItemFromPlan(UNSCHEDULED_PLAN_KEY, FLEXIBLE_SLOT_KEY, idx)}
+                                                        className="text-gray-400 hover:text-red-500 p-1 transition-colors"
+                                                        title="Remove from list"
+                                                    >
+                                                        <i className="fas fa-trash-alt text-xs"></i>
+                                                    </button>
+                                                </div>
+
+                                                {/* Action Row */}
+                                                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200/60 dark:border-gray-600/50">
+                                                    {recipe && !isCompleted && (
+                                                        <Link
+                                                            to={`/recipes/${recipe.id}/cook`}
+                                                            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-3 rounded-lg text-center transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                                                        >
+                                                            <i className="fas fa-play text-[10px]"></i> Cook Now
+                                                        </Link>
+                                                    )}
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            recipe
+                                                                ? initiateToggleStatus(UNSCHEDULED_PLAN_KEY, FLEXIBLE_SLOT_KEY, idx, recipe.id)
+                                                                : toggleCustomItemCompleted(UNSCHEDULED_PLAN_KEY, FLEXIBLE_SLOT_KEY, idx)
+                                                        }
+                                                        className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
+                                                            isCompleted
+                                                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                                                : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 hover:bg-emerald-500 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        <i className={`fas ${isCompleted ? 'fa-rotate-left' : 'fa-check'}`}></i>
+                                                        {isCompleted ? 'Completed (Undo)' : 'Mark Cooked'}
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setAssigningListIndex(assigningListIndex === idx ? null : idx)}
+                                                        className="py-2 px-2.5 rounded-lg text-xs font-bold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-400 transition-colors"
+                                                        title="Assign to a specific day"
+                                                    >
+                                                        <i className="fas fa-calendar-plus"></i>
+                                                    </button>
+                                                </div>
+
+                                                {/* Quick Assign to Day Picker */}
+                                                {assigningListIndex === idx && (
+                                                    <div className="p-2.5 bg-white dark:bg-gray-800 rounded-lg border border-blue-200 dark:border-gray-600 animate-fade-in">
+                                                        <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-2">
+                                                            Move to Day:
+                                                        </p>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {days.map(d => {
+                                                                const dStr = formatDate(d);
+                                                                const activeSlots = getActiveSlotsForDate(d, scheduleMatrix);
+                                                                const targetSlot = activeSlots[0] || 'Dinner';
+                                                                return (
+                                                                    <button
+                                                                        key={dStr}
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            moveMeal(UNSCHEDULED_PLAN_KEY, FLEXIBLE_SLOT_KEY, idx, dStr, targetSlot);
+                                                                            setAssigningListIndex(null);
+                                                                        }}
+                                                                        className="px-2 py-1 text-[11px] font-bold rounded bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200 hover:bg-blue-600 hover:text-white transition-colors"
+                                                                    >
+                                                                        {d.toLocaleDateString('en-US', { weekday: 'short' })} ({targetSlot})
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
                                                 )}
                                             </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="text-center py-10 border-2 border-dashed border-indigo-100 dark:border-gray-700 rounded-xl bg-indigo-50/20 dark:bg-gray-800/40">
+                                    <i className="fas fa-clipboard-list text-4xl text-indigo-300 mb-2"></i>
+                                    <p className="font-bold text-gray-700 dark:text-gray-200">Your Flexible Weekly Meal List is empty</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-md mx-auto">
+                                        Click the <i className="fas fa-list-check text-indigo-500 mx-1"></i> button on any recipe in the left tray (or drag it here) to build a list of meals to pick from throughout the week!
+                                    </p>
+                                </div>
+                            )}
+                        </div>
 
-                                            <div className={`flex-grow rounded-xl transition-all border-2 border-transparent space-y-2 ${dayPlan[slot]?.length === 0 ? 'bg-gray-50 dark:bg-gray-700/50/50 border-dashed border-gray-200 dark:border-gray-700 group-hover/slot:bg-blue-50/30 group-hover/slot:border-blue-200' : ''} p-1`}>
-                                                {dayPlan[slot]?.map((item, index) => {
-                                                    const recipe = item.recipeId ? recipes.find(r => r.id === item.recipeId) : null;
-                                                    const isCompleted = item.completed;
+                        {/* Weekly Scheduled Agenda in List View */}
+                        <div className="bg-white dark:bg-gray-800 dark:text-gray-100 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                            <div className="flex justify-between items-center mb-4">
+                                <div>
+                                    <h3 className="text-lg font-extrabold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                                        <i className="fas fa-calendar-day text-blue-500"></i>
+                                        Scheduled Days This Week
+                                    </h3>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        Showing only your active scheduled slots ({targetWeeklySlots} slots/week).
+                                    </p>
+                                </div>
+                            </div>
 
+                            <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                                {days.map(day => {
+                                    const dateStr = formatDate(day);
+                                    const dayPlan = mealPlan[dateStr] || { Breakfast: [], Lunch: [], Dinner: [], Snack: [] };
+                                    const activeSlots = getActiveSlotsForDate(day, scheduleMatrix);
+                                    const visibleSlots = ALL_MEAL_SLOTS.filter(
+                                        s => activeSlots.includes(s) || (dayPlan[s] && dayPlan[s].length > 0)
+                                    );
+                                    if (visibleSlots.length === 0) return null;
+
+                                    return (
+                                        <div key={dateStr} className="py-3 flex flex-col md:flex-row md:items-center gap-3">
+                                            <div className="w-32 flex-shrink-0">
+                                                <span className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 block">
+                                                    {day.toLocaleDateString('en-US', { weekday: 'short' })}
+                                                </span>
+                                                <span className="text-sm font-bold text-gray-700 dark:text-gray-200">
+                                                    {day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                                </span>
+                                            </div>
+
+                                            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                                {visibleSlots.map(slot => {
+                                                    const items = dayPlan[slot] || [];
                                                     return (
-                                                        <div 
-                                                            key={index}
-                                                            draggable
-                                                            onDragStart={(e) => {
-                                                                e.stopPropagation(); // prevent parent custom event drag if any
-                                                                e.dataTransfer.setData("sourceDate", dateStr);
-                                                                e.dataTransfer.setData("sourceSlot", slot);
-                                                                e.dataTransfer.setData("sourceIndex", index.toString());
-                                                            }}
-                                                            className={`relative p-2 rounded-lg shadow-sm border text-xs group transition-all hover:scale-105 hover:z-10 cursor-grab active:cursor-grabbing ${recipe ? (isCompleted ? 'bg-green-50 text-green-800 border-green-200 opacity-70' : 'bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-800 dark:text-gray-100 border-gray-100 dark:border-gray-700 hover:border-blue-300') : 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-900 dark:text-yellow-100 border-yellow-300 dark:border-yellow-700'}`}
+                                                        <div
+                                                            key={slot}
+                                                            onDragOver={(e) => e.preventDefault()}
+                                                            onDrop={(e) => handleDrop(dateStr, slot, e)}
+                                                            onClick={() => selectedMobileRecipe && handleMobileSlotTap(dateStr, slot)}
+                                                            className="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-700/40 border border-gray-100 dark:border-gray-700 flex flex-col gap-1.5"
                                                         >
-                                                            <span className={`font-bold line-clamp-2 leading-tight ${isCompleted ? 'line-through' : ''}`}>
-                                                                {recipe ? recipe.name : item.custom_item_name}
-                                                            </span>
-
-                                                            {recipe && (
-                                                                <button
-                                                                    onClick={() => initiateToggleStatus(dateStr, slot, index, recipe.id)}
-                                                                    className={`mt-2 w-full py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition-colors ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-green-500 hover:text-white'}`}
-                                                                >
-                                                                    {isCompleted ? 'Done' : 'Cook'}
-                                                                </button>
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{slot}</span>
+                                                                {selectedMobileRecipe && (
+                                                                    <span className="text-[10px] text-blue-500 font-bold">+ Tap to Add</span>
+                                                                )}
+                                                            </div>
+                                                            {items.length > 0 ? (
+                                                                items.map((item, index) => {
+                                                                    const recipe = item.recipeId ? recipes.find(r => r.id === item.recipeId) : null;
+                                                                    return (
+                                                                        <div key={index} className="flex items-center justify-between gap-2 bg-white dark:bg-gray-800 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs">
+                                                                            <span className={`font-bold truncate ${item.completed ? 'line-through text-green-600' : 'text-gray-800 dark:text-gray-100'}`}>
+                                                                                {recipe ? recipe.name : item.custom_item_name}
+                                                                            </span>
+                                                                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        moveMeal(dateStr, slot, index, UNSCHEDULED_PLAN_KEY, FLEXIBLE_SLOT_KEY);
+                                                                                    }}
+                                                                                    title="Move to Flexible Weekly List"
+                                                                                    className="text-gray-400 hover:text-indigo-500"
+                                                                                >
+                                                                                    <i className="fas fa-list-check"></i>
+                                                                                </button>
+                                                                                {recipe && (
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            initiateToggleStatus(dateStr, slot, index, recipe.id);
+                                                                                        }}
+                                                                                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${item.completed ? 'bg-green-100 text-green-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-green-500 hover:text-white'}`}
+                                                                                    >
+                                                                                        {item.completed ? 'Done' : 'Cook'}
+                                                                                    </button>
+                                                                                )}
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        removeItemFromPlan(dateStr, slot, index);
+                                                                                    }}
+                                                                                    className="text-gray-400 hover:text-red-500"
+                                                                                >
+                                                                                    &times;
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })
+                                                            ) : (
+                                                                <span className="text-xs text-gray-400 italic">Open slot</span>
                                                             )}
-
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); removeItemFromPlan(dateStr, slot, index); }}
-                                                                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center transition-opacity shadow-md hover:bg-red-600 md:opacity-0 md:group-hover:opacity-100 opacity-100 z-20 md:scale-75 md:group-hover:scale-100"
-                                                                title="Remove"
-                                                            >
-                                                                &times;
-                                                            </button>
                                                         </div>
                                                     );
                                                 })}
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
-                            );
-                        })}
+                                    );
+                                })}
+                            </div>
+                        </div>
                     </div>
-                </div>
+                ) : (
+                    /* VIEW 2: CALENDAR VIEW (Filtered by Active Schedule Matrix) */
+                    <div className="flex-grow overflow-y-auto md:overflow-y-hidden md:overflow-x-auto custom-scrollbar">
+                        <div className="flex flex-col md:flex-row gap-4 h-full pb-4">
+                            {days.map(day => {
+                                const dateStr = formatDate(day);
+                                const dayPlan = mealPlan[dateStr] || { Breakfast: [], Lunch: [], Dinner: [], Snack: [] };
+                                const isToday = formatDate(new Date()) === dateStr;
+                                const activeSlots = getActiveSlotsForDate(day, scheduleMatrix);
+                                const isDayExpanded = !!expandedDays[dateStr];
+
+                                // Show slots that are enabled in scheduleMatrix, OR that already have items, OR all slots if expanded
+                                const slotsToRender: MealSlotType[] = isDayExpanded
+                                    ? ALL_MEAL_SLOTS
+                                    : ALL_MEAL_SLOTS.filter(
+                                          slot => activeSlots.includes(slot) || (dayPlan[slot] && dayPlan[slot].length > 0)
+                                      );
+
+                                return (
+                                    <div key={dateStr} className={`flex-shrink-0 w-full md:w-[300px] rounded-2xl flex flex-col p-3 space-y-3 border transition-all md:h-full md:overflow-y-auto custom-scrollbar md:snap-center ${isToday ? 'bg-blue-50/50 border-blue-200 shadow-md ring-2 ring-blue-100' : 'bg-white dark:bg-gray-800 dark:text-gray-100 border-gray-100 dark:border-gray-700 shadow-sm'}`}>
+                                        <div className="text-center pb-2 border-b border-gray-100 dark:border-gray-700/50 sticky top-0 bg-inherit z-10 backdrop-blur-sm flex items-center justify-between px-2">
+                                            <div className="w-6"></div>
+                                            <div>
+                                                <h3 className={`font-black uppercase tracking-wider text-xs ${isToday ? 'text-blue-600' : 'text-gray-400'}`}>{day.toLocaleDateString('en-US', { weekday: 'short' })}</h3>
+                                                <p className={`text-xl font-bold ${isToday ? 'text-blue-800' : 'text-gray-800 dark:text-gray-100'}`}>{day.getDate()}</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setExpandedDays(prev => ({ ...prev, [dateStr]: !prev[dateStr] }))}
+                                                title={isDayExpanded ? "Show only scheduled slots" : "Show all meal slots for this day"}
+                                                className="w-6 h-6 rounded-full text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center text-xs"
+                                            >
+                                                <i className={`fas ${isDayExpanded ? 'fa-compress-alt' : 'fa-ellipsis-h'}`}></i>
+                                            </button>
+                                        </div>
+
+                                        {slotsToRender.length > 0 ? (
+                                            slotsToRender.map(slot => (
+                                                <div
+                                                    key={slot}
+                                                    onDragOver={(e) => e.preventDefault()}
+                                                    onDrop={(e) => handleDrop(dateStr, slot, e)}
+                                                    className="flex-grow flex flex-col gap-2 transition-colors rounded-xl p-1 relative group/slot min-h-[80px]"
+                                                >
+                                                    <div className="flex justify-between items-center px-1">
+                                                        <h4 className="font-bold text-[10px] text-gray-400 uppercase tracking-wide">{slot}</h4>
+                                                        <button 
+                                                            onClick={() => handleMobileSlotTap(dateStr, slot)}
+                                                            className={`md:hidden w-6 h-6 rounded-full flex items-center justify-center transition-all ${selectedMobileRecipe ? 'bg-blue-100 text-blue-600 animate-pulse' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}`}
+                                                        >
+                                                            <i className="fas fa-plus text-[10px]"></i>
+                                                        </button>
+                                                        {dayPlan[slot]?.length === 0 && (
+                                                            <i className="fas fa-plus text-[10px] text-gray-300 opacity-0 group-hover/slot:opacity-100 transition-opacity hidden md:block"></i>
+                                                        )}
+                                                    </div>
+
+                                                    <div className={`flex-grow rounded-xl transition-all border-2 border-transparent space-y-2 ${dayPlan[slot]?.length === 0 ? 'bg-gray-50 dark:bg-gray-700/50 border-dashed border-gray-200 dark:border-gray-700 group-hover/slot:bg-blue-50/30 group-hover/slot:border-blue-200' : ''} p-1`}>
+                                                        {dayPlan[slot]?.map((item, index) => {
+                                                            const recipe = item.recipeId ? recipes.find(r => r.id === item.recipeId) : null;
+                                                            const isCompleted = item.completed;
+
+                                                            return (
+                                                                <div 
+                                                                    key={index}
+                                                                    draggable
+                                                                    onDragStart={(e) => {
+                                                                        e.stopPropagation();
+                                                                        e.dataTransfer.setData("sourceDate", dateStr);
+                                                                        e.dataTransfer.setData("sourceSlot", slot);
+                                                                        e.dataTransfer.setData("sourceIndex", index.toString());
+                                                                    }}
+                                                                    className={`relative p-2 rounded-lg shadow-sm border text-xs group transition-all hover:scale-105 hover:z-10 cursor-grab active:cursor-grabbing ${recipe ? (isCompleted ? 'bg-green-50 text-green-800 border-green-200 opacity-70' : 'bg-white dark:bg-gray-800 dark:text-gray-100 text-gray-800 dark:text-gray-100 border-gray-100 dark:border-gray-700 hover:border-blue-300') : 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-900 dark:text-yellow-100 border-yellow-300 dark:border-yellow-700'}`}
+                                                                >
+                                                                    <span className={`font-bold line-clamp-2 leading-tight ${isCompleted ? 'line-through' : ''}`}>
+                                                                        {recipe ? recipe.name : item.custom_item_name}
+                                                                    </span>
+
+                                                                    {recipe && (
+                                                                        <button
+                                                                            onClick={() => initiateToggleStatus(dateStr, slot, index, recipe.id)}
+                                                                            className={`mt-2 w-full py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition-colors ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-green-500 hover:text-white'}`}
+                                                                        >
+                                                                            {isCompleted ? 'Done' : 'Cook'}
+                                                                        </button>
+                                                                    )}
+
+                                                                    <button
+                                                                        onClick={(e) => { e.stopPropagation(); removeItemFromPlan(dateStr, slot, index); }}
+                                                                        className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center transition-opacity shadow-md hover:bg-red-600 md:opacity-0 md:group-hover:opacity-100 opacity-100 z-20 md:scale-75 md:group-hover:scale-100"
+                                                                        title="Remove"
+                                                                    >
+                                                                        &times;
+                                                                    </button>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="flex-grow flex flex-col items-center justify-center text-center p-6 text-gray-400">
+                                                <i className="fas fa-mug-saucer text-2xl mb-2 opacity-50"></i>
+                                                <p className="text-xs font-semibold">No meals scheduled</p>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setExpandedDays(prev => ({ ...prev, [dateStr]: true }))}
+                                                    className="mt-2 text-[11px] font-bold text-blue-500 hover:underline"
+                                                >
+                                                    + Add meal anyway
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Confirmation Modal */}

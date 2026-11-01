@@ -43,10 +43,15 @@ export interface ShoppingItem {
     category: string;
 }
 
+export type DayOfWeekKey = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun';
+export type MealSlotType = 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack';
+export type WeeklyScheduleMatrix = Record<DayOfWeekKey, MealSlotType[]>;
+
 export interface MealPlanSlot {
     recipeId?: number;
     custom_item_name?: string;
     completed?: boolean;
+    meal_type?: string;
 }
 
 export interface MealPlanDay {
@@ -54,7 +59,7 @@ export interface MealPlanDay {
 }
 
 export interface MealPlan {
-    [date: string]: MealPlanDay; // e.g. { '2023-10-26': { Breakfast: ... } }
+    [date: string]: MealPlanDay; // e.g. { '2023-10-26': { Breakfast: ... }, 'unscheduled': { Flexible: [...] } }
 }
 
 export interface HouseholdMember {
@@ -76,6 +81,8 @@ export interface UserPreferences {
     displayMode?: 'light' | 'dark' | 'glass-light' | 'glass-dark' | 'landing';
     showSousChef?: boolean;
     hiddenNavItems?: string[]; // List of paths to hide from sidebar
+    scheduleMatrix?: WeeklyScheduleMatrix;
+    plannerViewMode?: 'calendar' | 'list';
     stripeConfig?: {
         starterLink?: string;
         proLink?: string;

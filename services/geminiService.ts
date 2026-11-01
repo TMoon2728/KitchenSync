@@ -1,6 +1,7 @@
 
 import { Type } from "@google/genai";
-import type { Recipe, PantryItem } from "../types";
+import type { Recipe, PantryItem, WeeklyScheduleMatrix } from "../types";
+import { getActiveSlotsForDate, DAY_FULL_NAMES, getDayKeyFromDate } from "../utils/schedule";
 
 // Schema definitions (kept for sending to backend)
 const recipeSchema = {
@@ -135,13 +136,88 @@ export const generateMealPlan = async (
     complexity: string = 'Moderate',
     dietaryRestrictions: string = '',
     pantryItems: PantryItem[] = [],
-    cost: number = 1
+    cost: number = 1,
+    scheduleConfig?: {
+        mode: 'scheduled' | 'list';
+        scheduleMatrix?: WeeklyScheduleMatrix;
+        listCount?: number;
+    }
 ): Promise<any | null> => {
 
     const recipeList = recipes.map(r => `${r.name} (${r.meal_type}) ${r.is_favorite ? "[FAVORITE]" : ""} [RATING: ${r.rating}/5] [CALORIES: ${r.calories}]`).join('\n');
     const pantryList = usePantry && pantryItems.length > 0
         ? `\n    **Current Pantry Inventory (Prioritize recipes using these items):**\n    ${pantryItems.map(p => `${p.name} (${p.quantity} ${p.unit})`).join(', ')}\n`
         : '';
+
+    const mode = scheduleConfig?.mode || 'scheduled';
+
+    if (mode === 'list') {
+        const count = scheduleConfig?.listCount || 7;
+        const prompt = `You are an expert meal plan architect. Create a flexible list of ${count} meals for the user to pick from throughout the week.
+
+    **Directives:**
+    - Theme: ${theme}
+    - Complexity: ${complexity}
+    - Dietary Constraints: ${dietaryRestrictions || 'None specified (use standard healthy mix)'}
+    - Prioritize pantry items: ${usePantry}
+    - Prioritize favorite recipes: ${useFavorites}
+    - Prioritize highest-rated recipes: ${useHighestRated}
+    - Target Meal Types: ${includedSlots.length > 0 ? includedSlots.join(', ') : 'Dinner'}
+    - Daily Calorie Context: Approx ${caloriesPerDay} kcal/day
+    ${pantryList}
+    **Available Recipes:**
+    ${recipeList}
+
+    **Instructions:**
+    - Select or suggest exactly ${count} meals total.
+    - Prefer using exact recipe names from the Available Recipes list whenever possible.
+    - Respond with a JSON array of ${count} meal items.`;
+
+        const listPlanSchema = {
+            type: Type.ARRAY,
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    mealName: { type: Type.STRING, description: "Exact recipe name from Available Recipes, or a suggested meal name." },
+                    mealType: { type: Type.STRING, description: "e.g. Dinner, Lunch, Breakfast, Snack" },
+                    reason: { type: Type.STRING, description: "Short 1-sentence note on why this meal fits the week's plan.", nullable: true }
+                },
+                required: ["mealName", "mealType"]
+            }
+        };
+
+        try {
+            const response = await authFetch(`${API_BASE}/generate-recipe`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt, schema: listPlanSchema, cost }),
+                token
+            });
+            return handleApiResponse<any>(response);
+        } catch (error) {
+            console.error("Error generating flexible meal list:", error);
+            return null;
+        }
+    }
+
+    // Build day-by-day schedule breakdown using scheduleMatrix if provided
+    const dayBreakdownLines: string[] = [];
+    const baseDate = new Date(`${startDate}T00:00:00`);
+    for (let i = 0; i < durationDays; i++) {
+        const d = new Date(baseDate);
+        d.setDate(d.getDate() + i);
+        const dateStr = d.toISOString().split('T')[0];
+        const dayKey = getDayKeyFromDate(d);
+        const dayName = DAY_FULL_NAMES[dayKey];
+        const slotsForDay = scheduleConfig?.scheduleMatrix
+            ? getActiveSlotsForDate(d, scheduleConfig.scheduleMatrix)
+            : includedSlots;
+        if (slotsForDay.length > 0) {
+            dayBreakdownLines.push(`    - ${dateStr} (${dayName}): Generate ONLY [${slotsForDay.join(', ')}] (set all other meal slots to null)`);
+        } else {
+            dayBreakdownLines.push(`    - ${dateStr} (${dayName}): No meals needed (set all meal slots to null)`);
+        }
+    }
 
     const prompt = `You are an expert meal plan architect. Create a ${durationDays}-day meal plan starting on ${startDate}.
     
@@ -152,17 +228,19 @@ export const generateMealPlan = async (
     - Prioritize pantry items: ${usePantry}
     - Prioritize favorite recipes: ${useFavorites}
     - Prioritize highest-rated recipes: ${useHighestRated}
-    - **Daily Calorie Goal: Approx ${caloriesPerDay} calories total per day across the requested meals.**
-    - **Meals to include:** ${includedSlots.join(', ')}. Do not generate slots for meals not listed.
+    - **Daily Calorie Goal: Approx ${caloriesPerDay} calories total per day (scaled to the requested meals).**
+    
+    **Exact Day-by-Day Schedule Requirements:**
+${dayBreakdownLines.join('\n')}
     ${pantryList}
     **Available Recipes:**
     ${recipeList}
     
     **Instructions:**
-    - Generate a plan for exactly ${durationDays} days.
-    - For each day, provide the date (YYYY-MM-DD) and the selected meals.
+    - Generate a plan entry for each of the ${durationDays} days.
+    - Strictly follow the Exact Day-by-Day Schedule Requirements above: ONLY populate the requested slots for each specific date, and set any unrequested slot on that date to null.
     - Use the provided recipe names exactly as they appear in the list.
-    - If a suitable recipe isn't available for a slot to meet the calorie goal or theme, you can suggest a simple, common meal (e.g. "Oatmeal", "Greek Yogurt", "Grilled Cheese").
+    - If a suitable recipe isn't available for a requested slot, suggest a simple, common meal (e.g. "Oatmeal", "Greek Yogurt", "Grilled Cheese").
     - Respond with a JSON array where each item represents a day.
     `;
 
