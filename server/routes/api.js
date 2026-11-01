@@ -4,6 +4,7 @@ const { GoogleGenAI } = require("@google/genai");
 const rateLimit = require('express-rate-limit');
 
 const db = require('../db');
+const { normalizeRecipeIngredientsList } = require('../utils/ingredientNormalizer');
 
 // --- AI Rate Limiter ---
 const aiRateLimiter = rateLimit({
@@ -346,7 +347,7 @@ router.post('/generate-recipe', aiRateLimiter, async (req, res) => {
 
         let finalPrompt = prompt;
         if (familySize) {
-             finalPrompt += `\n\nCRITICAL INSTRUCTION: You MUST scale the ingredient quantities to yield exactly ${familySize} servings. Update the 'servings' field to ${familySize}.`;
+             finalPrompt += `\n\nCRITICAL INSTRUCTION: You MUST scale the ingredient quantities to yield exactly ${familySize} servings. Update the 'servings' field to ${familySize}. Round countable items (eggs, cans, onions, rolls, sheets) to whole numbers, and round volume/weight to clean kitchen fractions (0.25, 0.33, 0.5, 0.67, 0.75). Keep ingredient names clean for a grocery list without preparation suffixes like ', chopped' or ', beaten', and do NOT include plain tap water.`;
         }
 
         const result = await genAI.models.generateContent({
@@ -356,12 +357,16 @@ router.post('/generate-recipe', aiRateLimiter, async (req, res) => {
         });
 
         const responseText = typeof result.text === 'function' ? result.text() : result.text;
+        const parsedOutput = JSON.parse(responseText);
+        if (parsedOutput && !Array.isArray(parsedOutput) && Array.isArray(parsedOutput.ingredients)) {
+            parsedOutput.ingredients = normalizeRecipeIngredientsList(parsedOutput.ingredients);
+        }
 
         // Refetch credit count
         const finalCredit = user.subscriptionTier === 'pro' ? '∞' : currentCredits;
 
         res.json({
-            result: JSON.parse(responseText),
+            result: parsedOutput,
             creditsRemaining: finalCredit
         });
 
@@ -768,19 +773,7 @@ const normalizeExtractedRecipe = (rawData, sourceUrl, fallbackImage, familySize)
     }
 
     const rawIngredients = Array.isArray(rawData.ingredients) ? rawData.ingredients : [];
-    const ingredients = rawIngredients
-        .map(ing => {
-            if (typeof ing === 'string') {
-                return { name: ing, quantity: 1, unit: 'unit', category: 'Other' };
-            }
-            return {
-                name: String(ing?.name || '').trim(),
-                quantity: parseQuantityNumber(ing?.quantity),
-                unit: String(ing?.unit || 'unit').trim() || 'unit',
-                category: String(ing?.category || 'Other').trim() || 'Other'
-            };
-        })
-        .filter(ing => ing.name.length > 0);
+    const ingredients = normalizeRecipeIngredientsList(rawIngredients);
 
     if (!rawData.name || ingredients.length === 0 || !instructions) {
         return null;
@@ -896,8 +889,12 @@ router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
 You are an expert recipe extractor. Extract the core recipe from the following webpage/Pin content retrieved from ${effectiveSourceUrl} (original link: ${url}).
 Ignore ads, life stories, comments, and navigation.
 If the source is a social media post or Pinterest Pin with partial instructions, infer reasonable culinary steps and quantities to make the recipe complete and cookable.
-CRITICAL INSTRUCTION: Extract the main image URL for the recipe if available (look for og:image, JSON-LD image, or pinimg URLs) and return it as imageUrl.
-${familySize ? `\nCRITICAL INSTRUCTION: You MUST scale the ingredient quantities to yield exactly ${familySize} servings. Update the 'servings' field to ${familySize}.` : ''}
+CRITICAL INGREDIENT RULES:
+1. Keep ingredient "name" as a clean grocery store item WITHOUT preparation notes (e.g., use "Ground Beef", "Large Egg", "Yellow Onion", "Bacon" — do NOT include ", chopped", ", diced", ", beaten", ", thawed", ", peeled and chopped" in the ingredient name; put prep actions in "instructions").
+2. Do NOT include plain tap water in the ingredients list.
+3. Assign each ingredient a strict category from: "Produce", "Meat", "Dairy & Eggs", "Bakery", "Frozen", "Pantry Staples", "Beverages", "Household", "Other".
+4. Extract the main image URL for the recipe if available (look for og:image, JSON-LD image, or pinimg URLs) and return it as imageUrl.
+${familySize ? `\nCRITICAL SCALING INSTRUCTION: Scale the ingredient quantities to yield ${familySize} servings and set 'servings' to ${familySize}. Round countable items (eggs, cans, onions, rolls, sheets) to whole numbers (never 0.83 egg or 0.83 can!), and round volume/weight measurements to clean culinary fractions (0.25, 0.33, 0.5, 0.67, 0.75).` : ''}
 
 Extracted Webpage Content:
 ${combinedExtractedContent}

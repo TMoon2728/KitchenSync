@@ -20,14 +20,27 @@ const recipeSchema = {
             items: {
                 type: Type.OBJECT,
                 properties: {
-                    name: { type: Type.STRING },
-                    quantity: { type: Type.NUMBER },
-                    unit: { type: Type.STRING },
-                    category: { type: Type.STRING, description: "Grocery aisle category e.g. Produce, Meat, Pantry Staples" }
+                    name: {
+                        type: Type.STRING,
+                        description: "Clean grocery item name WITHOUT preparation instructions (e.g., 'Ground Beef', 'Large Egg', 'Yellow Onion', 'Bacon' — put 'chopped', 'diced', 'beaten', 'thawed' in instructions, NOT in ingredient name)."
+                    },
+                    quantity: {
+                        type: Type.NUMBER,
+                        description: "Practical culinary quantity: use whole numbers for countable items (eggs, cans, onions, rolls, sheets) and clean fractions (0.25, 0.33, 0.5, 0.67, 0.75) for volume/weight."
+                    },
+                    unit: {
+                        type: Type.STRING,
+                        description: "Standardized unit: 'each', 'lb', 'oz', 'cup', 'tbsp', 'tsp', 'can', 'sheet', 'strip', 'slice', 'clove', 'pkg', 'g', 'ml'."
+                    },
+                    category: {
+                        type: Type.STRING,
+                        enum: ['Produce', 'Meat', 'Dairy & Eggs', 'Bakery', 'Frozen', 'Pantry Staples', 'Beverages', 'Household', 'Other'],
+                        description: "Grocery aisle category."
+                    }
                 },
-                required: ["name", "quantity", "unit"],
+                required: ["name", "quantity", "unit", "category"],
             },
-            description: "An array of ingredients for the recipe.",
+            description: "An array of grocery ingredients for the recipe (do NOT include plain tap water).",
         },
         instructions: { type: Type.STRING, description: "Step-by-step cooking instructions. You MUST separate each step with a double newline (\\n\\n) and number each step (1., 2., 3., etc.) so they can be rendered as distinct paragraphs." },
         meal_type: {

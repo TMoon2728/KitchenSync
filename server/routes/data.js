@@ -3,6 +3,7 @@ const router = express.Router();
 const crypto = require('crypto');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const { normalizeRecipeIngredientsList } = require('../utils/ingredientNormalizer');
 
 async function resolveHubHousehold(rawCode) {
     const code = String(rawCode || '').trim();
@@ -44,6 +45,7 @@ async function buildHubSyncPayload(user, effectiveHousehold) {
         const recipeData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
         return {
             ...recipeData,
+            ingredients: normalizeRecipeIngredientsList(recipeData.ingredients),
             id: r.id,
             is_favorite: !!r.is_favorite
         };
@@ -225,12 +227,12 @@ router.get('/recipes', async (req, res) => {
         const queryStr = 'SELECT * FROM recipes WHERE user_id IN (SELECT id FROM users WHERE household_id = $1 OR (household_id IS NULL AND id::text = $1))';
         const { rows } = await db.query(queryStr, [req.user.effective_household]);
         
-        // Parse JSONB data column. In pg, jsonb columns might already be returned as objects.
-        // We'll safely parse if it's a string, otherwise use it directly.
+        // Parse JSONB data column and normalize ingredients
         const parsed = rows.map(r => {
             const recipeData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
             return { 
                 ...recipeData, 
+                ingredients: normalizeRecipeIngredientsList(recipeData.ingredients),
                 id: r.id, 
                 is_favorite: !!r.is_favorite 
             };
@@ -248,6 +250,9 @@ router.post('/recipes', async (req, res) => {
     const recipe = req.body;
     // Strip ID if present to let DB auto-increment
     const { id, ...data } = recipe;
+    if (Array.isArray(data.ingredients)) {
+        data.ingredients = normalizeRecipeIngredientsList(data.ingredients);
+    }
 
     try {
         // Postgres uses JSONB and RETURNING id
@@ -255,7 +260,7 @@ router.post('/recipes', async (req, res) => {
             'INSERT INTO recipes (user_id, data, is_favorite) VALUES ($1, $2, $3) RETURNING id',
             [req.user.id, data, recipe.is_favorite ? true : false]
         );
-        res.json({ ...recipe, id: result.rows[0].id });
+        res.json({ ...recipe, ...data, id: result.rows[0].id });
     } catch (e) {
         console.error("Add Recipe Error:", e);
         res.status(500).json({ error: "Failed to add recipe" });
@@ -266,6 +271,9 @@ router.post('/recipes', async (req, res) => {
 router.put('/recipes/:id', async (req, res) => {
     const recipe = req.body;
     const { id, ...data } = recipe;
+    if (Array.isArray(data.ingredients)) {
+        data.ingredients = normalizeRecipeIngredientsList(data.ingredients);
+    }
 
     try {
         const queryStr = `

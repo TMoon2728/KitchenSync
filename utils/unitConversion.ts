@@ -27,7 +27,24 @@ const UNIT_DEFINITIONS: Record<string, UnitDefinition> = {
     floz: { type: 'volume', base: 29.5735, aliases: ['floz', 'fl oz', 'fluid ounce', 'fluid ounces'] },
 
     // Count (Base: each)
-    each: { type: 'count', base: 1, aliases: ['each', 'ea', 'unit', 'units', 'pc', 'pcs', 'piece', 'pieces', 'clove', 'cloves', 'slice', 'slices', 'head', 'heads'] },
+    each: { type: 'count', base: 1, aliases: ['each', 'ea', 'unit', 'units', 'pc', 'pcs', 'piece', 'pieces'] },
+    clove: { type: 'count', base: 1, aliases: ['clove', 'cloves'] },
+    slice: { type: 'count', base: 1, aliases: ['slice', 'slices'] },
+    strip: { type: 'count', base: 1, aliases: ['strip', 'strips'] },
+    sheet: { type: 'count', base: 1, aliases: ['sheet', 'sheets'] },
+    can: { type: 'count', base: 1, aliases: ['can', 'cans'] },
+    head: { type: 'count', base: 1, aliases: ['head', 'heads'] },
+    pkg: { type: 'count', base: 1, aliases: ['pkg', 'pkgs', 'package', 'packages', 'pack', 'packs'] },
+    bag: { type: 'count', base: 1, aliases: ['bag', 'bags'] },
+    box: { type: 'count', base: 1, aliases: ['box', 'boxes'] },
+    jar: { type: 'count', base: 1, aliases: ['jar', 'jars'] },
+    bottle: { type: 'count', base: 1, aliases: ['bottle', 'bottles'] },
+    bunch: { type: 'count', base: 1, aliases: ['bunch', 'bunches'] },
+};
+
+export const getUnitType = (unit: string): UnitType => {
+    const key = normalizeUnit(unit);
+    return UNIT_DEFINITIONS[key]?.type || 'unknown';
 };
 
 export const normalizeUnit = (unit: string): string => {

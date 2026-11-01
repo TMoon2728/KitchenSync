@@ -3,7 +3,16 @@ import { Recipe, PantryItem, MealPlan, ShoppingItem, Ingredient } from '../types
 import { MOCK_RECIPES, MOCK_PANTRY } from '../mockData';
 import { authFetch } from '../utils/api';
 import { convertQuantity } from '../utils/unitConversion';
+import { normalizeRecipeIngredient } from '../utils/ingredientNormalizer';
 import { useUser } from './UserContext';
+
+const cleanRecipeList = (list: Recipe[]): Recipe[] =>
+    (list || []).map(r => ({
+        ...r,
+        ingredients: (r.ingredients || [])
+            .map(ing => normalizeRecipeIngredient(ing))
+            .filter((ing): ing is NonNullable<typeof ing> => ing !== null)
+    }));
 
 interface KitchenContextType {
     recipes: Recipe[];
@@ -42,7 +51,9 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const { isAuthenticated, getAccessToken } = useUser();
     const [isLoading, setIsLoading] = useState(true);
 
-    const [recipes, setRecipes] = useState<Recipe[]>(() => loadFromStorage('ks_recipes', MOCK_RECIPES));
+    const [recipes, setRecipes] = useState<Recipe[]>(() =>
+        cleanRecipeList(loadFromStorage('ks_recipes', MOCK_RECIPES))
+    );
     const [pantry, setPantry] = useState<PantryItem[]>(() => loadFromStorage('ks_pantry', MOCK_PANTRY));
     const [mealPlan, setMealPlanState] = useState<MealPlan>(() => loadFromStorage('ks_meal_plan', {}));
     const [manualShoppingList, setManualShoppingList] = useState<ShoppingItem[]>(() => loadFromStorage('ks_shopping', []));
@@ -103,7 +114,7 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
                                 }
                             } catch {}
                         }
-                        setRecipes([...serverRecipes, ...uploaded]);
+                        setRecipes(cleanRecipeList([...serverRecipes, ...uploaded]));
                     }
                     if (resPantry.ok) {
                         const serverPantry: Ingredient[] = await resPantry.json();
@@ -165,7 +176,16 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Writes
     const addRecipe = async (newRecipe: Omit<Recipe, 'id' | 'is_favorite' | 'rating'>): Promise<Recipe> => {
         const tempId = Date.now();
-        const recipe: Recipe = { ...newRecipe, id: tempId, is_favorite: false, rating: 0 };
+        const cleanedIngredients = (newRecipe.ingredients || [])
+            .map(ing => normalizeRecipeIngredient(ing))
+            .filter((ing): ing is NonNullable<typeof ing> => ing !== null);
+        const recipe: Recipe = {
+            ...newRecipe,
+            ingredients: cleanedIngredients,
+            id: tempId,
+            is_favorite: false,
+            rating: 0
+        };
         setRecipes(prev => [...prev, recipe]);
 
         if (isAuthenticated) {

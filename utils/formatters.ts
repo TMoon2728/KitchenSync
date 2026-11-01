@@ -23,16 +23,19 @@ export const formatQuantity = (quantity: number | string): string => {
         return (whole + 1).toString();
     }
 
-    // Common fractions check
+    // Common culinary fractions check
     let fraction = "";
-    if (Math.abs(decimal - 0.25) < tolerance) fraction = "1/4";
-    else if (Math.abs(decimal - 1/3) < tolerance) fraction = "1/3";
-    else if (Math.abs(decimal - 0.5) < tolerance) fraction = "1/2";
-    else if (Math.abs(decimal - 2/3) < tolerance) fraction = "2/3";
-    else if (Math.abs(decimal - 0.75) < tolerance) fraction = "3/4";
+    if (Math.abs(decimal - 0.125) < 0.06) fraction = "1/8";
+    else if (Math.abs(decimal - 0.25) < 0.05) fraction = "1/4";
+    else if (Math.abs(decimal - 1/3) < 0.05) fraction = "1/3";
+    else if (Math.abs(decimal - 0.375) < 0.04) fraction = "3/8";
+    else if (Math.abs(decimal - 0.5) < 0.06) fraction = "1/2";
+    else if (Math.abs(decimal - 0.625) < 0.04) fraction = "2/3";
+    else if (Math.abs(decimal - 2/3) < 0.06) fraction = "2/3";
+    else if (Math.abs(decimal - 0.75) < 0.06) fraction = "3/4";
+    else if (Math.abs(decimal - 0.875) < 0.05) fraction = "7/8";
     else {
         // Fallback for weird numbers (e.g. 0.8)
-        // Just return one decimal place
         return Number(num.toFixed(1)).toString();
     }
 

@@ -1,16 +1,24 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
-import type { MealPlan, PantryItem, Recipe, UserProfile } from '../types'; // Keep types for internal logic if needed
+import type { MealPlan, PantryItem, Recipe, UserProfile } from '../types';
 import { useKitchen } from '../context/KitchenContext';
 import { useUser } from '../context/UserContext';
 import confetti from 'canvas-confetti';
 import { convertQuantity } from '../utils/unitConversion';
 import { formatQuantity } from '../utils/formatters';
+import {
+    cleanIngredientNameAndUnit,
+    resolveCanonicalCategory,
+    standardizeMeasurement,
+    isPlainCookingWater,
+    formatDisplayUnit,
+    formatShoppingItemLine
+} from '../utils/ingredientNormalizer';
 import GroceryExportModal from '../components/GroceryExportModal';
 
 interface NeededIngredient {
+    canonicalKey?: string;
     name: string;
     quantity: number;
     unit: string;
@@ -39,13 +47,12 @@ const ShoppingList: React.FC = () => {
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [exportStoreName, setExportStoreName] = useState('Instacart');
     const [exportStoreUrl, setExportStoreUrl] = useState('https://instacart.com');
-
-
+    const [quickCopied, setQuickCopied] = useState(false);
 
     const shoppingList: { [category: string]: NeededIngredient[] } = useMemo(() => {
         const needed: { [key: string]: NeededIngredient } = {};
 
-        // 1. Aggregate all ingredients from the meal plan (without subtracting pantry yet)
+        // 1. Aggregate all ingredients from the meal plan (consolidating across units & categories)
         Object.values(mealPlan).forEach(dayPlan => {
             Object.values(dayPlan).forEach(slotItems => {
                 slotItems.forEach(item => {
@@ -54,18 +61,41 @@ const ShoppingList: React.FC = () => {
                     const recipe = recipes.find(r => r.id === item.recipeId);
                     if (recipe) {
                         recipe.ingredients.forEach(ing => {
-                            // Use a unique key based on name + unit to initially group EXACT matches from recipes
-                            // But for the final calculation, we will match against pantry more broadly
-                            const key = `${ing.name.toLowerCase()}-${ing.unit.toLowerCase()}`;
-                            if (!needed[key]) {
-                                needed[key] = {
-                                    name: ing.name,
-                                    quantity: 0,
-                                    unit: ing.unit,
-                                    category: ing.category || 'Other'
+                            if (!ing?.name || isPlainCookingWater(ing.name)) return;
+
+                            const { displayName, canonicalKey, unit } = cleanIngredientNameAndUnit(
+                                ing.name,
+                                ing.unit
+                            );
+                            const category = resolveCanonicalCategory(displayName, ing.category);
+                            const qty = Number(ing.quantity) || 1;
+
+                            // Check if we already have an entry with the same canonicalKey that can be unit-converted
+                            const existingKey = Object.keys(needed).find(k => {
+                                const entry = needed[k];
+                                if (entry.isManual || entry.canonicalKey !== canonicalKey) return false;
+                                return convertQuantity(1, unit, entry.unit) !== null;
+                            });
+
+                            if (existingKey) {
+                                const existing = needed[existingKey];
+                                const factor = convertQuantity(1, unit, existing.unit);
+                                if (factor !== null) {
+                                    existing.quantity += qty * factor;
+                                }
+                                if (displayName.includes('(') && !existing.name.includes('(')) {
+                                    existing.name = displayName;
+                                }
+                            } else {
+                                const bucketKey = `${canonicalKey}::${unit}`;
+                                needed[bucketKey] = {
+                                    canonicalKey,
+                                    name: displayName,
+                                    quantity: qty,
+                                    unit,
+                                    category
                                 };
                             }
-                            needed[key].quantity += ing.quantity;
                         });
                     }
                 });
@@ -74,61 +104,80 @@ const ShoppingList: React.FC = () => {
 
         // Merge Manual Entries
         manualShoppingList.forEach(manualItem => {
-            // Include ID in the key to uniquely identify it for deletion, or just merge by name
+            if (!manualItem?.name || isPlainCookingWater(manualItem.name)) return;
+            const { displayName, canonicalKey, unit } = cleanIngredientNameAndUnit(
+                manualItem.name,
+                manualItem.unit
+            );
+            const category =
+                manualItem.category && manualItem.category !== 'Other'
+                    ? manualItem.category
+                    : resolveCanonicalCategory(displayName, manualItem.category);
             const key = `manual-${manualItem.id}`;
             needed[key] = {
-                name: manualItem.name,
-                quantity: manualItem.quantity,
-                unit: manualItem.unit,
-                category: manualItem.category || 'Other',
+                canonicalKey,
+                name: displayName,
+                quantity: Number(manualItem.quantity) || 1,
+                unit,
+                category,
                 isManual: true,
                 id: manualItem.id
             };
         });
 
-        // 2. Subtract Pantry Items using Smart Conversion
+        // 2. Subtract Pantry Items using Smart Canonical + Unit Conversion
         pantry.forEach(pantryItem => {
-            let availableQty = pantryItem.quantity;
-            const pantryUnit = pantryItem.unit;
-
-            // Find all needed items that match the pantry item name (case-insensitive)
-            const matches = Object.keys(needed).filter(key =>
-                needed[key].name.toLowerCase() === pantryItem.name.toLowerCase()
+            let availableQty = Number(pantryItem.quantity) || 0;
+            if (availableQty <= 0) return;
+            const { canonicalKey: pCanonical, unit: pantryUnit } = cleanIngredientNameAndUnit(
+                pantryItem.name,
+                pantryItem.unit
             );
 
-            // Iterate through matches and deduct
+            const matches = Object.keys(needed).filter(key => {
+                const n = needed[key];
+                return (
+                    n.canonicalKey === pCanonical ||
+                    n.name.toLowerCase().trim() === pantryItem.name.toLowerCase().trim()
+                );
+            });
+
             for (const key of matches) {
-                if (availableQty <= 0) break; // Exhausted pantry item
+                if (availableQty <= 0) break;
 
                 const neededItem = needed[key];
                 const conversion = convertQuantity(1, pantryUnit, neededItem.unit);
 
                 if (conversion !== null) {
-                    // We can convert! 
-                    // Calculate how much we can cover
                     const amountCanCover = availableQty * conversion;
 
                     if (amountCanCover >= neededItem.quantity) {
-                        // We have enough to fully cover this need
                         const neededAmountInPantryUnits = neededItem.quantity / conversion;
                         availableQty -= neededAmountInPantryUnits;
-                        delete needed[key]; // Fully verified/covered
+                        delete needed[key];
                     } else {
-                        // We can only partially cover it
                         neededItem.quantity -= amountCanCover;
-                        availableQty = 0; // Pantry item used up
+                        availableQty = 0;
                     }
-                } else {
-                    // Units don't match and can't be converted (e.g. 'pieces' vs 'kg'). 
-                    // We cannot safely deduct.
-                    // Fallback: If strings strictly match? No, convertQuantity handles strict match too.
-                    console.warn(`Cannot convert ${pantryUnit} to ${neededItem.unit} for ${pantryItem.name}`);
                 }
             }
         });
 
-        // 3. Filter and Group
-        const filteredList = Object.values(needed).filter(item => item.quantity > 0.01); // Float tolerance
+        // 3. Standardize final shopping list quantities & units (round up discrete items, snap fractions, convert >=16oz to lbs)
+        const filteredList = Object.values(needed)
+            .filter(item => item.quantity > 0.01)
+            .map(item => {
+                const std = standardizeMeasurement(item.quantity, item.unit, item.name, true);
+                return {
+                    ...item,
+                    quantity: std.quantity,
+                    unit: std.unit,
+                    category:
+                        item.isManual && item.category !== 'Other'
+                            ? item.category
+                            : resolveCanonicalCategory(item.name, item.category)
+                };
+            });
 
         const groupedList = filteredList.reduce((acc, item) => {
             const category = item.category || 'Other';
@@ -139,18 +188,37 @@ const ShoppingList: React.FC = () => {
             return acc;
         }, {} as { [category: string]: NeededIngredient[] });
 
-        // Sort categories
-        return Object.keys(groupedList).sort().reduce((acc, key) => {
-            acc[key] = groupedList[key];
-            return acc;
-        }, {} as { [category: string]: NeededIngredient[] });
+        // Sort categories by natural grocery store aisle order
+        const AISLE_ORDER = [
+            'Produce',
+            'Meat',
+            'Dairy & Eggs',
+            'Bakery',
+            'Frozen',
+            'Pantry Staples',
+            'Beverages',
+            'Household',
+            'Other'
+        ];
+        return Object.keys(groupedList)
+            .sort((a, b) => {
+                const idxA = AISLE_ORDER.indexOf(a);
+                const idxB = AISLE_ORDER.indexOf(b);
+                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                if (idxA !== -1) return -1;
+                if (idxB !== -1) return 1;
+                return a.localeCompare(b);
+            })
+            .reduce((acc, key) => {
+                acc[key] = groupedList[key].sort((x, y) => x.name.localeCompare(y.name));
+                return acc;
+            }, {} as { [category: string]: NeededIngredient[] });
 
     }, [mealPlan, pantry, recipes, manualShoppingList]);
 
     // Stats for Gamification
     const totalItems = (Object.values(shoppingList) as NeededIngredient[][]).reduce((acc: number, items: NeededIngredient[]) => acc + items.length, 0);
     const completedItems = Array.from(checkedItems).filter(item => {
-        // Only count if item is actually in current list (avoid stale state issues)
         return (Object.values(shoppingList) as NeededIngredient[][]).some(list => list.some(i => i.name === item));
     }).length;
 
@@ -165,7 +233,7 @@ const ShoppingList: React.FC = () => {
                 particleCount: count,
                 spread: 100,
                 origin: { y: 0.3 },
-                colors: ['#22c55e', '#ffffff'] // Green and White
+                colors: ['#22c55e', '#ffffff']
             });
         }
     }, [completedItems, totalItems, userProfile.preferences]);
@@ -195,10 +263,9 @@ const ShoppingList: React.FC = () => {
                     quantity: item.quantity,
                     unit: item.unit,
                     category: item.category,
-                    expiryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // Default 7 days
+                    expiryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
                 });
 
-                // Delete if it was a manual item
                 if ((item as any).isManual && (item as any).id) {
                     removeManualShoppingItem((item as any).id);
                 }
@@ -207,7 +274,6 @@ const ShoppingList: React.FC = () => {
 
         await batchAddPantryItems(itemsToAdd);
         setCheckedItems(new Set());
-        // Trigger confetti again? Or a different success toast?
         alert(`Moved ${itemsToAdd.length} items to your Pantry!`);
     };
 
@@ -219,14 +285,9 @@ const ShoppingList: React.FC = () => {
         const reader = new FileReader();
         reader.onloadend = async () => {
             const base64 = reader.result as string;
-
-            // Current flat list for context
             const currentList = Object.values(shoppingList).flat().map(i => i.name);
 
             try {
-                // We need to use authFetch or similar that handles the token automatically
-                // But authFetch is in utils/api.ts. Let's assume it's available or imported.
-                // Wait, useKitchen uses it, but we can import it directly.
                 const { authFetch } = await import('../utils/api');
                 const token = await getAccessToken();
 
@@ -243,7 +304,6 @@ const ShoppingList: React.FC = () => {
                     const data = await res.json();
                     setScanResult(data.result);
 
-                    // Auto-check matched items
                     if (data.result.matched) {
                         setCheckedItems(prev => {
                             const newSet = new Set(prev);
@@ -269,7 +329,7 @@ const ShoppingList: React.FC = () => {
     const handleAddManualItem = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newItemName.trim()) return;
-        
+
         setIsAdding(true);
         await addManualShoppingItem({
             name: newItemName.trim(),
@@ -277,7 +337,7 @@ const ShoppingList: React.FC = () => {
             unit: newItemUnit.trim() || 'each',
             category: newItemCategory
         });
-        
+
         setNewItemName('');
         setNewItemQty('1');
         setIsAdding(false);
@@ -291,7 +351,7 @@ const ShoppingList: React.FC = () => {
                     <p className="text-gray-500 dark:text-gray-400 text-sm">Gather supplies for the week ahead.</p>
                 </div>
 
-                <div className="flex gap-2 relative items-center">
+                <div className="flex gap-2 relative items-center flex-wrap">
                     {/* Scan Receipt Button */}
                     <div className="relative">
                         <input
@@ -319,6 +379,29 @@ const ShoppingList: React.FC = () => {
                             className="bg-green-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-green-700 transition-colors shadow-md hover:shadow-lg animate-fade-in"
                         >
                             <i className="fas fa-check-circle mr-2"></i> Finish ({checkedItems.size})
+                        </button>
+                    )}
+
+                    {/* Quick Copy Clean List Button */}
+                    {listHasItems && (
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                const flat = (Object.values(shoppingList) as NeededIngredient[][]).flat();
+                                const text = flat.map(i => formatShoppingItemLine(i)).join('\n');
+                                try {
+                                    await navigator.clipboard.writeText(text);
+                                    setQuickCopied(true);
+                                    setTimeout(() => setQuickCopied(false), 2500);
+                                } catch (e) {
+                                    console.error('Copy failed', e);
+                                }
+                            }}
+                            className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-colors flex items-center shadow-sm"
+                            title="Copy standardized shopping list to clipboard"
+                        >
+                            <i className={`fas ${quickCopied ? 'fa-check' : 'fa-copy'} mr-2`}></i>
+                            <span className="hidden sm:inline">{quickCopied ? 'Copied!' : 'Copy List'}</span>
                         </button>
                     )}
 
@@ -365,20 +448,20 @@ const ShoppingList: React.FC = () => {
                                 </button>
                                 <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                                 {userProfile?.groceryStores?.map(store => (
-                                        <button
-                                            key={store.id}
-                                            onClick={() => {
-                                                setExportStoreName(store.name);
-                                                setExportStoreUrl(store.url);
-                                                setIsExportModalOpen(true);
-                                                setShowStoreLinks(false);
-                                            }}
-                                            className="w-full text-left px-4 py-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-purple-50 hover:text-purple-700 transition-colors flex items-center"
-                                        >
-                                            <i className="fas fa-store w-6 text-center mr-2 opacity-50"></i>
-                                            {store.name}
-                                        </button>
-                                    ))}
+                                    <button
+                                        key={store.id}
+                                        onClick={() => {
+                                            setExportStoreName(store.name);
+                                            setExportStoreUrl(store.url);
+                                            setIsExportModalOpen(true);
+                                            setShowStoreLinks(false);
+                                        }}
+                                        className="w-full text-left px-4 py-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-purple-50 hover:text-purple-700 transition-colors flex items-center"
+                                    >
+                                        <i className="fas fa-store w-6 text-center mr-2 opacity-50"></i>
+                                        {store.name}
+                                    </button>
+                                ))}
                             </div>
                         )}
                     </div>
@@ -423,9 +506,7 @@ const ShoppingList: React.FC = () => {
                                             </div>
                                             <button
                                                 onClick={() => {
-                                                    // Quick add extra item
                                                     batchAddPantryItems([item]);
-                                                    // Remove from UI
                                                     setScanResult(prev => prev ? ({
                                                         ...prev,
                                                         extra: prev.extra.filter((_, i) => i !== idx)
@@ -478,19 +559,19 @@ const ShoppingList: React.FC = () => {
             <form onSubmit={handleAddManualItem} className="bg-white dark:bg-gray-800 dark:text-gray-100 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row gap-3 items-end">
                 <div className="flex-grow w-full">
                     <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Add to List</label>
-                    <input 
-                        type="text" 
+                    <input
+                        type="text"
                         value={newItemName}
                         onChange={e => setNewItemName(e.target.value)}
-                        placeholder="e.g. Paper Towels" 
+                        placeholder="e.g. Paper Towels"
                         className="w-full bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:bg-gray-800 dark:text-gray-100"
                         required
                     />
                 </div>
                 <div className="w-full sm:w-28 min-w-[80px]">
                     <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Qty</label>
-                    <input 
-                        type="number" 
+                    <input
+                        type="number"
                         value={newItemQty}
                         onChange={e => setNewItemQty(e.target.value)}
                         min="0.1"
@@ -500,38 +581,44 @@ const ShoppingList: React.FC = () => {
                 </div>
                 <div className="w-full sm:w-40 min-w-[120px]">
                     <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Unit</label>
-                    <select 
+                    <select
                         value={newItemUnit}
                         onChange={e => setNewItemUnit(e.target.value)}
                         className="w-full bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:bg-gray-800 dark:text-gray-100"
                     >
                         <option value="each">each</option>
-                        <option value="rolls">rolls</option>
-                        <option value="boxes">boxes</option>
-                        <option value="cans">cans</option>
-                        <option value="packages">packages</option>
+                        <option value="lb">lb</option>
                         <option value="oz">oz</option>
+                        <option value="cup">cup</option>
+                        <option value="tbsp">tbsp</option>
+                        <option value="tsp">tsp</option>
+                        <option value="can">cans</option>
+                        <option value="pkg">packages</option>
+                        <option value="box">boxes</option>
+                        <option value="roll">rolls</option>
                         <option value="g">g</option>
                     </select>
                 </div>
                 <div className="w-full sm:w-56 min-w-[170px]">
                     <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Category</label>
-                    <select 
+                    <select
                         value={newItemCategory}
                         onChange={e => setNewItemCategory(e.target.value)}
                         className="w-full bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:bg-gray-800 dark:text-gray-100"
                     >
-                        <option value="Other">Other</option>
+                        <option value="Other">Auto-Detect / Other</option>
                         <option value="Produce">Produce</option>
                         <option value="Meat">Meat</option>
                         <option value="Dairy & Eggs">Dairy & Eggs</option>
+                        <option value="Bakery">Bakery</option>
+                        <option value="Frozen">Frozen</option>
                         <option value="Pantry Staples">Pantry Staples</option>
-                        <option value="Household">Household</option>
                         <option value="Beverages">Beverages</option>
+                        <option value="Household">Household</option>
                     </select>
                 </div>
-                <button 
-                    type="submit" 
+                <button
+                    type="submit"
                     disabled={isAdding || !newItemName.trim()}
                     className="w-full sm:w-auto bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 h-[42px]"
                 >
@@ -551,9 +638,10 @@ const ShoppingList: React.FC = () => {
                                 <div className="space-y-2 pl-4">
                                     {items.map(item => {
                                         const isChecked = checkedItems.has(item.name);
+                                        const unitDisplay = formatDisplayUnit(item.unit, item.quantity, item.name);
                                         return (
                                             <div
-                                                key={item.name}
+                                                key={`${item.name}-${item.unit}`}
                                                 onClick={() => handleCheck(item.name)}
                                                 className={`flex items-center p-3 rounded-xl border-2 transition-all cursor-pointer group select-none ${isChecked
                                                     ? 'bg-gray-50 dark:bg-gray-700/50 border-gray-100 dark:border-gray-700 opacity-60 grayscale'
@@ -569,10 +657,10 @@ const ShoppingList: React.FC = () => {
                                                     </span>
                                                 </div>
                                                 <span className={`text-sm font-bold px-3 py-1 rounded-full ${isChecked ? 'bg-gray-200 text-gray-500 dark:text-gray-400' : 'bg-blue-50 text-blue-600'}`}>
-                                                    {formatQuantity(item.quantity)} {item.unit}
+                                                    {`${formatQuantity(item.quantity)}${unitDisplay ? ` ${unitDisplay}` : ''}`}
                                                 </span>
                                                 {(item as any).isManual && (item as any).id && (
-                                                    <button 
+                                                    <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             removeManualShoppingItem((item as any).id);
@@ -599,21 +687,21 @@ const ShoppingList: React.FC = () => {
                         <p className="text-gray-600 dark:text-gray-300 max-w-md mb-8">
                             Your shopping list is generated automatically when you add recipes to your Meal Planner. Make planning a breeze!
                         </p>
-                        <Link 
-                            to="/planner" 
+                        <Link
+                            to="/planner"
                             className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md hover:shadow-lg flex items-center gap-2 group"
                         >
-                            Head to Meal Planner 
+                            Head to Meal Planner
                             <i className="fas fa-arrow-right transform group-hover:translate-x-1 transition-transform"></i>
                         </Link>
                     </div>
                 )}
             </div>
 
-            <GroceryExportModal 
+            <GroceryExportModal
                 isOpen={isExportModalOpen}
                 onClose={() => setIsExportModalOpen(false)}
-                shoppingList={Object.values(shoppingList).flat()} // Flatten grouped list for the export
+                shoppingList={Object.values(shoppingList).flat()}
                 favoriteStoreName={exportStoreName}
                 favoriteStoreUrl={exportStoreUrl}
             />
