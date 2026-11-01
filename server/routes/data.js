@@ -1,7 +1,219 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
+
+async function resolveHubHousehold(rawCode) {
+    const code = String(rawCode || '').trim();
+    if (!code) return null;
+
+    const { rows } = await db.query(
+        `SELECT u.*,
+                (SELECT COUNT(*) FROM recipes r WHERE r.user_id = u.id) AS recipe_count
+         FROM users u
+         WHERE UPPER(u.invite_code) = UPPER($1)
+            OR LOWER(u.email) = LOWER($1)
+            OR u.household_id = $1
+         ORDER BY recipe_count DESC, u.created_at ASC
+         LIMIT 1`,
+        [code]
+    );
+
+    if (rows.length === 0) return null;
+    const user = rows[0];
+
+    if (!user.invite_code) {
+        const generated = 'KS-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+        try {
+            await db.query('UPDATE users SET invite_code = $1 WHERE id = $2', [generated, user.id]);
+            user.invite_code = generated;
+        } catch {}
+    }
+
+    const effectiveHousehold = user.household_id || String(user.id);
+    return { user, effectiveHousehold };
+}
+
+async function buildHubSyncPayload(user, effectiveHousehold) {
+    const recipesRes = await db.query(
+        'SELECT * FROM recipes WHERE user_id IN (SELECT id FROM users WHERE household_id = $1 OR (household_id IS NULL AND id::text = $1) OR LOWER(email) = LOWER($2)) ORDER BY id ASC',
+        [effectiveHousehold, user.email || '']
+    );
+    const recipes = recipesRes.rows.map(r => {
+        const recipeData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+        return {
+            ...recipeData,
+            id: r.id,
+            is_favorite: !!r.is_favorite
+        };
+    });
+
+    const pantryRes = await db.query(
+        'SELECT * FROM pantry WHERE user_id IN (SELECT id FROM users WHERE household_id = $1 OR (household_id IS NULL AND id::text = $1) OR LOWER(email) = LOWER($2)) ORDER BY id ASC',
+        [effectiveHousehold, user.email || '']
+    );
+    const pantry = pantryRes.rows.map(r => ({
+        id: r.id,
+        user_id: r.user_id,
+        name: r.name,
+        quantity: r.quantity,
+        unit: r.unit,
+        category: r.category,
+        ...(r.expiry_date ? { expiryDate: r.expiry_date } : {})
+    }));
+
+    const mealPlanRes = await db.query(
+        `SELECT data FROM meal_plans
+         WHERE household_id = $1
+            OR household_id = $2
+            OR household_id IN (SELECT id::text FROM users WHERE LOWER(email) = LOWER($3))
+         ORDER BY updated_at DESC
+         LIMIT 1`,
+        [effectiveHousehold, String(user.id), user.email || '']
+    );
+    const mealPlan = mealPlanRes.rows.length > 0
+        ? (typeof mealPlanRes.rows[0].data === 'string'
+            ? JSON.parse(mealPlanRes.rows[0].data)
+            : (mealPlanRes.rows[0].data || {}))
+        : {};
+
+    const rawPrefs = typeof user.preferences === 'string'
+        ? JSON.parse(user.preferences || '{}')
+        : (user.preferences || {});
+    const appPrefs = rawPrefs.appPreferences || {};
+    const scheduleSettings = {
+        scheduleMatrix: appPrefs.scheduleMatrix || null,
+        plannerViewMode: appPrefs.plannerViewMode || 'list'
+    };
+
+    return {
+        connected: true,
+        user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            inviteCode: user.invite_code,
+            householdId: effectiveHousehold
+        },
+        recipes,
+        pantry,
+        mealPlan,
+        scheduleSettings
+    };
+}
+
+// --- FAMILY HUB CLOUD SYNC (Authenticated via Invite Code or Email) ---
+
+// GET /api/data/hub-sync?code=KS-XXXXXX
+router.get('/hub-sync', async (req, res) => {
+    try {
+        const code = req.query.code || req.headers['x-hub-sync-code'];
+        const resolved = await resolveHubHousehold(code);
+        if (!resolved) {
+            return res.status(404).json({
+                error: "No KitchenSync account found for that Invite Code or Email."
+            });
+        }
+        const payload = await buildHubSyncPayload(resolved.user, resolved.effectiveHousehold);
+        res.json(payload);
+    } catch (e) {
+        console.error("Hub Sync GET Error:", e);
+        res.status(500).json({ error: "Failed to fetch KitchenSync cloud state" });
+    }
+});
+
+// POST /api/data/hub-sync (Push updates from Family Hub to KitchenSync Cloud)
+router.post('/hub-sync', async (req, res) => {
+    try {
+        const code = req.body?.code || req.query.code || req.headers['x-hub-sync-code'];
+        const resolved = await resolveHubHousehold(code);
+        if (!resolved) {
+            return res.status(404).json({
+                error: "No KitchenSync account found for that Invite Code or Email."
+            });
+        }
+
+        const { user, effectiveHousehold } = resolved;
+        const { mealPlan, pantry, newRecipes, scheduleSettings } = req.body || {};
+
+        if (Array.isArray(newRecipes) && newRecipes.length > 0) {
+            for (const r of newRecipes) {
+                const { id, ...data } = r;
+                await db.query(
+                    'INSERT INTO recipes (user_id, data, is_favorite) VALUES ($1, $2, $3)',
+                    [user.id, data, !!r.is_favorite]
+                );
+            }
+        }
+
+        if (mealPlan && typeof mealPlan === 'object') {
+            await db.query(
+                `INSERT INTO meal_plans (household_id, data, updated_at)
+                 VALUES ($1, $2, CURRENT_TIMESTAMP)
+                 ON CONFLICT (household_id)
+                 DO UPDATE SET data = EXCLUDED.data, updated_at = CURRENT_TIMESTAMP`,
+                [effectiveHousehold, JSON.stringify(mealPlan)]
+            );
+        }
+
+        if (Array.isArray(pantry)) {
+            const client = await db.connect();
+            try {
+                await client.query('BEGIN');
+                await client.query(
+                    'DELETE FROM pantry WHERE user_id IN (SELECT id FROM users WHERE household_id = $1 OR (household_id IS NULL AND id::text = $1))',
+                    [effectiveHousehold]
+                );
+                for (const item of pantry) {
+                    if (!item.name || Number(item.quantity) <= 0) continue;
+                    await client.query(
+                        'INSERT INTO pantry (user_id, name, quantity, unit, category, expiry_date) VALUES ($1, $2, $3, $4, $5, $6)',
+                        [
+                            user.id,
+                            item.name,
+                            Number(item.quantity) || 1,
+                            item.unit || 'each',
+                            item.category || 'Pantry',
+                            item.expiryDate || item.expiry_date || null
+                        ]
+                    );
+                }
+                await client.query('COMMIT');
+            } catch (err) {
+                await client.query('ROLLBACK');
+                throw err;
+            } finally {
+                client.release();
+            }
+        }
+
+        if (scheduleSettings && typeof scheduleSettings === 'object') {
+            const rawPrefs = typeof user.preferences === 'string'
+                ? JSON.parse(user.preferences || '{}')
+                : (user.preferences || {});
+            const mergedPrefs = {
+                ...rawPrefs,
+                appPreferences: {
+                    ...(rawPrefs.appPreferences || {}),
+                    ...(scheduleSettings.scheduleMatrix ? { scheduleMatrix: scheduleSettings.scheduleMatrix } : {}),
+                    ...(scheduleSettings.plannerViewMode ? { plannerViewMode: scheduleSettings.plannerViewMode } : {})
+                }
+            };
+            await db.query(
+                'UPDATE users SET preferences = $1 WHERE id = $2',
+                [JSON.stringify(mergedPrefs), user.id]
+            );
+            user.preferences = mergedPrefs;
+        }
+
+        const payload = await buildHubSyncPayload(user, effectiveHousehold);
+        res.json(payload);
+    } catch (e) {
+        console.error("Hub Sync POST Error:", e);
+        res.status(500).json({ error: "Failed to push updates to KitchenSync cloud" });
+    }
+});
 
 router.use(requireAuth);
 

@@ -77,8 +77,51 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         authFetch('/api/data/meal-plan', { token })
                     ]);
 
-                    if (resRecipes.ok) setRecipes(await resRecipes.json());
-                    if (resPantry.ok) setPantry(await resPantry.json());
+                    if (resRecipes.ok) {
+                        const serverRecipes: Recipe[] = await resRecipes.json();
+                        const serverNames = new Set(
+                            serverRecipes.map(sr => (sr.name || '').toLowerCase().trim())
+                        );
+                        const mockIds = new Set(MOCK_RECIPES.map(m => m.id));
+                        const unsyncedLocal = recipes.filter(r => {
+                            const key = (r.name || '').toLowerCase().trim();
+                            if (!key || serverNames.has(key)) return false;
+                            if (serverRecipes.length > 0 && mockIds.has(r.id)) return false;
+                            return true;
+                        });
+
+                        const uploaded: Recipe[] = [];
+                        for (const localRec of unsyncedLocal) {
+                            try {
+                                const postRes = await authFetch('/api/data/recipes', {
+                                    method: 'POST',
+                                    body: JSON.stringify(localRec),
+                                    token
+                                });
+                                if (postRes.ok) {
+                                    uploaded.push(await postRes.json());
+                                }
+                            } catch {}
+                        }
+                        setRecipes([...serverRecipes, ...uploaded]);
+                    }
+                    if (resPantry.ok) {
+                        const serverPantry: Ingredient[] = await resPantry.json();
+                        if (serverPantry.length > 0) {
+                            setPantry(serverPantry);
+                        } else if (pantry.length > 0) {
+                            try {
+                                const batchRes = await authFetch('/api/data/pantry/batch', {
+                                    method: 'POST',
+                                    body: JSON.stringify({ items: pantry }),
+                                    token
+                                });
+                                if (batchRes.ok) {
+                                    setPantry(await batchRes.json());
+                                }
+                            } catch {}
+                        }
+                    }
                     if (resShopping.ok) setManualShoppingList(await resShopping.json());
                     if (resMealPlan.ok) {
                         const serverPlan = await resMealPlan.json();
