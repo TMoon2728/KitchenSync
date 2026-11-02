@@ -50,15 +50,34 @@ const ShoppingList: React.FC = () => {
     const [quickCopied, setQuickCopied] = useState(false);
 
     const shoppingList: { [category: string]: NeededIngredient[] } = useMemo(() => {
-        const needed: { [key: string]: NeededIngredient } = {};
+        const neededMap = new Map<string, NeededIngredient>();
+        const canonicalIndex = new Map<string, string[]>();
+        const nameIndex = new Map<string, string[]>();
+        const recipeById = new Map<number, Recipe>(recipes.map(r => [r.id, r]));
 
-        // 1. Aggregate all ingredients from the meal plan (consolidating across units & categories)
+        const registerBucketKey = (bucketKey: string, canonicalKey: string, lowerName: string) => {
+            const cList = canonicalIndex.get(canonicalKey);
+            if (cList) {
+                if (!cList.includes(bucketKey)) cList.push(bucketKey);
+            } else {
+                canonicalIndex.set(canonicalKey, [bucketKey]);
+            }
+
+            const nList = nameIndex.get(lowerName);
+            if (nList) {
+                if (!nList.includes(bucketKey)) nList.push(bucketKey);
+            } else {
+                nameIndex.set(lowerName, [bucketKey]);
+            }
+        };
+
+        // 1. Aggregate all ingredients from the meal plan (O(1) Map lookups)
         Object.values(mealPlan).forEach(dayPlan => {
             Object.values(dayPlan).forEach(slotItems => {
                 slotItems.forEach(item => {
                     if (item.completed) return; // Skip completed items
 
-                    const recipe = recipes.find(r => r.id === item.recipeId);
+                    const recipe = recipeById.get(item.recipeId);
                     if (recipe) {
                         recipe.ingredients.forEach(ing => {
                             if (!ing?.name || isPlainCookingWater(ing.name)) return;
@@ -70,31 +89,38 @@ const ShoppingList: React.FC = () => {
                             const category = resolveCanonicalCategory(displayName, ing.category);
                             const qty = Number(ing.quantity) || 1;
 
-                            // Check if we already have an entry with the same canonicalKey that can be unit-converted
-                            const existingKey = Object.keys(needed).find(k => {
-                                const entry = needed[k];
-                                if (entry.isManual || entry.canonicalKey !== canonicalKey) return false;
-                                return convertQuantity(1, unit, entry.unit) !== null;
-                            });
+                            // O(1) lookup of candidate buckets sharing the same canonicalKey
+                            const candidateKeys = canonicalIndex.get(canonicalKey) || [];
+                            let matchedKey: string | undefined;
+                            let conversionFactor: number | null = null;
 
-                            if (existingKey) {
-                                const existing = needed[existingKey];
-                                const factor = convertQuantity(1, unit, existing.unit);
+                            for (const k of candidateKeys) {
+                                const entry = neededMap.get(k);
+                                if (!entry || entry.isManual) continue;
+                                const factor = convertQuantity(1, unit, entry.unit);
                                 if (factor !== null) {
-                                    existing.quantity += qty * factor;
+                                    matchedKey = k;
+                                    conversionFactor = factor;
+                                    break;
                                 }
+                            }
+
+                            if (matchedKey && conversionFactor !== null) {
+                                const existing = neededMap.get(matchedKey)!;
+                                existing.quantity += qty * conversionFactor;
                                 if (displayName.includes('(') && !existing.name.includes('(')) {
                                     existing.name = displayName;
                                 }
                             } else {
                                 const bucketKey = `${canonicalKey}::${unit}`;
-                                needed[bucketKey] = {
+                                neededMap.set(bucketKey, {
                                     canonicalKey,
                                     name: displayName,
                                     quantity: qty,
                                     unit,
                                     category
-                                };
+                                });
+                                registerBucketKey(bucketKey, canonicalKey, displayName.toLowerCase().trim());
                             }
                         });
                     }
@@ -114,7 +140,7 @@ const ShoppingList: React.FC = () => {
                     ? manualItem.category
                     : resolveCanonicalCategory(displayName, manualItem.category);
             const key = `manual-${manualItem.id}`;
-            needed[key] = {
+            neededMap.set(key, {
                 canonicalKey,
                 name: displayName,
                 quantity: Number(manualItem.quantity) || 1,
@@ -122,10 +148,11 @@ const ShoppingList: React.FC = () => {
                 category,
                 isManual: true,
                 id: manualItem.id
-            };
+            });
+            registerBucketKey(key, canonicalKey, displayName.toLowerCase().trim());
         });
 
-        // 2. Subtract Pantry Items using Smart Canonical + Unit Conversion
+        // 2. Subtract Pantry Items using O(1) Canonical + Name Index Lookups
         pantry.forEach(pantryItem => {
             let availableQty = Number(pantryItem.quantity) || 0;
             if (availableQty <= 0) return;
@@ -133,28 +160,27 @@ const ShoppingList: React.FC = () => {
                 pantryItem.name,
                 pantryItem.unit
             );
+            const lowerPantryName = pantryItem.name.toLowerCase().trim();
 
-            const matches = Object.keys(needed).filter(key => {
-                const n = needed[key];
-                return (
-                    n.canonicalKey === pCanonical ||
-                    n.name.toLowerCase().trim() === pantryItem.name.toLowerCase().trim()
-                );
-            });
+            const matchKeys = new Set<string>([
+                ...(canonicalIndex.get(pCanonical) || []),
+                ...(nameIndex.get(lowerPantryName) || [])
+            ]);
 
-            for (const key of matches) {
+            for (const key of matchKeys) {
                 if (availableQty <= 0) break;
 
-                const neededItem = needed[key];
-                const conversion = convertQuantity(1, pantryUnit, neededItem.unit);
+                const neededItem = neededMap.get(key);
+                if (!neededItem) continue;
 
+                const conversion = convertQuantity(1, pantryUnit, neededItem.unit);
                 if (conversion !== null) {
                     const amountCanCover = availableQty * conversion;
 
                     if (amountCanCover >= neededItem.quantity) {
                         const neededAmountInPantryUnits = neededItem.quantity / conversion;
                         availableQty -= neededAmountInPantryUnits;
-                        delete needed[key];
+                        neededMap.delete(key);
                     } else {
                         neededItem.quantity -= amountCanCover;
                         availableQty = 0;
@@ -164,7 +190,7 @@ const ShoppingList: React.FC = () => {
         });
 
         // 3. Standardize final shopping list quantities & units (round up discrete items, snap fractions, convert >=16oz to lbs)
-        const filteredList = Object.values(needed)
+        const filteredList = Array.from(neededMap.values())
             .filter(item => item.quantity > 0.01)
             .map(item => {
                 const std = standardizeMeasurement(item.quantity, item.unit, item.name, true);
@@ -216,11 +242,26 @@ const ShoppingList: React.FC = () => {
 
     }, [mealPlan, pantry, recipes, manualShoppingList]);
 
-    // Stats for Gamification
-    const totalItems = (Object.values(shoppingList) as NeededIngredient[][]).reduce((acc: number, items: NeededIngredient[]) => acc + items.length, 0);
-    const completedItems = Array.from(checkedItems).filter(item => {
-        return (Object.values(shoppingList) as NeededIngredient[][]).some(list => list.some(i => i.name === item));
-    }).length;
+    // Stats for Gamification (O(1) Set lookup instead of nested .some() traversal)
+    const { totalItems, activeItemNames } = useMemo(() => {
+        const names = new Set<string>();
+        let count = 0;
+        for (const items of Object.values(shoppingList) as NeededIngredient[][]) {
+            count += items.length;
+            for (const item of items) {
+                names.add(item.name);
+            }
+        }
+        return { totalItems: count, activeItemNames: names };
+    }, [shoppingList]);
+
+    const completedItems = useMemo(() => {
+        let done = 0;
+        checkedItems.forEach(name => {
+            if (activeItemNames.has(name)) done++;
+        });
+        return done;
+    }, [checkedItems, activeItemNames]);
 
     const progress = (totalItems as number) > 0 ? (completedItems / (totalItems as number)) * 100 : 0;
 

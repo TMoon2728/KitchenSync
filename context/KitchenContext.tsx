@@ -105,19 +105,19 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
                             return true;
                         });
 
-                        const uploaded: Recipe[] = [];
-                        for (const localRec of unsyncedLocal) {
-                            try {
+                        const uploadResults = await Promise.allSettled(
+                            unsyncedLocal.map(async (localRec) => {
                                 const postRes = await authFetch('/api/data/recipes', {
                                     method: 'POST',
                                     body: JSON.stringify(localRec),
                                     token
                                 });
-                                if (postRes.ok) {
-                                    uploaded.push(await postRes.json());
-                                }
-                            } catch {}
-                        }
+                                return postRes.ok ? ((await postRes.json()) as Recipe) : null;
+                            })
+                        );
+                        const uploaded = uploadResults
+                            .filter((r): r is PromiseFulfilledResult<Recipe | null> => r.status === 'fulfilled' && r.value !== null)
+                            .map(r => r.value!);
                         setRecipes(cleanRecipeList([...serverRecipes, ...uploaded]));
                     }
                     if (resPantry.ok) {
@@ -334,24 +334,32 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const deductPantryIngredients = (ingredients: Ingredient[], isUndo = false): { missing: Ingredient[] } => {
         const missing: Ingredient[] = [];
-        const modifiedItems: PantryItem[] = [];
+        const modifiedById = new Map<number, PantryItem>();
 
         const nextPantry = pantry.map(item => ({ ...item }));
+        const pantryIndex = nextPantry.map((p, idx) => {
+            const { canonicalKey, unit } = cleanIngredientNameAndUnit(p.name, p.unit);
+            return {
+                idx,
+                canonicalKey,
+                normUnit: unit,
+                lowerName: p.name.toLowerCase().trim()
+            };
+        });
 
         ingredients.forEach(ing => {
             if (!ing?.name || isPlainCookingWater(ing.name)) return;
 
             const { canonicalKey: ingKey, unit: ingUnit } = cleanIngredientNameAndUnit(ing.name, ing.unit);
+            const lowerIngName = ing.name.toLowerCase().trim();
 
-            const pantryItemIndex = nextPantry.findIndex(p => {
-                const { canonicalKey: pKey } = cleanIngredientNameAndUnit(p.name, p.unit);
-                return pKey === ingKey || p.name.toLowerCase().trim() === ing.name.toLowerCase().trim();
-            });
+            const matchedEntry = pantryIndex.find(
+                entry => entry.canonicalKey === ingKey || entry.lowerName === lowerIngName
+            );
 
-            if (pantryItemIndex > -1) {
-                const pantryItem = nextPantry[pantryItemIndex];
-                const { unit: pUnit } = cleanIngredientNameAndUnit(pantryItem.name, pantryItem.unit);
-                const conversionResult = convertQuantity(ing.quantity, ingUnit, pUnit);
+            if (matchedEntry) {
+                const pantryItem = nextPantry[matchedEntry.idx];
+                const conversionResult = convertQuantity(ing.quantity, ingUnit, matchedEntry.normUnit);
 
                 if (conversionResult !== null) {
                     if (isUndo) {
@@ -359,7 +367,7 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     } else {
                         pantryItem.quantity = Number(Math.max(0, pantryItem.quantity - conversionResult).toFixed(3));
                     }
-                    modifiedItems.push(pantryItem);
+                    modifiedById.set(pantryItem.id, pantryItem);
                 } else {
                     console.warn(`Unit mismatch for ${ing.name} during pantry deduction.`);
                 }
@@ -370,15 +378,18 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         setPantry(nextPantry);
 
-        if (isAuthenticated && modifiedItems.length > 0) {
+        if (isAuthenticated && modifiedById.size > 0) {
+            const itemsToSync = Array.from(modifiedById.values());
             getAccessToken().then(token => {
-                modifiedItems.forEach(item => {
-                    authFetch(`/api/data/pantry/${item.id}`, {
-                        method: 'PUT',
-                        body: JSON.stringify(item),
-                        token
-                    }).catch(err => console.error(`Failed to sync deducted pantry item ${item.name}`, err));
-                });
+                Promise.allSettled(
+                    itemsToSync.map(item =>
+                        authFetch(`/api/data/pantry/${item.id}`, {
+                            method: 'PUT',
+                            body: JSON.stringify(item),
+                            token
+                        })
+                    )
+                ).catch(err => console.error('Failed to sync deducted pantry items', err));
             });
         }
 

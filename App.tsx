@@ -28,8 +28,9 @@ const PrivacyPolicy = React.lazy(() => import('./pages/PrivacyPolicy'));
 import Login from './pages/Login';
 import LandingPage from './pages/LandingPage';
 import UpgradeModal from './components/UpgradeModal';
-import SousChef from './components/SousChef';
-import MeasurementConverter from './components/MeasurementConverter';
+
+const SousChef = React.lazy(() => import('./components/SousChef'));
+const MeasurementConverter = React.lazy(() => import('./components/MeasurementConverter'));
 
 const KONAMI_CODE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
 const SPACE_NAMES = ['iss', 'nasa', 'the enterprise', 'enterprise', 'voyager', 'deep space 9', 'zero g', 'orbit'];
@@ -331,11 +332,12 @@ const AppContent: React.FC = () => {
             </main>
             </div>
 
-            {!isCookingMode && userProfile.preferences?.showSousChef !== false && (
-                <SousChef onDisable={() => updatePreferences({ showSousChef: false })} />
-            )}
-
-            <MeasurementConverter />
+            <Suspense fallback={null}>
+                {!isCookingMode && userProfile.preferences?.showSousChef !== false && (
+                    <SousChef onDisable={() => updatePreferences({ showSousChef: false })} />
+                )}
+                <MeasurementConverter />
+            </Suspense>
             <UpgradeModal />
         </div>
     );

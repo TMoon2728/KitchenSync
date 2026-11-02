@@ -26,6 +26,21 @@ const jwtCheck = (process.env.AUTH0_ISSUER_BASE_URL && process.env.AUTH0_AUDIENC
 // Quick global log for diagnostics
 global.recentAuthLogs = global.recentAuthLogs || [];
 
+const findUserWithHouseholdTier = async (whereClause, params) => {
+    const res = await db.query(
+        `SELECT u.*,
+                EXISTS (
+                    SELECT 1 FROM users h
+                    WHERE (h.household_id = COALESCE(u.household_id, u.id::text) OR h.id::text = u.household_id)
+                      AND h.subscription_tier = 'pro'
+                ) AS household_has_pro
+         FROM users u
+         WHERE ${whereClause}`,
+        params
+    );
+    return res.rows[0] || null;
+};
+
 const populateUser = async (req, res, next) => {
     req.authLog = req.authLog || [];
     const payload = req.auth.payload || req.auth;
@@ -34,9 +49,8 @@ const populateUser = async (req, res, next) => {
     req.authLog.push(`Sub resolved: ${auth0Id}`);
 
     if (auth0Id) {
-        // 1. Try to find by Auth0 ID
-        let userResult = await db.query('SELECT * FROM users WHERE username = $1', [auth0Id]);
-        let user = userResult.rows[0];
+        // 1. Try to find by Auth0 ID (including single-query household pro tier resolution)
+        let user = await findUserWithHouseholdTier('u.username = $1', [auth0Id]);
 
         if (user) {
             req.authLog.push("User found by ID.");
@@ -98,8 +112,7 @@ const populateUser = async (req, res, next) => {
 
             // 2b. Link if email found
             if (email) {
-                userResult = await db.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email.toLowerCase()]);
-                user = userResult.rows[0];
+                user = await findUserWithHouseholdTier('LOWER(u.email) = LOWER($1)', [email.toLowerCase()]);
 
                 if (user) {
                     req.authLog.push(`Found legacy user by email. Linking to ${auth0Id}.`);
@@ -130,13 +143,11 @@ const populateUser = async (req, res, next) => {
                         [auth0Id, resolvedEmail, 'auth0-linked', tier, credits, JSON.stringify({}), inviteCode]
                     );
 
-                    userResult = await db.query('SELECT * FROM users WHERE username = $1', [auth0Id]);
-                    user = userResult.rows[0];
+                    user = await findUserWithHouseholdTier('u.username = $1', [auth0Id]);
                     req.authLog.push(user ? "JIT Success." : "JIT Inserted but Select failed?");
                 } catch (e) {
                     req.authLog.push(`JIT Failed: ${e.message}`);
-                    userResult = await db.query('SELECT * FROM users WHERE username = $1', [auth0Id]);
-                    user = userResult.rows[0];
+                    user = await findUserWithHouseholdTier('u.username = $1', [auth0Id]);
                 }
             }
         }
@@ -163,6 +174,9 @@ const populateUser = async (req, res, next) => {
                 }
             }
             user.effective_household = user.household_id || String(user.id);
+            user.effective_subscription_tier = (user.subscription_tier === 'pro' || user.household_has_pro)
+                ? 'pro'
+                : user.subscription_tier;
             req.user = user;
         } else {
             req.authLog.push("Final resolution: User is null.");

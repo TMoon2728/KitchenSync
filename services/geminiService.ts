@@ -1,7 +1,15 @@
 
-import { Type } from "@google/genai";
 import type { Recipe, PantryItem, WeeklyScheduleMatrix } from "../types";
 import { getActiveSlotsForDate, DAY_FULL_NAMES, getDayKeyFromDate } from "../utils/schedule";
+
+const Type = {
+    OBJECT: 'OBJECT',
+    STRING: 'STRING',
+    NUMBER: 'NUMBER',
+    ARRAY: 'ARRAY',
+    BOOLEAN: 'BOOLEAN',
+    INTEGER: 'INTEGER'
+} as const;
 
 // Schema definitions (kept for sending to backend)
 const recipeSchema = {
@@ -397,12 +405,21 @@ export const chatWithSousChef = async (history: ChatMessage[], context: string, 
     `;
 
     try {
+        const latestMessage = history[history.length - 1]?.text || '';
+        const priorTurns = history.slice(0, -1);
+        const firstUserIdx = priorTurns.findIndex(m => m.role === 'user');
+        const validPriorTurns = firstUserIdx >= 0 ? priorTurns.slice(firstUserIdx) : [];
+        const formattedHistory = validPriorTurns.map(m => ({
+            role: m.role,
+            parts: [{ text: m.text }]
+        }));
+
         const response = await authFetch(`${API_BASE}/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                history,
-                message: history[history.length - 1].text, // Redundant but explicit for backend
+                history: formattedHistory,
+                message: latestMessage,
                 systemInstruction
             }),
             token

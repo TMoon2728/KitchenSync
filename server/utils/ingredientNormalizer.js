@@ -48,6 +48,40 @@ const PREP_SUFFIX_PATTERNS = [
     /\s+\b(?:peeled and chopped|peeled and diced|peeled and sliced|seeded and chopped|washed and dried|at room temperature|to taste|for garnish|for serving)\b.*$/i
 ];
 
+// O(1) unit lookup map and compiled regex caches
+const UNIT_LOOKUP_MAP = new Map();
+for (const [canonical, aliases] of Object.entries(UNIT_ALIASES)) {
+    UNIT_LOOKUP_MAP.set(canonical, canonical);
+    for (const alias of aliases) {
+        UNIT_LOOKUP_MAP.set(alias, canonical);
+    }
+}
+
+const sizePrefixRegexCache = new Map();
+const dupUnitRegexCache = new Map();
+const categoryCache = new Map();
+const MAX_CACHE_SIZE = 2000;
+
+function getSizePrefixRegex(sizeWord) {
+    let rx = sizePrefixRegexCache.get(sizeWord);
+    if (!rx) {
+        rx = new RegExp(`^${sizeWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        sizePrefixRegexCache.set(sizeWord, rx);
+    }
+    return rx;
+}
+
+function getDupUnitRegex(normUnit) {
+    let rx = dupUnitRegexCache.get(normUnit);
+    if (!rx) {
+        const escaped = normUnit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const unitPlural = normUnit.endsWith('s') ? escaped : `${escaped}s`;
+        rx = new RegExp(`\\b(?:${escaped}|${unitPlural})\\b`, 'gi');
+        dupUnitRegexCache.set(normUnit, rx);
+    }
+    return rx;
+}
+
 function isPlainCookingWater(rawName) {
     const clean = String(rawName || '')
         .toLowerCase()
@@ -61,19 +95,11 @@ function normalizeUnit(rawUnit) {
     if (!rawUnit) return 'each';
     const clean = String(rawUnit).toLowerCase().trim().replace(/\.$/, '');
     if (!clean) return 'each';
-    for (const [canonical, aliases] of Object.entries(UNIT_ALIASES)) {
-        if (canonical === clean || aliases.includes(clean)) {
-            return canonical;
-        }
-    }
+    const direct = UNIT_LOOKUP_MAP.get(clean);
+    if (direct) return direct;
     if (clean.endsWith('s') && clean.length > 2) {
         const singular = clean.slice(0, -1);
-        for (const [canonical, aliases] of Object.entries(UNIT_ALIASES)) {
-            if (canonical === singular || aliases.includes(singular)) {
-                return canonical;
-            }
-        }
-        return singular;
+        return UNIT_LOOKUP_MAP.get(singular) || singular;
     }
     return clean;
 }
@@ -217,11 +243,13 @@ function normalizeServerIngredient(rawIng) {
         cleanedBase = cleanedBase.replace(pattern, '');
     }
 
-    cleanedBase = cleanedBase.replace(/^skinned\s+/i, '');
+    cleanedBase = cleanedBase
+        .replace(/^\d+(?:\.\d+|\s+\d+\/\d+|\/\d+)?\s*(?:pounds?|lbs?|ounces?|oz|cups?|tbsp|tablespoons?|tsp|teaspoons?|grams?|g|kg|ml|liters?|cans?|pkgs?|packages?|strips?|sheets?|slices?|cloves?)\b\s*/i, '')
+        .replace(/^skinned\s+/i, '');
 
     const lowerUnit = unit.toLowerCase().trim();
     if (SIZE_DESCRIPTORS.has(lowerUnit)) {
-        if (!new RegExp(`^${lowerUnit}\\b`, 'i').test(cleanedBase)) {
+        if (!getSizePrefixRegex(lowerUnit).test(cleanedBase)) {
             cleanedBase = `${lowerUnit} ${cleanedBase}`;
         }
         unit = 'each';
@@ -231,8 +259,7 @@ function normalizeServerIngredient(rawIng) {
 
     // Strip duplicate unit words inside name (e.g. unit="strip", name="bacon strips")
     if (normUnit && normUnit !== 'each') {
-        const unitPlural = normUnit.endsWith('s') ? normUnit : `${normUnit}s`;
-        const dupUnitRegex = new RegExp(`\\b(?:${normUnit}|${unitPlural})\\b`, 'gi');
+        const dupUnitRegex = getDupUnitRegex(normUnit);
         const strippedTry = cleanedBase.replace(dupUnitRegex, '').replace(/\s{2,}/g, ' ').trim();
         if (strippedTry.length >= 3) {
             cleanedBase = strippedTry;

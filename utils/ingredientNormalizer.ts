@@ -73,6 +73,33 @@ const LEADING_PREP_PATTERNS: RegExp[] = [
     /^(?:skinned|boneless\s+skinless|freshly\s+ground|freshly\s+grated|freshly\s+chopped|freshly\s+squeezed|packed|loosely\s+packed|firmly\s+packed|heaping|level)\s+/i
 ];
 
+// Pre-compiled regex & memoization caches (bounded to 2,000 entries to prevent memory leaks)
+const MAX_CACHE_SIZE = 2000;
+const sizePrefixRegexCache = new Map<string, RegExp>();
+const dupUnitRegexCache = new Map<string, RegExp>();
+const cleanIngredientCache = new Map<string, { displayName: string; canonicalKey: string; unit: string }>();
+const categoryCache = new Map<string, CanonicalCategory>();
+
+function getSizePrefixRegex(sizeWord: string): RegExp {
+    let rx = sizePrefixRegexCache.get(sizeWord);
+    if (!rx) {
+        rx = new RegExp(`^${sizeWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        sizePrefixRegexCache.set(sizeWord, rx);
+    }
+    return rx;
+}
+
+function getDupUnitRegex(normUnit: string): RegExp {
+    let rx = dupUnitRegexCache.get(normUnit);
+    if (!rx) {
+        const escaped = normUnit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const unitPlural = normUnit.endsWith('s') ? escaped : `${escaped}s`;
+        rx = new RegExp(`\\b(?:${escaped}|${unitPlural})\\b`, 'gi');
+        dupUnitRegexCache.set(normUnit, rx);
+    }
+    return rx;
+}
+
 /**
  * Checks whether an ingredient is plain tap/cooking water that shouldn't be on a grocery list.
  */
@@ -96,6 +123,10 @@ export function cleanIngredientNameAndUnit(rawName: string, rawUnit: string): {
     let name = (rawName || '').trim();
     let unit = (rawUnit || '').trim();
 
+    const cacheKey = `${name}::${unit}`;
+    const cached = cleanIngredientCache.get(cacheKey);
+    if (cached) return cached;
+
     // Strip parenthetical notes (e.g. "(10-3/4 ounces)", "(divided)", "(optional)")
     const nameWithoutParens = name.replace(/\s*\([^)]+\)/g, '');
 
@@ -105,13 +136,15 @@ export function cleanIngredientNameAndUnit(rawName: string, rawUnit: string): {
         cleanedBase = cleanedBase.replace(pattern, '');
     }
 
-    // Strip leading prep words like "skinned "
-    cleanedBase = cleanedBase.replace(/^skinned\s+/i, '');
+    // Strip leading prep words like "skinned " or accidental leading quantity+unit prefixes
+    cleanedBase = cleanedBase
+        .replace(/^\d+(?:\.\d+|\s+\d+\/\d+|\/\d+)?\s*(?:pounds?|lbs?|ounces?|oz|cups?|tbsp|tablespoons?|tsp|teaspoons?|grams?|g|kg|ml|liters?|cans?|pkgs?|packages?|strips?|sheets?|slices?|cloves?)\b\s*/i, '')
+        .replace(/^skinned\s+/i, '');
 
     // If unit is a size descriptor like "large", "medium", "small", move it to the name and set unit to 'each'
     const lowerUnit = unit.toLowerCase().trim();
     if (SIZE_DESCRIPTORS.has(lowerUnit)) {
-        if (!new RegExp(`^${lowerUnit}\\b`, 'i').test(cleanedBase)) {
+        if (!getSizePrefixRegex(lowerUnit).test(cleanedBase)) {
             cleanedBase = `${lowerUnit} ${cleanedBase}`;
         }
         unit = 'each';
@@ -127,8 +160,7 @@ export function cleanIngredientNameAndUnit(rawName: string, rawUnit: string): {
 
     // Remove duplicate unit words from inside the name (e.g., unit="strips", name="bacon strips" -> name="bacon")
     if (normUnit && normUnit !== 'each') {
-        const unitPlural = normUnit.endsWith('s') ? normUnit : `${normUnit}s`;
-        const dupUnitRegex = new RegExp(`\\b(?:${normUnit}|${unitPlural})\\b`, 'gi');
+        const dupUnitRegex = getDupUnitRegex(normUnit);
         const strippedTry = cleanedBase.replace(dupUnitRegex, '').replace(/\s{2,}/g, ' ').trim();
         if (strippedTry.length >= 3) {
             cleanedBase = strippedTry;
@@ -159,11 +191,17 @@ export function cleanIngredientNameAndUnit(rawName: string, rawUnit: string): {
     // Singularize simple plurals for the canonical key ("eggs" -> "egg", "potatoes" -> "potato", "onions" -> "onion")
     keyBase = singularizeIngredientKey(keyBase);
 
-    return {
+    const result = {
         displayName,
         canonicalKey: keyBase,
         unit: normUnit
     };
+    if (cleanIngredientCache.size >= MAX_CACHE_SIZE) {
+        const firstKey = cleanIngredientCache.keys().next().value;
+        if (firstKey !== undefined) cleanIngredientCache.delete(firstKey);
+    }
+    cleanIngredientCache.set(cacheKey, result);
+    return result;
 }
 
 function singularizeIngredientKey(str: string): string {
@@ -204,89 +242,101 @@ function toSmartTitleCase(str: string): string {
  */
 export function resolveCanonicalCategory(cleanName: string, rawCategory?: string): CanonicalCategory {
     const n = (cleanName || '').toLowerCase();
-
-    // 1. Frozen items check first (e.g. "frozen puff pastry", "frozen corn", "ice cream")
-    if (/\b(?:frozen|puff pastry|ice cream|popsicle|tater tot|french fries|waffle)\b/.test(n)) {
-        return 'Frozen';
-    }
-
-    // 2. Meat & Seafood
-    if (
-        /\b(?:beef|ground beef|steak|sirloin|ribeye|chuck|brisket|roast|veal|pork|bacon|sausage|ham|prosciutto|pancetta|pepperoni|salami|chorizo|hot dog|chicken|rotisserie chicken|turkey|duck|lamb|bison|venison|meatball|meatloaf|salmon|tuna|shrimp|prawn|cod|tilapia|halibut|mahimahi|crab|lobster|scallop|anchov|sardine|fish|fillet)\b/.test(
-            n
-        )
-    ) {
-        return 'Meat';
-    }
-
-    // 3. Dairy & Eggs
-    if (
-        /\b(?:milk|buttermilk|cream|half and half|half-and-half|butter|ghee|cheese|cheddar|mozzarella|swiss|parmesan|provolone|feta|ricotta|gouda|brie|gruyere|cream cheese|mascarpone|cottage cheese|yogurt|kefir|egg|eggs|egg white|egg yolk|sour cream|whipped cream|mashed potatoes)\b/.test(
-            n
-        ) &&
-        !/\b(?:coconut milk|almond flour|peanut butter|apple butter|butternut|cream of|condensed)\b/.test(n)
-    ) {
-        return 'Dairy & Eggs';
-    }
-
-    // 4. Bakery
-    if (
-        /\b(?:bread|roll|dinner roll|bun|hamburger bun|hot dog bun|bagel|croissant|muffin|english muffin|pita|naan|flatbread|tortilla|baguette|ciabatta|sourdough|brioche|taco shell|pie crust)\b/.test(
-            n
-        ) &&
-        !/\b(?:bread\s*crumb|panko)\b/.test(n)
-    ) {
-        return 'Bakery';
-    }
-
-    // 5. Pantry Staples (Canned goods, sauces, oils, spices, baking, grains, pasta, soups)
-    if (
-        /\b(?:oil|olive oil|vegetable oil|canola oil|sesame oil|coconut oil|cooking spray|vinegar|soy sauce|tamari|worcestershire|fish sauce|oyster sauce|hoisin|teriyaki|hot sauce|hot pepper sauce|sriracha|tabasco|ketchup|mustard|mayonnaise|mayo|bbq sauce|barbecue sauce|marinara|pasta sauce|tomato sauce|tomato paste|tomato soup|condensed|soup|broth|stock|bouillon|panko|breadcrumb|bread crumb|flour|sugar|brown sugar|powdered sugar|confectioners|honey|maple syrup|molasses|agave|cornstarch|baking powder|baking soda|yeast|vanilla|cocoa|chocolate chip|pasta|spaghetti|fettuccine|penne|rigatoni|macaroni|lasagna|orzo|noodle|ramen|rice|quinoa|couscous|barley|farro|oat|oatmeal|cereal|granola|bean|black bean|kidney bean|pinto bean|cannellini|chickpea|garbanzo|lentil|peanut butter|almond butter|jam|jelly|preserves|salsa|taco seasoning|seasoning|spice|salt|black pepper|white pepper|cayenne|paprika|cumin|coriander|turmeric|curry|chili powder|oregano|thyme|rosemary|basil|bay leaf|cinnamon|nutmeg|clove|allspice|ginger powder|garlic powder|onion powder|red pepper flake|crushed red pepper|almond|walnut|pecan|cashew|peanut|pine nut|pistachio|seed|sesame|chia|flax|sunflower|raisin|cranberry|canned)\b/.test(
-            n
-        )
-    ) {
-        return 'Pantry Staples';
-    }
-
-    // 6. Produce (Fruits, vegetables, fresh herbs)
-    if (
-        /\b(?:onion|yellow onion|white onion|red onion|sweet onion|shallot|scallion|green onion|leek|chive|garlic|potato|russet|yukon|sweet potato|yam|tomato|cherry tomato|roma|bell pepper|green pepper|red pepper|yellow pepper|jalapeno|serrano|habanero|poblano|chili|chile|carrot|celery|cucumber|zucchini|squash|butternut|acorn|pumpkin|eggplant|mushroom|avocado|corn|pea|snap pea|snow pea|green bean|asparagus|broccoli|cauliflower|cabbage|brussels sprout|lettuce|romaine|iceberg|spinach|kale|arugula|chard|collard|bok choy|radish|beet|turnip|parsnip|artichoke|fennel|ginger|apple|banana|orange|lemon|lime|grapefruit|berry|strawberry|blueberry|raspberry|blackberry|grape|melon|watermelon|cantaloupe|honeydew|pineapple|mango|peach|pear|plum|nectarine|cherry|pomegranate|kiwi|fig|date|cilantro|parsley|fresh basil|fresh mint|mint|dill|jalapeño)\b/.test(
-            n
-        )
-    ) {
-        return 'Produce';
-    }
-
-    // 7. Beverages
-    if (
-        /\b(?:juice|orange juice|apple juice|coffee|espresso|tea|soda|cola|pop|sparkling water|seltzer|club soda|tonic|coconut water|lemonade|wine|beer|cider|kombucha|energy drink|sports drink)\b/.test(
-            n
-        )
-    ) {
-        return 'Beverages';
-    }
-
-    // 8. Household
-    if (
-        /\b(?:paper towel|toilet paper|napkin|tissue|foil|aluminum foil|plastic wrap|parchment|wax paper|ziploc|storage bag|trash bag|garbage bag|dish soap|detergent|sponge|bleach|cleaner|wipe)\b/.test(
-            n
-        )
-    ) {
-        return 'Household';
-    }
-
-    // 9. Respect valid normalized rawCategory if provided
     const raw = (rawCategory || '').trim().toLowerCase();
-    if (raw.includes('produce') || raw.includes('fruit') || raw.includes('veg')) return 'Produce';
-    if (raw.includes('meat') || raw.includes('seafood') || raw.includes('poultry') || raw.includes('fish')) return 'Meat';
-    if (raw.includes('dairy') || raw.includes('egg') || raw.includes('cheese')) return 'Dairy & Eggs';
-    if (raw.includes('baker') || raw.includes('bread')) return 'Bakery';
-    if (raw.includes('froz')) return 'Frozen';
-    if (raw.includes('pantry') || raw.includes('canned') || raw.includes('spice') || raw.includes('baking') || raw.includes('condiment')) return 'Pantry Staples';
-    if (raw.includes('bev') || raw.includes('drink')) return 'Beverages';
-    if (raw.includes('house') || raw.includes('paper') || raw.includes('clean')) return 'Household';
+    const cacheKey = `${n}::${raw}`;
+    const cached = categoryCache.get(cacheKey);
+    if (cached) return cached;
 
-    return 'Other';
+    const resolved = ((): CanonicalCategory => {
+        // 1. Frozen items check first (e.g. "frozen puff pastry", "frozen corn", "ice cream")
+        if (/\b(?:frozen|puff pastry|ice cream|popsicle|tater tot|french fries|waffle)\b/.test(n)) {
+            return 'Frozen';
+        }
+
+        // 2. Meat & Seafood
+        if (
+            /\b(?:beef|ground beef|steak|sirloin|ribeye|chuck|brisket|roast|veal|pork|bacon|sausage|ham|prosciutto|pancetta|pepperoni|salami|chorizo|hot dog|chicken|rotisserie chicken|turkey|duck|lamb|bison|venison|meatball|meatloaf|salmon|tuna|shrimp|prawn|cod|tilapia|halibut|mahimahi|crab|lobster|scallop|anchov|sardine|fish|fillet)\b/.test(
+                n
+            )
+        ) {
+            return 'Meat';
+        }
+
+        // 3. Dairy & Eggs
+        if (
+            /\b(?:milk|buttermilk|cream|half and half|half-and-half|butter|ghee|cheese|cheddar|mozzarella|swiss|parmesan|provolone|feta|ricotta|gouda|brie|gruyere|cream cheese|mascarpone|cottage cheese|yogurt|kefir|egg|eggs|egg white|egg yolk|sour cream|whipped cream|mashed potatoes)\b/.test(
+                n
+            ) &&
+            !/\b(?:coconut milk|almond flour|peanut butter|apple butter|butternut|cream of|condensed)\b/.test(n)
+        ) {
+            return 'Dairy & Eggs';
+        }
+
+        // 4. Bakery
+        if (
+            /\b(?:bread|roll|dinner roll|bun|hamburger bun|hot dog bun|bagel|croissant|muffin|english muffin|pita|naan|flatbread|tortilla|baguette|ciabatta|sourdough|brioche|taco shell|pie crust)\b/.test(
+                n
+            ) &&
+            !/\b(?:bread\s*crumb|panko)\b/.test(n)
+        ) {
+            return 'Bakery';
+        }
+
+        // 5. Pantry Staples (Canned goods, sauces, oils, spices, baking, grains, pasta, soups)
+        if (
+            /\b(?:oil|olive oil|vegetable oil|canola oil|sesame oil|coconut oil|cooking spray|vinegar|soy sauce|tamari|worcestershire|fish sauce|oyster sauce|hoisin|teriyaki|hot sauce|hot pepper sauce|sriracha|tabasco|ketchup|mustard|mayonnaise|mayo|bbq sauce|barbecue sauce|marinara|pasta sauce|tomato sauce|tomato paste|tomato soup|condensed|soup|broth|stock|bouillon|panko|breadcrumb|bread crumb|flour|sugar|brown sugar|powdered sugar|confectioners|honey|maple syrup|molasses|agave|cornstarch|baking powder|baking soda|yeast|vanilla|cocoa|chocolate chip|pasta|spaghetti|fettuccine|penne|rigatoni|macaroni|lasagna|orzo|noodle|ramen|rice|quinoa|couscous|barley|farro|oat|oatmeal|cereal|granola|bean|black bean|kidney bean|pinto bean|cannellini|chickpea|garbanzo|lentil|peanut butter|almond butter|jam|jelly|preserves|salsa|taco seasoning|seasoning|spice|salt|black pepper|white pepper|cayenne|paprika|cumin|coriander|turmeric|curry|chili powder|oregano|thyme|rosemary|basil|bay leaf|cinnamon|nutmeg|clove|allspice|ginger powder|garlic powder|onion powder|red pepper flake|crushed red pepper|almond|walnut|pecan|cashew|peanut|pine nut|pistachio|seed|sesame|chia|flax|sunflower|raisin|cranberry|canned)\b/.test(
+                n
+            )
+        ) {
+            return 'Pantry Staples';
+        }
+
+        // 6. Produce (Fruits, vegetables, fresh herbs)
+        if (
+            /\b(?:onion|yellow onion|white onion|red onion|sweet onion|shallot|scallion|green onion|leek|chive|garlic|potato|russet|yukon|sweet potato|yam|tomato|cherry tomato|roma|bell pepper|green pepper|red pepper|yellow pepper|jalapeno|serrano|habanero|poblano|chili|chile|carrot|celery|cucumber|zucchini|squash|butternut|acorn|pumpkin|eggplant|mushroom|avocado|corn|pea|snap pea|snow pea|green bean|asparagus|broccoli|cauliflower|cabbage|brussels sprout|lettuce|romaine|iceberg|spinach|kale|arugula|chard|collard|bok choy|radish|beet|turnip|parsnip|artichoke|fennel|ginger|apple|banana|orange|lemon|lime|grapefruit|berry|strawberry|blueberry|raspberry|blackberry|grape|melon|watermelon|cantaloupe|honeydew|pineapple|mango|peach|pear|plum|nectarine|cherry|pomegranate|kiwi|fig|date|cilantro|parsley|fresh basil|fresh mint|mint|dill|jalapeño)\b/.test(
+                n
+            )
+        ) {
+            return 'Produce';
+        }
+
+        // 7. Beverages
+        if (
+            /\b(?:juice|orange juice|apple juice|coffee|espresso|tea|soda|cola|pop|sparkling water|seltzer|club soda|tonic|coconut water|lemonade|wine|beer|cider|kombucha|energy drink|sports drink)\b/.test(
+                n
+            )
+        ) {
+            return 'Beverages';
+        }
+
+        // 8. Household
+        if (
+            /\b(?:paper towel|toilet paper|napkin|tissue|foil|aluminum foil|plastic wrap|parchment|wax paper|ziploc|storage bag|trash bag|garbage bag|dish soap|detergent|sponge|bleach|cleaner|wipe)\b/.test(
+                n
+            )
+        ) {
+            return 'Household';
+        }
+
+        // 9. Respect valid normalized rawCategory if provided
+        if (raw.includes('produce') || raw.includes('fruit') || raw.includes('veg')) return 'Produce';
+        if (raw.includes('meat') || raw.includes('seafood') || raw.includes('poultry') || raw.includes('fish')) return 'Meat';
+        if (raw.includes('dairy') || raw.includes('egg') || raw.includes('cheese')) return 'Dairy & Eggs';
+        if (raw.includes('baker') || raw.includes('bread')) return 'Bakery';
+        if (raw.includes('froz')) return 'Frozen';
+        if (raw.includes('pantry') || raw.includes('canned') || raw.includes('spice') || raw.includes('baking') || raw.includes('condiment')) return 'Pantry Staples';
+        if (raw.includes('bev') || raw.includes('drink')) return 'Beverages';
+        if (raw.includes('house') || raw.includes('paper') || raw.includes('clean')) return 'Household';
+
+        return 'Other';
+    })();
+
+    if (categoryCache.size >= MAX_CACHE_SIZE) {
+        const firstKey = categoryCache.keys().next().value;
+        if (firstKey !== undefined) categoryCache.delete(firstKey);
+    }
+    categoryCache.set(cacheKey, resolved);
+    return resolved;
 }
 
 /**

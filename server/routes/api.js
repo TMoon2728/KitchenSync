@@ -19,11 +19,9 @@ const aiRateLimiter = rateLimit({
 const genAI = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
 
 // --- Helpers ---
-const getUser = async (req) => {
-    if (!req.user) return null;
-    const { rows } = await db.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
-    const row = rows[0];
-    if (!row) return null;
+const getUser = async (req, { includeHousehold = false } = {}) => {
+    if (!req.user || !req.user.id) return null;
+    const row = req.user;
 
     // Parse JSON fields for primary user
     const preferences = typeof row.preferences === 'string' ? JSON.parse(row.preferences || '{}') : (row.preferences || {});
@@ -34,31 +32,32 @@ const getUser = async (req) => {
     const proteinGoal = preferences.proteinGoal;
     const carbGoal = preferences.carbGoal;
     const fatGoal = preferences.fatGoal;
-    
-    // Fetch all users in the household (including self) to merge members
-    const householdId = row.household_id || String(row.id);
-    const householdResult = await db.query('SELECT * FROM users WHERE household_id = $1 OR id = $2', [householdId, row.id]);
-    
+
     let allHouseholdMembers = [...(preferences.householdMembers || [])];
     let allGroceryStores = [...(preferences.groceryStores || [])];
-    let effectiveSubscriptionTier = row.subscription_tier;
+    let effectiveSubscriptionTier = row.effective_subscription_tier || row.subscription_tier;
 
-    // Merge members and partner accounts
-    for (const hUser of householdResult.rows) {
-        if (hUser.subscription_tier === 'pro') {
-            effectiveSubscriptionTier = 'pro';
-        }
+    if (includeHousehold) {
+        const householdId = row.household_id || String(row.id);
+        const householdResult = await db.query(
+            'SELECT * FROM users WHERE (household_id = $1 OR id::text = $1) AND id != $2',
+            [householdId, row.id]
+        );
 
-        if (hUser.id !== row.id) {
+        for (const hUser of householdResult.rows) {
+            if (hUser.subscription_tier === 'pro') {
+                effectiveSubscriptionTier = 'pro';
+            }
+
             const hPrefs = typeof hUser.preferences === 'string' ? JSON.parse(hUser.preferences || '{}') : (hUser.preferences || {});
-            
+
             // Add the linked user themselves as a household member automatically
             let defaultName = hUser.username;
             if (!defaultName || defaultName.includes('|')) {
                 defaultName = hUser.email ? hUser.email.split('@')[0] : 'Partner';
             }
             const partnerName = hPrefs.name || defaultName;
-            
+
             if (!allHouseholdMembers.find(m => m.name === partnerName)) {
                 allHouseholdMembers.push({
                     id: `linked-${hUser.id}`,
@@ -69,11 +68,10 @@ const getUser = async (req) => {
 
             if (hPrefs.householdMembers) {
                 hPrefs.householdMembers.forEach(m => {
-                    // Prevent exact duplicates by name
                     if (!allHouseholdMembers.find(existing => existing.name === m.name)) {
                         allHouseholdMembers.push({
                             ...m,
-                            _sourceUserId: hUser.id // Flag this so the frontend/backend knows it's borrowed
+                            _sourceUserId: hUser.id
                         });
                     }
                 });
@@ -91,15 +89,6 @@ const getUser = async (req) => {
     const appPreferences = preferences.appPreferences || preferences;
     const avatar = preferences.avatar || '👨‍🍳';
     const name = preferences.name || row.username;
-
-    if (!row.invite_code) {
-        const crypto = require('crypto');
-        const newCode = 'KS-' + crypto.randomBytes(3).toString('hex').toUpperCase();
-        try {
-            await db.query('UPDATE users SET invite_code = $1 WHERE id = $2', [newCode, row.id]);
-            row.invite_code = newCode;
-        } catch (e) { /* ignore collision */ }
-    }
 
     return {
         ...row,
@@ -126,7 +115,7 @@ const getUser = async (req) => {
 // 1. Get User Profile
 router.get('/user/profile', async (req, res) => {
     try {
-        const user = await getUser(req);
+        const user = await getUser(req, { includeHousehold: true });
         if (!user) return res.status(401).json({ error: "Unauthorized" });
         const { rawPreferences, password_hash, ...safeUser } = user;
         res.json(safeUser);
@@ -139,7 +128,7 @@ router.get('/user/profile', async (req, res) => {
 // 2. Update User Profile
 router.put('/user/profile', async (req, res) => {
     try {
-        const user = await getUser(req);
+        const user = await getUser(req, { includeHousehold: true });
         if (!user) return res.status(401).json({ error: "Unauthorized" });
 
         const {
@@ -506,13 +495,38 @@ router.post('/chat', aiRateLimiter, async (req, res) => {
         }
 
         const modelName = await resolveModel();
+        const normalizedHistory = [];
+        if (Array.isArray(history)) {
+            for (const entry of history.slice(-20)) {
+                if (!entry || (entry.role !== 'user' && entry.role !== 'model')) continue;
+                const textVal = typeof entry.text === 'string'
+                    ? entry.text.trim()
+                    : (Array.isArray(entry.parts) && typeof entry.parts[0]?.text === 'string' ? entry.parts[0].text.trim() : '');
+                if (!textVal) continue;
+                // Gemini multi-turn history must start with a 'user' turn
+                if (normalizedHistory.length === 0 && entry.role !== 'user') continue;
+                normalizedHistory.push({
+                    role: entry.role,
+                    parts: [{ text: textVal }]
+                });
+            }
+            // Drop trailing user message if the client included the current prompt inside history
+            if (
+                normalizedHistory.length > 0 &&
+                normalizedHistory[normalizedHistory.length - 1].role === 'user' &&
+                normalizedHistory[normalizedHistory.length - 1].parts[0].text === message.trim()
+            ) {
+                normalizedHistory.pop();
+            }
+        }
+
         const chat = genAI.chats.create({
             model: modelName,
             config: { systemInstruction },
-            history: history || []
+            history: normalizedHistory
         });
 
-        const result = await chat.sendMessage(message);
+        const result = await chat.sendMessage({ message });
         const responseText = typeof result.text === 'function' ? result.text() : result.text;
 
         res.json({ result: responseText });
@@ -592,9 +606,49 @@ const isCandidateRecipeUrl = (candidateStr) => {
     return true;
 };
 
+const findRecipeNodeInJsonLd = (node) => {
+    if (!node || typeof node !== 'object') return null;
+    if (Array.isArray(node)) {
+        for (const item of node) {
+            const found = findRecipeNodeInJsonLd(item);
+            if (found) return found;
+        }
+        return null;
+    }
+    const typeVal = node['@type'];
+    const isRecipeType =
+        typeVal === 'Recipe' ||
+        (typeof typeVal === 'string' && typeVal.toLowerCase().endsWith('recipe')) ||
+        (Array.isArray(typeVal) && typeVal.some(t => typeof t === 'string' && t.toLowerCase().includes('recipe')));
+
+    if (isRecipeType && Array.isArray(node.recipeIngredient) && node.recipeIngredient.length > 0 && node.recipeInstructions) {
+        return {
+            '@type': 'Recipe',
+            name: node.name,
+            description: node.description,
+            recipeYield: node.recipeYield || node.yield,
+            prepTime: node.prepTime,
+            cookTime: node.cookTime,
+            totalTime: node.totalTime,
+            recipeCategory: node.recipeCategory,
+            recipeCuisine: node.recipeCuisine,
+            keywords: node.keywords,
+            nutrition: node.nutrition,
+            image: node.image,
+            recipeIngredient: node.recipeIngredient,
+            recipeInstructions: node.recipeInstructions
+        };
+    }
+
+    if (Array.isArray(node['@graph'])) {
+        return findRecipeNodeInJsonLd(node['@graph']);
+    }
+    return null;
+};
+
 const extractHtmlInsights = (rawHtml = '') => {
     if (!rawHtml) {
-        return { metaSummary: '', jsonLdSummary: '', pinterestSummary: '', outboundUrl: null, ogImage: null, cleanText: '' };
+        return { metaSummary: '', jsonLdSummary: '', recipeJsonLd: null, pinterestSummary: '', outboundUrl: null, ogImage: null, cleanText: '' };
     }
 
     // 1. Extract <title> and <meta> tags
@@ -631,12 +685,24 @@ const extractHtmlInsights = (rawHtml = '') => {
 
     // 2. Extract <script type="application/ld+json"> before stripping scripts
     const jsonLdBlocks = [];
+    let recipeJsonLd = null;
     const ldRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
     let ldMatch;
     while ((ldMatch = ldRegex.exec(rawHtml)) !== null) {
         const content = (ldMatch[1] || '').trim();
         if (content) {
             jsonLdBlocks.push(content.substring(0, 25000));
+            if (!recipeJsonLd) {
+                try {
+                    const parsedLd = JSON.parse(content);
+                    const recipeNode = findRecipeNodeInJsonLd(parsedLd);
+                    if (recipeNode) {
+                        recipeJsonLd = JSON.stringify(recipeNode);
+                    }
+                } catch (_) {
+                    // Ignore malformed JSON-LD blocks and continue
+                }
+            }
         }
     }
 
@@ -694,6 +760,7 @@ const extractHtmlInsights = (rawHtml = '') => {
     return {
         metaSummary: metaLines.slice(0, 30).join('\n'),
         jsonLdSummary: jsonLdBlocks.join('\n---\n').substring(0, 40000),
+        recipeJsonLd,
         pinterestSummary: pinterestSnippets.join('\n').substring(0, 15000),
         outboundUrl,
         ogImage,
@@ -938,6 +1005,8 @@ router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
         const primary = await fetchSingleUrlInsights(url);
         let effectiveSourceUrl = primary.finalUrl;
         let fallbackImage = primary.insights.ogImage;
+        let fastRecipeJsonLd = primary.insights.recipeJsonLd || null;
+        let fastMetaSummary = primary.insights.metaSummary || '';
         const contextBlocks = [];
 
         if (primary.insights.metaSummary) {
@@ -965,6 +1034,10 @@ router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
             if (outbound.insights.ogImage) {
                 fallbackImage = outbound.insights.ogImage;
             }
+            if (outbound.insights.recipeJsonLd) {
+                fastRecipeJsonLd = outbound.insights.recipeJsonLd;
+                fastMetaSummary = outbound.insights.metaSummary || fastMetaSummary;
+            }
             if (outbound.insights.jsonLdSummary) {
                 contextBlocks.unshift(`=== LINKED RECIPE BLOG JSON-LD (${effectiveSourceUrl}) ===\n${outbound.insights.jsonLdSummary}`);
             }
@@ -979,8 +1052,12 @@ router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
             }
         }
 
-        const combinedExtractedContent = contextBlocks.join('\n\n').substring(0, 110000);
-        const hasSubstantialContent = combinedExtractedContent.length >= 250;
+        const fullCombinedContent = contextBlocks.join('\n\n').substring(0, 110000);
+        // JSON-LD Fast Path: When structured Schema.org Recipe JSON-LD is present, avoid sending 110K chars of noisy HTML/Markdown
+        const combinedExtractedContent = fastRecipeJsonLd
+            ? `=== PAGE METADATA (${effectiveSourceUrl}) ===\n${fastMetaSummary}\n\n=== STRUCTURED RECIPE JSON-LD ===\n${fastRecipeJsonLd}`
+            : fullCombinedContent;
+        const hasSubstantialContent = combinedExtractedContent.length >= 150;
         const modelName = await resolveModel();
         let parsedRecipe = null;
 
