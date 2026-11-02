@@ -89,11 +89,48 @@ const init = async () => {
             )
         `);
 
-        // Meal Plans Table (keyed by household_id)
+        // Meal Plans Table (keyed by household_id, with OCC version counter)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS meal_plans (
                 household_id TEXT PRIMARY KEY,
                 data JSONB NOT NULL DEFAULT '{}',
+                version BIGINT NOT NULL DEFAULT 1,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        await pool.query(`
+            ALTER TABLE meal_plans ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
+        `);
+
+        // Idempotent Stripe Webhook Inbox (U-04)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS stripe_webhook_events (
+                event_id TEXT PRIMARY KEY,
+                event_type TEXT NOT NULL,
+                processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Append-Only Transactional Credit Ledger (U-04)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS credit_ledger (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                delta INTEGER NOT NULL,
+                balance_after INTEGER NOT NULL,
+                operation TEXT NOT NULL,
+                idempotency_key TEXT UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Content-Addressable Recipe URL Cache (U-05)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS recipe_url_cache (
+                url_hash TEXT PRIMARY KEY,
+                canonical_url TEXT NOT NULL,
+                recipe_data JSONB NOT NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
@@ -104,6 +141,7 @@ const init = async () => {
             CREATE INDEX IF NOT EXISTS idx_pantry_user_id ON pantry(user_id);
             CREATE INDEX IF NOT EXISTS idx_shopping_user_id ON shopping_list(user_id);
             CREATE INDEX IF NOT EXISTS idx_users_household_id ON users(household_id);
+            CREATE INDEX IF NOT EXISTS idx_credit_ledger_user_id ON credit_ledger(user_id);
         `);
 
         console.log('PostgreSQL Database initialized');
@@ -112,8 +150,10 @@ const init = async () => {
     }
 };
 
-// Auto-run schema init
-init();
+// Auto-run schema init (skip during unit test runs)
+if (!process.execArgv.includes('--test') && !process.env.NODE_TEST_CONTEXT && process.env.NODE_ENV !== 'test') {
+    init();
+}
 
 // Export the pool so we can use pool.query in routes
 module.exports = pool;

@@ -96,7 +96,7 @@ export const generateRecipeFromIngredients = async (request: string, token: stri
         const response = await authFetch(`${API_BASE}/generate-recipe`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, schema: recipeSchema, familySize }),
+            body: JSON.stringify({ prompt, schemaKey: 'recipe', familySize }),
             token
         });
         return handleApiResponse<Partial<Recipe>>(response);
@@ -111,7 +111,7 @@ export const generateRecipeFromUrl = async (url: string, token: string, familySi
         const response = await authFetch(`${API_BASE}/ai/parse-url`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url, schema: recipeSchema, familySize }),
+            body: JSON.stringify({ url, schemaKey: 'recipe', familySize }),
             token
         });
         return handleApiResponse<Partial<Recipe>>(response);
@@ -133,7 +133,7 @@ export const remixRecipe = async (recipe: Recipe, remixType: string, token: stri
         const response = await authFetch(`${API_BASE}/generate-recipe`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, schema: recipeSchema, familySize }),
+            body: JSON.stringify({ prompt, schemaKey: 'recipe', familySize }),
             token
         });
         return handleApiResponse<Partial<Recipe>>(response);
@@ -211,7 +211,7 @@ export const generateMealPlan = async (
             const response = await authFetch(`${API_BASE}/generate-recipe`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, schema: listPlanSchema, cost }),
+                body: JSON.stringify({ prompt, schemaKey: 'mealPlanList', schema: listPlanSchema, cost }),
                 token
             });
             return handleApiResponse<any>(response);
@@ -291,7 +291,7 @@ ${dayBreakdownLines.join('\n')}
         const response = await authFetch(`${API_BASE}/generate-recipe`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, schema: mealPlanSchema, cost }),
+            body: JSON.stringify({ prompt, schemaKey: 'mealPlanScheduled', schema: mealPlanSchema, cost }),
             token
         });
         return handleApiResponse<any>(response);
@@ -341,7 +341,7 @@ export const suggestRecipesFromPantry = async (
         const response = await authFetch(`${API_BASE}/generate-recipe`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, schema: suggestionSchema }),
+            body: JSON.stringify({ prompt, schemaKey: 'pantrySuggestions', schema: suggestionSchema }),
             token
         });
         return handleApiResponse<Array<{ recipeName: string; reason: string }>>(response);

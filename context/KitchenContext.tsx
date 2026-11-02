@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { Recipe, PantryItem, MealPlan, ShoppingItem, Ingredient } from '../types';
 import { MOCK_RECIPES, MOCK_PANTRY } from '../mockData';
 import { authFetch } from '../utils/api';
+import { enqueueOutboxMutation, flushOutboxQueue } from '../utils/outbox';
 import { convertQuantity } from '../utils/unitConversion';
 import {
     normalizeRecipeIngredient,
@@ -79,11 +80,21 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
         try { localStorage.setItem('ks_shopping', JSON.stringify(manualShoppingList)); } catch (e) { console.error(e); }
     }, [manualShoppingList]);
 
-    // Initial Sync with PostgreSQL when authenticated
+    // Initial Sync with PostgreSQL + Real-Time Household SSE Bus (U-01) & Offline Outbox Replay (U-03)
     useEffect(() => {
+        let eventSource: EventSource | null = null;
+
+        const handleOnline = () => {
+            if (isAuthenticated) {
+                flushOutboxQueue(getAccessToken).catch(() => {});
+            }
+        };
+        window.addEventListener('online', handleOnline);
+
         const syncData = async () => {
             if (isAuthenticated) {
                 try {
+                    await flushOutboxQueue(getAccessToken);
                     const token = await getAccessToken();
                     const [resRecipes, resPantry, resShopping, resMealPlan] = await Promise.all([
                         authFetch('/api/data/recipes', { token }),
@@ -151,6 +162,38 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
                             }).catch(err => console.error("Failed to seed server meal plan", err));
                         }
                     }
+
+                    // Subscribe to Real-Time Household SSE Bus (U-01)
+                    if (typeof EventSource !== 'undefined' && token) {
+                        eventSource = new EventSource(`/api/data/events?token=${encodeURIComponent(token)}`);
+                        eventSource.onmessage = async (evt) => {
+                            try {
+                                const payload = JSON.parse(evt.data);
+                                if (!payload || payload.type === 'connected') return;
+                                const latestToken = await getAccessToken();
+
+                                if (payload.type === 'meal_plan:delta' && payload.dayKey && payload.slotKey) {
+                                    setMealPlanState(prev => ({
+                                        ...prev,
+                                        [payload.dayKey]: {
+                                            ...(prev[payload.dayKey] || {}),
+                                            [payload.slotKey]: payload.slotItems
+                                        }
+                                    }));
+                                } else if (payload.type === 'meal_plan:updated' || payload.type === 'household:sync') {
+                                    const mpRes = await authFetch('/api/data/meal-plan', { token: latestToken });
+                                    if (mpRes.ok) setMealPlanState(await mpRes.json());
+                                }
+
+                                if (payload.type === 'pantry:updated' || payload.type === 'household:sync') {
+                                    const pRes = await authFetch('/api/data/pantry', { token: latestToken });
+                                    if (pRes.ok) setPantry(await pRes.json());
+                                }
+                            } catch {
+                                // Ignore malformed SSE frames
+                            }
+                        };
+                    }
                 } catch (e) {
                     console.error("Sync Failed", e);
                 }
@@ -158,6 +201,13 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
             setIsLoading(false);
         };
         syncData();
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            if (eventSource) {
+                eventSource.close();
+            }
+        };
     }, [isAuthenticated]);
 
     // Wrapped setMealPlan that persists to both localStorage and PostgreSQL without racing inside the React state updater
@@ -173,18 +223,24 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
         mealPlanDirtyRef.current = false;
 
         const controller = new AbortController();
+        const serializedPlan = JSON.stringify(mealPlan);
         getAccessToken()
             .then(token =>
                 authFetch('/api/data/meal-plan', {
                     method: 'PUT',
-                    body: JSON.stringify(mealPlan),
+                    body: serializedPlan,
                     token,
                     signal: controller.signal
                 })
             )
             .catch(e => {
                 if (e?.name !== 'AbortError') {
-                    console.error("Meal plan sync failed", e);
+                    console.warn("Meal plan sync offline; queued to outbox:", e);
+                    enqueueOutboxMutation({
+                        url: '/api/data/meal-plan',
+                        method: 'PUT',
+                        body: serializedPlan
+                    });
                 }
             });
 

@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { normalizeRecipeIngredientsList } = require('../utils/ingredientNormalizer');
+const { householdBus } = require('../utils/householdEventBus');
 
 const hubSyncLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -151,7 +152,7 @@ router.post('/hub-sync', hubSyncLimiter, async (req, res) => {
         }
 
         const { user, effectiveHousehold } = resolved;
-        const { mealPlan, pantry, newRecipes, scheduleSettings } = req.body || {};
+        const { mealPlan, pantry, deletedPantryIds, newRecipes, scheduleSettings } = req.body || {};
 
         if (Array.isArray(newRecipes) && newRecipes.length > 0) {
             for (const r of newRecipes) {
@@ -168,10 +169,13 @@ router.post('/hub-sync', hubSyncLimiter, async (req, res) => {
 
         if (mealPlan && typeof mealPlan === 'object') {
             await db.query(
-                `INSERT INTO meal_plans (household_id, data, updated_at)
-                 VALUES ($1, $2, CURRENT_TIMESTAMP)
+                `INSERT INTO meal_plans (household_id, data, version, updated_at)
+                 VALUES ($1, $2, 1, CURRENT_TIMESTAMP)
                  ON CONFLICT (household_id)
-                 DO UPDATE SET data = EXCLUDED.data, updated_at = CURRENT_TIMESTAMP`,
+                 DO UPDATE SET
+                     data = EXCLUDED.data,
+                     version = meal_plans.version + 1,
+                     updated_at = CURRENT_TIMESTAMP`,
                 [effectiveHousehold, JSON.stringify(mealPlan)]
             );
         }
@@ -195,8 +199,16 @@ router.post('/hub-sync', hubSyncLimiter, async (req, res) => {
                 }
 
                 const retainedIds = new Set();
+                const explicitDepletedIds = new Set(
+                    Array.isArray(deletedPantryIds) ? deletedPantryIds.map(Number).filter(Boolean) : []
+                );
+
                 for (const item of pantry) {
-                    if (!item || !item.name || Number(item.quantity) <= 0) continue;
+                    if (!item || !item.name) continue;
+                    if (Number(item.quantity) <= 0) {
+                        if (item.id) explicitDepletedIds.add(Number(item.id));
+                        continue;
+                    }
                     const name = String(item.name).trim();
                     const qty = Number(item.quantity) || 1;
                     const unit = String(item.unit || 'each').trim();
@@ -229,10 +241,12 @@ router.post('/hub-sync', hubSyncLimiter, async (req, res) => {
                     }
                 }
 
-                for (const row of existingRes.rows) {
-                    if (!retainedIds.has(Number(row.id))) {
-                        await client.query('DELETE FROM pantry WHERE id = $1', [row.id]);
-                    }
+                // Non-destructive sync (U-01): Only delete items explicitly depleted/deleted, never wipe concurrent additions from other devices
+                if (explicitDepletedIds.size > 0) {
+                    await client.query(
+                        'DELETE FROM pantry WHERE id = ANY($1::int[]) AND user_id IN (SELECT id FROM users WHERE household_id = $2 OR (household_id IS NULL AND id::text = $2))',
+                        [Array.from(explicitDepletedIds), effectiveHousehold]
+                    );
                 }
 
                 await client.query('COMMIT');
@@ -263,6 +277,7 @@ router.post('/hub-sync', hubSyncLimiter, async (req, res) => {
             user.preferences = mergedPrefs;
         }
 
+        householdBus.emitHouseholdEvent(effectiveHousehold, 'household:sync', { source: 'hub' });
         const payload = await buildHubSyncPayload(user, effectiveHousehold);
         res.json(payload);
     } catch (e) {
@@ -272,6 +287,34 @@ router.post('/hub-sync', hubSyncLimiter, async (req, res) => {
 });
 
 router.use(requireAuth);
+
+// --- REAL-TIME HOUSEHOLD SSE BUS (U-01) ---
+router.get('/events', (req, res) => {
+    const householdId = req.user.effective_household;
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no'
+    });
+    res.write(`data: ${JSON.stringify({ type: 'connected', householdId })}\n\n`);
+
+    const unsubscribe = householdBus.subscribeHousehold(householdId, (event) => {
+        if (event.actorUserId && event.actorUserId === req.user.id && event.originTabId === req.query?.tabId) {
+            return;
+        }
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+    });
+
+    const heartbeat = setInterval(() => {
+        res.write(': ping\n\n');
+    }, 25000);
+
+    req.on('close', () => {
+        clearInterval(heartbeat);
+        unsubscribe();
+    });
+});
 
 // --- RECIPES ---
 
@@ -416,40 +459,58 @@ router.post('/pantry', async (req, res) => {
     }
 });
 
-// POST /api/data/pantry/batch (Batch Add)
+// POST /api/data/pantry/batch (Bulk Single-Query UNNEST Insert - U-05)
 router.post('/pantry/batch', async (req, res) => {
     const items = Array.isArray(req.body) ? req.body : (req.body.items || []);
     if (!Array.isArray(items) || items.length === 0) {
         return res.json([]);
     }
 
-    const client = await db.connect();
+    const names = [];
+    const quantities = [];
+    const units = [];
+    const categories = [];
+    const expiries = [];
+
+    for (const item of items) {
+        if (!item || !item.name) continue;
+        names.push(String(item.name).trim());
+        quantities.push(Number(item.quantity ?? 1) || 1);
+        units.push(String(item.unit || 'unit').trim());
+        categories.push(String(item.category || 'Other').trim());
+        expiries.push(item.expiryDate || item.expiry_date || null);
+    }
+
+    if (names.length === 0) {
+        return res.json([]);
+    }
+
     try {
-        await client.query('BEGIN');
-        const created = [];
-        for (const item of items) {
-            const expiry = item.expiryDate || item.expiry_date || null;
-            const result = await client.query(
-                'INSERT INTO pantry (user_id, name, quantity, unit, category, expiry_date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
-                [req.user.id, item.name, item.quantity ?? 1, item.unit || 'unit', item.category || 'Other', expiry]
-            );
-            created.push({
-                name: item.name,
-                quantity: item.quantity ?? 1,
-                unit: item.unit || 'unit',
-                category: item.category || 'Other',
-                ...(expiry ? { expiryDate: expiry } : {}),
-                id: result.rows[0].id
-            });
-        }
-        await client.query('COMMIT');
+        const result = await db.query(
+            `INSERT INTO pantry (user_id, name, quantity, unit, category, expiry_date)
+             SELECT $1, u.name, u.quantity, u.unit, u.category, u.expiry_date
+             FROM UNNEST($2::text[], $3::real[], $4::text[], $5::text[], $6::text[])
+                  AS u(name, quantity, unit, category, expiry_date)
+             RETURNING id, name, quantity, unit, category, expiry_date`,
+            [req.user.id, names, quantities, units, categories, expiries]
+        );
+
+        const created = result.rows.map(r => ({
+            id: r.id,
+            name: r.name,
+            quantity: r.quantity,
+            unit: r.unit,
+            category: r.category,
+            ...(r.expiry_date ? { expiryDate: r.expiry_date } : {})
+        }));
+
+        householdBus.emitHouseholdEvent(req.user.effective_household, 'pantry:updated', {
+            actorUserId: req.user.id
+        });
         res.json(created);
     } catch (e) {
-        await client.query('ROLLBACK');
         console.error("Batch Add Pantry Error:", e);
         res.status(500).json({ error: "Failed to batch add pantry items" });
-    } finally {
-        client.release();
     }
 });
 
@@ -536,17 +597,66 @@ router.get('/meal-plan', async (req, res) => {
 router.put('/meal-plan', async (req, res) => {
     const plan = req.body || {};
     try {
-        await db.query(
-            `INSERT INTO meal_plans (household_id, data, updated_at)
-             VALUES ($1, $2, CURRENT_TIMESTAMP)
+        const result = await db.query(
+            `INSERT INTO meal_plans (household_id, data, version, updated_at)
+             VALUES ($1, $2, 1, CURRENT_TIMESTAMP)
              ON CONFLICT (household_id)
-             DO UPDATE SET data = EXCLUDED.data, updated_at = CURRENT_TIMESTAMP`,
+             DO UPDATE SET
+                 data = EXCLUDED.data,
+                 version = meal_plans.version + 1,
+                 updated_at = CURRENT_TIMESTAMP
+             RETURNING version`,
             [req.user.effective_household, JSON.stringify(plan)]
         );
-        res.json({ success: true });
+        const version = Number(result.rows[0]?.version || 1);
+        householdBus.emitHouseholdEvent(req.user.effective_household, 'meal_plan:updated', {
+            version,
+            actorUserId: req.user.id
+        });
+        res.json({ success: true, version });
     } catch (e) {
         console.error("Save Meal Plan Error:", e);
         res.status(500).json({ error: "Failed to save meal plan" });
+    }
+});
+
+// PATCH /api/data/meal-plan/delta (Atomic JSONB Slot Mutation - U-01)
+router.patch('/meal-plan/delta', async (req, res) => {
+    const { dayKey, slotKey, slotItems } = req.body || {};
+    if (!dayKey || !slotKey || !Array.isArray(slotItems)) {
+        return res.status(400).json({ error: "dayKey, slotKey, and slotItems array are required" });
+    }
+
+    try {
+        const result = await db.query(
+            `INSERT INTO meal_plans (household_id, data, version, updated_at)
+             VALUES ($1, jsonb_build_object($2::text, jsonb_build_object($3::text, $4::jsonb)), 1, CURRENT_TIMESTAMP)
+             ON CONFLICT (household_id)
+             DO UPDATE SET
+                 data = jsonb_set(
+                     COALESCE(meal_plans.data, '{}'::jsonb),
+                     ARRAY[$2::text],
+                     COALESCE(meal_plans.data->($2::text), '{}'::jsonb) || jsonb_build_object($3::text, $4::jsonb),
+                     true
+                 ),
+                 version = meal_plans.version + 1,
+                 updated_at = CURRENT_TIMESTAMP
+             RETURNING version, data`,
+            [req.user.effective_household, String(dayKey), String(slotKey), JSON.stringify(slotItems)]
+        );
+        const row = result.rows[0];
+        const version = Number(row.version || 1);
+        householdBus.emitHouseholdEvent(req.user.effective_household, 'meal_plan:delta', {
+            version,
+            dayKey,
+            slotKey,
+            slotItems,
+            actorUserId: req.user.id
+        });
+        res.json({ success: true, version, data: row.data });
+    } catch (e) {
+        console.error("Save Meal Plan Delta Error:", e);
+        res.status(500).json({ error: "Failed to apply meal plan delta" });
     }
 });
 

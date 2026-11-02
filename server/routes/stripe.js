@@ -32,22 +32,61 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    // Handle the event
+    // Handle the event with idempotency protection (U-04)
     try {
+        if (event.id) {
+            const idempRes = await db.query(
+                `INSERT INTO stripe_webhook_events (event_id, event_type)
+                 VALUES ($1, $2)
+                 ON CONFLICT (event_id) DO NOTHING
+                 RETURNING event_id`,
+                [event.id, event.type]
+            );
+            if (idempRes.rowCount === 0) {
+                console.log(`[Stripe Webhook] Duplicate event ${event.id} ignored.`);
+                return res.json({ received: true, duplicate: true });
+            }
+        }
+
         switch (event.type) {
             case 'checkout.session.completed': {
                 const session = event.data.object;
-                const userId = session.client_reference_id;
+                const userId = session.client_reference_id || session.metadata?.userId;
                 const customerId = session.customer;
-                
+                const purchasedTier = session.metadata?.tier === 'starter' ? 'starter' : 'pro';
+
                 if (userId && session.payment_status === 'paid') {
-                    // Update user to PRO and set stripe_customer_id
-                    await db.query(`
-                        UPDATE users 
-                        SET subscription_tier = $1, credits = $2, stripe_customer_id = $3
-                        WHERE id = $4
-                    `, ['pro', 999999, customerId, userId]);
-                    console.log(`[Stripe Webhook] Upgraded user ${userId} to Pro.`);
+                    if (purchasedTier === 'starter') {
+                        const resUser = await db.query(
+                            `UPDATE users
+                             SET subscription_tier = $1, credits = credits + $2, stripe_customer_id = $3
+                             WHERE id = $4
+                             RETURNING credits`,
+                            ['starter', 50, customerId, userId]
+                        );
+                        const bal = resUser.rows[0]?.credits ?? 50;
+                        await db.query(
+                            `INSERT INTO credit_ledger (user_id, delta, balance_after, operation, idempotency_key)
+                             VALUES ($1, $2, $3, $4, $5)
+                             ON CONFLICT (idempotency_key) DO NOTHING`,
+                            [userId, 50, bal, 'stripe_checkout_starter', `stripe:${event.id}`]
+                        );
+                        console.log(`[Stripe Webhook] Upgraded user ${userId} to Starter (+50 credits).`);
+                    } else {
+                        await db.query(
+                            `UPDATE users
+                             SET subscription_tier = $1, credits = $2, stripe_customer_id = $3
+                             WHERE id = $4`,
+                            ['pro', 999999, customerId, userId]
+                        );
+                        await db.query(
+                            `INSERT INTO credit_ledger (user_id, delta, balance_after, operation, idempotency_key)
+                             VALUES ($1, $2, $3, $4, $5)
+                             ON CONFLICT (idempotency_key) DO NOTHING`,
+                            [userId, 999999, 999999, 'stripe_checkout_pro', `stripe:${event.id}`]
+                        );
+                        console.log(`[Stripe Webhook] Upgraded user ${userId} to Pro.`);
+                    }
                 }
                 break;
             }
@@ -55,7 +94,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
             case 'customer.subscription.updated': {
                 const subscription = event.data.object;
                 const customerId = subscription.customer;
-                
+
                 // If the subscription is no longer active, downgrade them to starter
                 if (subscription.status !== 'active' && subscription.status !== 'trialing') {
                     await db.query(`
@@ -124,6 +163,10 @@ router.post('/create-checkout-session', jsonParser, requireAuth, async (req, res
             success_url: `${origin}/?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${origin}/#/profile`,
             client_reference_id: req.user.id.toString(), // critical: link checkout to our user
+            metadata: {
+                tier: tier === 'pro' ? 'pro' : 'starter',
+                userId: req.user.id.toString()
+            }
         });
 
         res.json({ url: session.url });

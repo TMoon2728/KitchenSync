@@ -1,4 +1,3 @@
-
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -8,6 +7,9 @@ const dotenv = require('dotenv');
 // fallback to .env if needed
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
 dotenv.config(); // Standard .env fallback
+
+const { validateEnv } = require('./config/validateEnv');
+validateEnv();
 
 const app = express();
 const PORT = process.env.PORT || 3001;

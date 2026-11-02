@@ -195,7 +195,13 @@ const populateUser = async (req, res, next) => {
 };
 
 const authenticateToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+    let authHeader = req.headers['authorization'] || req.headers['Authorization'];
+
+    // Support EventSource SSE connections where browsers pass the bearer token via ?token= query param
+    if (!authHeader && req.path === '/data/events' && typeof req.query?.token === 'string' && req.query.token.trim()) {
+        authHeader = `Bearer ${req.query.token.trim()}`;
+        req.headers['authorization'] = authHeader;
+    }
 
     if (!authHeader) {
         return next();

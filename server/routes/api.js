@@ -1,10 +1,15 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const { GoogleGenAI } = require("@google/genai");
 const rateLimit = require('express-rate-limit');
 
 const db = require('../db');
 const { normalizeRecipeIngredientsList } = require('../utils/ingredientNormalizer');
+const { resolveServerSchema } = require('../schemas/aiSchemas');
+const { compileRecipeFromJsonLd } = require('../utils/jsonLdRecipeCompiler');
+const { generateContentWithFailover } = require('../utils/resilientAi');
+const { deductCredits, refundCredits } = require('../utils/creditLedger');
 
 // --- AI Rate Limiter ---
 const aiRateLimiter = rateLimit({
@@ -193,7 +198,7 @@ router.put('/user/profile', async (req, res) => {
     }
 });
 
-// 3. Consume Credits (Atomic Pre-Flight Deduction)
+// 3. Consume Credits (Atomic Pre-Flight Deduction via Transactional Ledger - U-04)
 router.post('/credits/consume', async (req, res) => {
     try {
         const { amount } = req.body;
@@ -209,17 +214,17 @@ router.post('/credits/consume', async (req, res) => {
             return res.json({ success: true, remaining: '∞', tier: 'pro' });
         }
 
-        const deductResult = await db.query(
-            'UPDATE users SET credits = credits - $1 WHERE id = $2 AND credits >= $1 RETURNING credits',
-            [amount, user.id]
-        );
+        const ledgerRes = await deductCredits({
+            userId: user.id,
+            amount,
+            operation: 'manual_consume'
+        });
 
-        if (deductResult.rowCount === 0) {
+        if (!ledgerRes.ok) {
             return res.status(402).json({ error: "Insufficient credits", current: user.credits });
         }
 
-        const updatedCredits = deductResult.rows[0].credits;
-        return res.json({ success: true, remaining: updatedCredits, tier: user.subscriptionTier });
+        return res.json({ success: true, remaining: ledgerRes.creditsRemaining, tier: user.subscriptionTier });
     } catch (e) {
         console.error("Consume Credits Error:", e);
         res.status(500).json({ error: "Failed to consume credits" });
@@ -308,7 +313,7 @@ router.post('/generate-recipe', aiRateLimiter, async (req, res) => {
     let deductedUserId = null;
 
     try {
-        const { prompt, schema, familySize } = req.body;
+        const { prompt, schema, schemaKey, familySize } = req.body;
         if (!prompt || typeof prompt !== 'string') {
             return res.status(400).json({ error: "A valid prompt string is required." });
         }
@@ -318,28 +323,30 @@ router.post('/generate-recipe', aiRateLimiter, async (req, res) => {
 
         let currentCredits = user.credits;
 
-        // Pre-Flight Atomic Credit Check & Deduction
+        // Pre-Flight Atomic Credit Check & Deduction (U-04 Ledger)
         if (user.subscriptionTier !== 'pro') {
-            const deductResult = await db.query(
-                'UPDATE users SET credits = credits - $1 WHERE id = $2 AND credits >= $1 RETURNING credits',
-                [creditCost, user.id]
-            );
-            if (deductResult.rowCount === 0) {
+            const ledgerRes = await deductCredits({
+                userId: user.id,
+                amount: creditCost,
+                operation: schemaKey ? `generate:${schemaKey}` : 'generate_recipe'
+            });
+            if (!ledgerRes.ok) {
                 return res.status(402).json({ error: "Insufficient credits" });
             }
             creditDeducted = true;
             deductedUserId = user.id;
-            currentCredits = deductResult.rows[0].credits;
+            currentCredits = ledgerRes.creditsRemaining;
         }
 
         const modelName = await resolveModel();
         console.log(`Using model: ${modelName}`);
 
+        const resolvedSchema = resolveServerSchema(schemaKey, schema);
         const config = {
             responseMimeType: "application/json"
         };
-        if (schema) {
-            config.responseSchema = schema;
+        if (resolvedSchema) {
+            config.responseSchema = resolvedSchema;
         }
 
         let finalPrompt = prompt;
@@ -347,8 +354,7 @@ router.post('/generate-recipe', aiRateLimiter, async (req, res) => {
              finalPrompt += `\n\nCRITICAL INSTRUCTION: You MUST scale the ingredient quantities to yield exactly ${familySize} servings. Update the 'servings' field to ${familySize}. Round countable items (eggs, cans, onions, rolls, sheets) to whole numbers, and round volume/weight to clean kitchen fractions (0.25, 0.33, 0.5, 0.67, 0.75). Keep ingredient names clean for a grocery list without preparation suffixes like ', chopped' or ', beaten', and do NOT include plain tap water.`;
         }
 
-        const result = await genAI.models.generateContent({
-            model: modelName,
+        const result = await generateContentWithFailover(genAI, modelName, {
             contents: finalPrompt,
             config: config
         });
@@ -371,8 +377,11 @@ router.post('/generate-recipe', aiRateLimiter, async (req, res) => {
         
         // Refund credit ONLY if pre-flight deduction actually occurred
         if (creditDeducted && deductedUserId) {
-            await db.query('UPDATE users SET credits = credits + $1 WHERE id = $2', [creditCost, deductedUserId]).catch(() => {});
-            console.log(`[CreditAudit] Refunded ${creditCost} credit(s) to User ${deductedUserId} due to API failure`);
+            await refundCredits({
+                userId: deductedUserId,
+                amount: creditCost,
+                operation: 'refund:generate_recipe'
+            });
         }
 
         // Reset active model on 404 to trigger re-resolution next time
@@ -961,17 +970,13 @@ const normalizeExtractedRecipe = (rawData, sourceUrl, fallbackImage, familySize)
     };
 };
 
-// 5. Gemini Proxy: Parse URL for Recipe
+// 5. Gemini Proxy: Parse URL for Recipe (with U-05 URL Cache & U-03 Zero-LLM JSON-LD Compiler)
 router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
-    if (!genAI) {
-        return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
-    }
-
     let creditDeducted = false;
     let deductedUserId = null;
 
     try {
-        const { url, schema, familySize } = req.body;
+        const { url, schema, schemaKey, familySize } = req.body;
         const user = await getUser(req);
 
         // Auth & Credit Check
@@ -985,18 +990,55 @@ router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
 
         let currentCredits = user.credits;
 
-        // Pre-Flight Atomic Credit Check & Deduction
+        // Pre-Flight Atomic Credit Check & Deduction (U-04 Ledger)
         if (user.subscriptionTier !== 'pro') {
-            const deductResult = await db.query(
-                'UPDATE users SET credits = credits - 1 WHERE id = $1 AND credits >= 1 RETURNING credits',
-                [user.id]
-            );
-            if (deductResult.rowCount === 0) {
+            const ledgerRes = await deductCredits({
+                userId: user.id,
+                amount: 1,
+                operation: 'parse_url'
+            });
+            if (!ledgerRes.ok) {
                 return res.status(402).json({ error: "Insufficient credits" });
             }
             creditDeducted = true;
             deductedUserId = user.id;
-            currentCredits = deductResult.rows[0].credits;
+            currentCredits = ledgerRes.creditsRemaining;
+        }
+
+        // Step 0 (U-05): Check Content-Addressable Recipe URL Cache (7-day TTL)
+        const normalizedUrlKey = safetyCheck.parsed.toString().replace(/#.*$/, '');
+        const urlHash = crypto.createHash('sha256').update(normalizedUrlKey).digest('hex');
+        try {
+            const cacheRes = await db.query(
+                `SELECT recipe_data FROM recipe_url_cache
+                 WHERE url_hash = $1 AND updated_at > NOW() - INTERVAL '7 days'`,
+                [urlHash]
+            );
+            if (cacheRes.rowCount > 0 && cacheRes.rows[0].recipe_data) {
+                const cachedBase = typeof cacheRes.rows[0].recipe_data === 'string'
+                    ? JSON.parse(cacheRes.rows[0].recipe_data)
+                    : cacheRes.rows[0].recipe_data;
+                const baseServings = Number(cachedBase.servings || 4);
+                const targetServings = Number(familySize || baseServings || 4);
+                const ratio = (familySize && baseServings > 0) ? (targetServings / baseServings) : 1;
+                const scaledCached = {
+                    ...cachedBase,
+                    servings: targetServings,
+                    ingredients: normalizeRecipeIngredientsList(
+                        (cachedBase.ingredients || []).map(ing => ({
+                            ...ing,
+                            quantity: (Number(ing.quantity) || 1) * ratio
+                        }))
+                    )
+                };
+                return res.json({
+                    result: scaledCached,
+                    creditsRemaining: user.subscriptionTier === 'pro' ? '∞' : currentCredits,
+                    cached: true
+                });
+            }
+        } catch (cacheErr) {
+            console.warn('[ParseURL] URL cache lookup skipped:', cacheErr.message);
         }
 
         console.log(`[ParseURL] Fetching content from: ${url}`);
@@ -1052,17 +1094,28 @@ router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
             }
         }
 
+        let parsedRecipe = null;
+
+        // Step 2.5 (U-03 Tier-0): Zero-LLM Deterministic Schema.org JSON-LD Recipe Compiler (<5ms, 0 LLM tokens)
+        if (fastRecipeJsonLd) {
+            parsedRecipe = compileRecipeFromJsonLd(fastRecipeJsonLd, effectiveSourceUrl, fallbackImage, familySize);
+            if (parsedRecipe) {
+                console.log(`[ParseURL] Tier-0 Deterministic JSON-LD compilation succeeded for ${effectiveSourceUrl}`);
+            }
+        }
+
         const fullCombinedContent = contextBlocks.join('\n\n').substring(0, 110000);
-        // JSON-LD Fast Path: When structured Schema.org Recipe JSON-LD is present, avoid sending 110K chars of noisy HTML/Markdown
         const combinedExtractedContent = fastRecipeJsonLd
             ? `=== PAGE METADATA (${effectiveSourceUrl}) ===\n${fastMetaSummary}\n\n=== STRUCTURED RECIPE JSON-LD ===\n${fastRecipeJsonLd}`
             : fullCombinedContent;
         const hasSubstantialContent = combinedExtractedContent.length >= 150;
-        const modelName = await resolveModel();
-        let parsedRecipe = null;
 
-        // Step 3A: Try structured extraction from the scraped content first
-        if (hasSubstantialContent) {
+        // Step 3A: Try structured Gemini extraction if Tier-0 deterministic compiler didn't have complete JSON-LD
+        if (!parsedRecipe && hasSubstantialContent) {
+            if (!genAI) {
+                throw new Error("AI Service Unavailable (Missing Key)");
+            }
+            const modelName = await resolveModel();
             try {
                 const extractPrompt = `
 You are an expert recipe extractor. Extract the core recipe from the following webpage/Pin content retrieved from ${effectiveSourceUrl} (original link: ${url}).
@@ -1078,11 +1131,11 @@ ${familySize ? `\nCRITICAL SCALING INSTRUCTION: Scale the ingredient quantities 
 Extracted Webpage Content:
 ${combinedExtractedContent}
 `;
+                const resolvedSchema = resolveServerSchema(schemaKey || 'recipe', schema);
                 const config = { responseMimeType: "application/json" };
-                if (schema) config.responseSchema = schema;
+                if (resolvedSchema) config.responseSchema = resolvedSchema;
 
-                const result = await genAI.models.generateContent({
-                    model: modelName,
+                const result = await generateContentWithFailover(genAI, modelName, {
                     contents: extractPrompt,
                     config
                 });
@@ -1094,8 +1147,12 @@ ${combinedExtractedContent}
             }
         }
 
-        // Step 3B: Fallback to Google Search Grounding (NOTE: Gemini API does not allow responseMimeType/responseSchema alongside googleSearch tool)
+        // Step 3B: Fallback to Google Search Grounding
         if (!parsedRecipe) {
+            if (!genAI) {
+                throw new Error("AI Service Unavailable (Missing Key)");
+            }
+            const modelName = await resolveModel();
             console.log(`[ParseURL] Activating Google Search Grounding for URL: ${effectiveSourceUrl}`);
             const searchPrompt = `
 You are an expert recipe extractor. The user wants to import the recipe from this URL: ${effectiveSourceUrl} (originally shared as: ${url}).
@@ -1122,8 +1179,7 @@ Respond ONLY with a valid JSON object (no markdown formatting, no extra commenta
   "imageUrl": ${fallbackImage ? JSON.stringify(fallbackImage) : 'null'}
 }
 `;
-            const searchResult = await genAI.models.generateContent({
-                model: modelName,
+            const searchResult = await generateContentWithFailover(genAI, modelName, {
                 contents: searchPrompt,
                 config: {
                     tools: [{ googleSearch: {} }]
@@ -1144,6 +1200,15 @@ Respond ONLY with a valid JSON object (no markdown formatting, no extra commenta
             throw new Error("Could not extract a valid recipe from the provided URL");
         }
 
+        // Persist canonical recipe to URL cache (U-05)
+        db.query(
+            `INSERT INTO recipe_url_cache (url_hash, canonical_url, recipe_data, updated_at)
+             VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+             ON CONFLICT (url_hash)
+             DO UPDATE SET recipe_data = EXCLUDED.recipe_data, updated_at = CURRENT_TIMESTAMP`,
+            [urlHash, effectiveSourceUrl, JSON.stringify(parsedRecipe)]
+        ).catch(() => {});
+
         const finalCredit = user.subscriptionTier === 'pro' ? '∞' : currentCredits;
 
         res.json({
@@ -1155,8 +1220,11 @@ Respond ONLY with a valid JSON object (no markdown formatting, no extra commenta
         console.error("URL Parsing Failed:", error);
 
         if (creditDeducted && deductedUserId) {
-            await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [deductedUserId]).catch(() => {});
-            console.log(`[CreditAudit] Refunded 1 credit to User ${deductedUserId} due to API URL Parse failure`);
+            await refundCredits({
+                userId: deductedUserId,
+                amount: 1,
+                operation: 'refund:parse_url'
+            });
         }
 
         res.status(500).json({ error: "URL Parsing Failed", details: error.message });
@@ -1378,5 +1446,9 @@ router.post('/ai/scan-pantry', aiRateLimiter, async (req, res) => {
         res.status(500).json({ error: "Scan Failed", details: error.message });
     }
 });
+
+router.isPrivateOrReservedIp = isPrivateOrReservedIp;
+router.isSafePublicUrl = isSafePublicUrl;
+router.findRecipeNodeInJsonLd = findRecipeNodeInJsonLd;
 
 module.exports = router;
