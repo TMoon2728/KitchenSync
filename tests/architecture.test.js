@@ -169,3 +169,123 @@ test('SSRF Guard blocks private/loopback IPv4, IPv6, and metadata endpoints', ()
     assert.equal(apiRouter.isSafePublicUrl('file:///etc/passwd').ok, false);
     assert.equal(apiRouter.isSafePublicUrl('https://www.allrecipes.com/recipe/12345').ok, true);
 });
+
+test('F-01 & F-03: Canonical Pantry Match Engine & Smart Weekly Auto-Fill prioritize expiring pantry items', async () => {
+    const {
+        scoreRecipeAgainstPantry,
+        generateSmartWeeklyPlan,
+        checkDietaryConflicts,
+        inferDefaultExpiryDate,
+        getExpiryStatus
+    } = await import('../shared/culinaryEngines.mjs');
+
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const pantry = [
+        { id: 1, name: 'Ground Beef', quantity: 2, unit: 'lb', category: 'Meat', expiryDate: tomorrow },
+        { id: 2, name: 'Large Egg', quantity: 6, unit: 'each', category: 'Dairy & Eggs' }
+    ];
+
+    const recipeA = {
+        id: 10,
+        name: 'Skillet Beef Burgers',
+        meal_type: 'Main Course',
+        is_favorite: true,
+        ingredients: [
+            { name: '2 lbs ground beef, lean', quantity: 2, unit: 'lb' },
+            { name: '1 large egg, beaten', quantity: 1, unit: 'each' }
+        ],
+        tags: ['Dinner']
+    };
+
+    const score = scoreRecipeAgainstPantry(recipeA, pantry);
+    assert.equal(score.matchPercentage, 100);
+    assert.equal(score.usesExpiringItem, true);
+    assert.equal(score.expiringMatchedNames.length, 1);
+    assert.equal(score.missingIngredients.length, 0);
+
+    const conflicts = checkDietaryConflicts(recipeA, [
+        { name: 'Alex', dietaryRestrictions: 'Vegan, Nut-Free' }
+    ]);
+    assert.equal(conflicts.length, 1);
+    assert.equal(conflicts[0].restriction, 'Vegan');
+
+    const expStatus = getExpiryStatus(tomorrow);
+    assert.equal(expStatus.status, 'expiring_soon');
+    assert.ok(inferDefaultExpiryDate('Meat', 'Chicken Breast').match(/^\d{4}-\d{2}-\d{2}$/));
+
+    const autoPlan = generateSmartWeeklyPlan({
+        recipes: [recipeA],
+        pantry,
+        currentPlan: {},
+        weekDates: ['2026-11-02'],
+        getActiveSlotsForDateFn: () => ['Dinner'],
+        mode: 'calendar',
+        householdMembers: []
+    });
+    assert.equal(autoPlan.addedCount, 1);
+    assert.equal(autoPlan.mealPlan['2026-11-02'].Dinner[0].recipeId, 10);
+});
+
+test('F-02, F-04, F-05 & F-06: Recipe Diff, Step Timer Extractor, Bulk Text Parser, and .ics/Store Deep-Links', async () => {
+    const {
+        computeRecipeDiff,
+        extractStepTimers,
+        parseRawRecipeText,
+        generateMealPlanIcs,
+        buildStoreSearchUrl,
+        formatCookbookMarkdown
+    } = await import('../shared/culinaryEngines.mjs');
+
+    // F-02: Recipe Diff
+    const diff = computeRecipeDiff(
+        {
+            name: 'Beef Tacos',
+            calories: 600,
+            protein: 30,
+            ingredients: [{ name: 'Ground Beef', quantity: 1, unit: 'lb' }]
+        },
+        {
+            name: 'Lentil Tacos',
+            calories: 420,
+            protein: 22,
+            ingredients: [{ name: 'Cooked Lentils', quantity: 2, unit: 'cup' }]
+        }
+    );
+    assert.equal(diff.addedIngredients.length, 1);
+    assert.equal(diff.removedIngredients.length, 1);
+    assert.equal(diff.calorieDelta, -180);
+
+    // F-04: Step Timers
+    const timers = extractStepTimers('Simmer sauce for 15 minutes, then bake for 1 hour and rest 30 seconds.');
+    assert.equal(timers.length, 3);
+    assert.equal(timers[0].durationSeconds, 900);
+    assert.equal(timers[1].durationSeconds, 3600);
+    assert.equal(timers[2].durationSeconds, 30);
+
+    // F-05: Bulk Recipe Text Parser
+    const parsed = parseRawRecipeText(`Grandma's Pancakes
+Servings: 4
+Prep time: 10 mins
+Cook time: 15 mins
+Ingredients:
+1 ½ cups all-purpose flour
+2 large eggs
+1 cup milk
+Instructions:
+1. Whisk flour, eggs, and milk together.
+2. Cook on a hot griddle for 3 minutes per side.`);
+    assert.equal(parsed.name, "Grandma's Pancakes");
+    assert.equal(parsed.servings, 4);
+    assert.equal(parsed.ingredients.length, 3);
+    assert.ok(parsed.instructions.includes('Whisk flour'));
+
+    // F-06: .ics Calendar & Store Deep-Link & Cookbook Markdown
+    const ics = generateMealPlanIcs(
+        { '2026-11-02': { Dinner: [{ recipeId: 1, completed: false }] } },
+        [{ id: 1, name: "Grandma's Pancakes", cook_time: '15 mins', servings: 4, ingredients: parsed.ingredients, instructions: parsed.instructions }]
+    );
+    assert.ok(ics.includes('BEGIN:VCALENDAR'));
+    assert.ok(ics.includes("SUMMARY:Dinner: Grandma's Pancakes"));
+    assert.ok(buildStoreSearchUrl('H-E-B', 'https://www.heb.com', 'Ground Beef').includes('heb.com/search?q=Ground%20Beef'));
+    assert.ok(formatCookbookMarkdown([{ name: 'Test Recipe', meal_type: 'Main Course', servings: 4, ingredients: [], instructions: 'Cook.' }]).includes('## Test Recipe'));
+});

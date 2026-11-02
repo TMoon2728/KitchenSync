@@ -316,6 +316,7 @@ const AppContent: React.FC = () => {
                         <Route path="/" element={<Dashboard />} />
                         <Route path="/recipes" element={<Recipes />} />
                         <Route path="/recipes/new" element={<RecipeForm />} />
+                        <Route path="/recipes/:id/edit" element={<RecipeForm />} />
                         <Route path="/recipes/:id" element={<RecipeDetail />} />
                         <Route path="/recipes/:id/cook" element={<CookingMode />} />
                         <Route path="/planner" element={<MealPlanner />} />

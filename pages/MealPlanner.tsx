@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useKitchen } from '../context/KitchenContext';
 import { useUser } from '../context/UserContext';
-import type { Recipe, PantryItem, Ingredient, MealSlotType, WeeklyScheduleMatrix } from '../types';
+import type { Recipe, PantryItem, Ingredient, MealSlotType, WeeklyScheduleMatrix, MealPlan } from '../types';
 import confetti from 'canvas-confetti';
 import { convertQuantity } from '../utils/unitConversion';
 import ScheduleSelector from '../components/ScheduleSelector';
@@ -14,6 +14,13 @@ import {
     getActiveSlotsForDate,
     countWeeklyTargetSlots
 } from '../utils/schedule';
+import {
+    scoreRecipeAgainstPantry,
+    generateSmartWeeklyPlan,
+    checkDietaryConflicts,
+    inferDefaultExpiryDate
+} from '../utils/pantryMatcher';
+import { generateMealPlanIcs, downloadTextFile } from '../utils/calendarExport';
 
 interface PendingAction {
     date: string;
@@ -62,6 +69,22 @@ const MealPlanner: React.FC = () => {
     const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
     const [missingIngredientsPrompt, setMissingIngredientsPrompt] = useState<{ recipeName: string, missing: Ingredient[] } | null>(null);
 
+    // Undo History Stack & Action Toast (F-01 / F-02)
+    const [planHistory, setPlanHistory] = useState<MealPlan[]>([]);
+    const [plannerBanner, setPlannerBanner] = useState<string | null>(null);
+
+    const recordSnapshotForUndo = () => {
+        setPlanHistory(prev => [...prev.slice(-9), JSON.parse(JSON.stringify(mealPlan))]);
+    };
+
+    const handleUndoLastChange = () => {
+        if (planHistory.length === 0) return;
+        const previousSnapshot = planHistory[planHistory.length - 1];
+        setPlanHistory(prev => prev.slice(0, -1));
+        setMealPlan(previousSnapshot);
+        setPlannerBanner('Reverted meal plan to previous state.');
+    };
+
     // State for Mobile Tap-to-Add workflow
     const [selectedMobileRecipe, setSelectedMobileRecipe] = useState<{ id: number, name: string } | { customName: string } | null>(null);
 
@@ -74,10 +97,13 @@ const MealPlanner: React.FC = () => {
         [mealPlan]
     );
 
-    const pantryItemNames = useMemo(
-        () => new Set(pantry.map(p => p.name.toLowerCase())),
-        [pantry]
-    );
+    const pantryScoresMap = useMemo(() => {
+        const map = new Map<number, ReturnType<typeof scoreRecipeAgainstPantry>>();
+        for (const recipe of recipes) {
+            map.set(recipe.id, scoreRecipeAgainstPantry(recipe, pantry));
+        }
+        return map;
+    }, [recipes, pantry]);
 
     const handleDrop = (date: string, slot: string, e: React.DragEvent) => {
         e.preventDefault();
@@ -244,7 +270,7 @@ const MealPlanner: React.FC = () => {
             quantity: 1,
             unit: ing.unit || 'unit',
             category: ing.category || 'Other',
-            expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            expiryDate: inferDefaultExpiryDate(ing.category || 'Other', ing.name)
         }));
 
         await batchAddPantryItems(itemsToAdd);
@@ -262,6 +288,67 @@ const MealPlanner: React.FC = () => {
     });
 
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
+
+    const handleSmartAutoFill = () => {
+        if (recipes.length === 0) {
+            setPlannerBanner('Add at least one recipe to your cookbook before auto-filling.');
+            return;
+        }
+        recordSnapshotForUndo();
+        const result = generateSmartWeeklyPlan({
+            recipes,
+            pantry,
+            currentPlan: mealPlan,
+            weekDates: days,
+            scheduleMatrix,
+            mode: viewMode,
+            targetListCount: targetWeeklySlots,
+            householdMembers: userProfile.householdMembers || []
+        });
+        setMealPlan(result.mealPlan);
+        setPlannerBanner(
+            result.addedCount > 0
+                ? `Smart Auto-Filled ${result.addedCount} meal(s) using your pantry & expiry radar (0 credits)!`
+                : 'All active meal slots for this week are already filled!'
+        );
+    };
+
+    const handleExportIcsCalendar = () => {
+        const weekLabel = formatDate(weekStartDate);
+        const icsContent = generateMealPlanIcs(mealPlan, recipes, weekLabel);
+        downloadTextFile(`kitchensync-meals-${weekLabel}.ics`, icsContent, 'text/calendar;charset=utf-8');
+        setPlannerBanner('Downloaded .ics Meal Calendar! Open it to import into Apple, Google, or Outlook Calendar.');
+    };
+
+    const getDayNutritionSummary = (dateStr: string) => {
+        const dayPlan = mealPlan[dateStr];
+        if (!dayPlan) return { calories: 0, protein: 0, carbs: 0, fat: 0, conflicts: [] as string[] };
+        let calories = 0;
+        let protein = 0;
+        let carbs = 0;
+        let fat = 0;
+        const conflictsSet = new Set<string>();
+
+        ALL_MEAL_SLOTS.forEach(slot => {
+            (dayPlan[slot] || []).forEach(entry => {
+                if (entry.recipeId) {
+                    const r = recipes.find(rec => rec.id === entry.recipeId);
+                    if (r) {
+                        calories += Number(r.calories) || 0;
+                        protein += Number(r.protein) || 0;
+                        carbs += Number(r.carbs) || 0;
+                        fat += Number(r.fat) || 0;
+                        const c = checkDietaryConflicts(r, userProfile.householdMembers || []);
+                        c.forEach(item =>
+                            conflictsSet.add(`${item.memberName}: ${item.restriction} (${item.offendingIngredient})`)
+                        );
+                    }
+                }
+            });
+        });
+
+        return { calories, protein, carbs, fat, conflicts: Array.from(conflictsSet) };
+    };
 
     const changeWeek = (direction: 'prev' | 'next' | 'today') => {
         if (direction === 'today') {
@@ -368,6 +455,7 @@ const MealPlanner: React.FC = () => {
                     <div className="overflow-y-auto space-y-2 flex-grow pr-1 custom-scrollbar">
                         {(shuffledTrayRecipes || filteredRecipes).map(recipe => {
                             const isSelected = selectedMobileRecipe && 'id' in selectedMobileRecipe && selectedMobileRecipe.id === recipe.id;
+                            const score = pantryScoresMap.get(recipe.id);
                             
                             return (
                                 <div
@@ -381,7 +469,18 @@ const MealPlanner: React.FC = () => {
                                 >
                                     <div className="min-w-0 pr-2">
                                         <p className={`font-bold text-sm line-clamp-1 ${isSelected ? 'text-blue-900' : 'text-gray-800 dark:text-gray-100'}`}>{recipe.name}</p>
-                                        <p className={`text-[10px] uppercase tracking-wide font-semibold ${isSelected ? 'text-blue-500' : 'text-gray-500 dark:text-gray-400'}`}>{recipe.meal_type}</p>
+                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                            <p className={`text-[10px] uppercase tracking-wide font-semibold ${isSelected ? 'text-blue-500' : 'text-gray-500 dark:text-gray-400'}`}>{recipe.meal_type}</p>
+                                            {score && score.totalCount > 0 && (
+                                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                                                    score.matchPercentage >= 80
+                                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                                                }`}>
+                                                    {score.matchPercentage}% pantry
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="flex items-center gap-2 flex-shrink-0">
                                         <button
@@ -517,6 +616,38 @@ const MealPlanner: React.FC = () => {
 
                             <button
                                 type="button"
+                                onClick={handleSmartAutoFill}
+                                title="Fill open slots for this week using your Pantry & Expiry Radar (0 Credits)"
+                                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-sm transition-all flex items-center gap-1.5"
+                            >
+                                <i className="fas fa-wand-magic-sparkles"></i>
+                                <span>Smart Auto-Fill</span>
+                            </button>
+
+                            {planHistory.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={handleUndoLastChange}
+                                    title="Undo last auto-fill or change"
+                                    className="px-3 py-2 rounded-xl text-xs font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 hover:bg-amber-200 transition-all flex items-center gap-1.5"
+                                >
+                                    <i className="fas fa-rotate-left"></i>
+                                    <span>Undo</span>
+                                </button>
+                            )}
+
+                            <button
+                                type="button"
+                                onClick={handleExportIcsCalendar}
+                                title="Download .ics Calendar file for Apple, Google, or Outlook Calendar"
+                                className="px-3 py-2 rounded-xl text-xs font-bold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/40 hover:text-blue-600 transition-all flex items-center gap-1.5"
+                            >
+                                <i className="fas fa-calendar-check"></i>
+                                <span>.ics Export</span>
+                            </button>
+
+                            <button
+                                type="button"
                                 onClick={() => setShowScheduleSetup(prev => !prev)}
                                 className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 ${
                                     showScheduleSetup
@@ -542,6 +673,13 @@ const MealPlanner: React.FC = () => {
                             </div>
                         </div>
                     </div>
+
+                    {plannerBanner && (
+                        <div className="flex items-center justify-between gap-2 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700/60 text-emerald-800 dark:text-emerald-200 px-3.5 py-2 rounded-xl text-xs font-semibold animate-fade-in">
+                            <span><i className="fas fa-check-circle mr-1.5"></i>{plannerBanner}</span>
+                            <button type="button" onClick={() => setPlannerBanner(null)} className="text-emerald-600 hover:text-emerald-900 font-bold">&times;</button>
+                        </div>
+                    )}
 
                     {/* Collapsible Schedule Setup Drawer */}
                     {showScheduleSetup && (
@@ -622,9 +760,8 @@ const MealPlanner: React.FC = () => {
                                     {flexibleMeals.map((item, idx) => {
                                         const recipe = item.recipeId ? recipes.find(r => r.id === item.recipeId) : null;
                                         const isCompleted = !!item.completed;
-                                        const canMakeNow = recipe
-                                            ? recipe.ingredients.every(ing => pantryItemNames.has(ing.name.toLowerCase()))
-                                            : false;
+                                        const score = recipe ? pantryScoresMap.get(recipe.id) : null;
+                                        const canMakeNow = score ? score.matchPercentage >= 80 : false;
 
                                         return (
                                             <div
@@ -798,16 +935,41 @@ const MealPlanner: React.FC = () => {
                                         s => activeSlots.includes(s) || (dayPlan[s] && dayPlan[s].length > 0)
                                     );
                                     if (visibleSlots.length === 0) return null;
+                                    const daySummary = getDayNutritionSummary(dateStr);
 
                                     return (
                                         <div key={dateStr} className="py-3 flex flex-col md:flex-row md:items-center gap-3">
-                                            <div className="w-32 flex-shrink-0">
+                                            <div className="w-36 flex-shrink-0">
                                                 <span className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 block">
                                                     {day.toLocaleDateString('en-US', { weekday: 'short' })}
                                                 </span>
                                                 <span className="text-sm font-bold text-gray-700 dark:text-gray-200">
                                                     {day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                                 </span>
+                                                {daySummary.calories > 0 && (
+                                                    <div className="mt-1 flex flex-wrap gap-1">
+                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                                            userProfile.dailyCalorieGoal && daySummary.calories > userProfile.dailyCalorieGoal * 1.15
+                                                                ? 'bg-red-100 text-red-700'
+                                                                : 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                                                        }`}>
+                                                            {daySummary.calories} kcal
+                                                        </span>
+                                                        {daySummary.protein > 0 && (
+                                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                                                {daySummary.protein}g P
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {daySummary.conflicts.length > 0 && (
+                                                    <span
+                                                        title={`Dietary conflict: ${daySummary.conflicts.join(', ')}`}
+                                                        className="mt-1 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700"
+                                                    >
+                                                        <i className="fas fa-triangle-exclamation mr-1"></i>Diet Alert
+                                                    </span>
+                                                )}
                                             </div>
 
                                             <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -903,23 +1065,55 @@ const MealPlanner: React.FC = () => {
                                     : ALL_MEAL_SLOTS.filter(
                                           slot => activeSlots.includes(slot) || (dayPlan[slot] && dayPlan[slot].length > 0)
                                       );
+                                const daySummary = getDayNutritionSummary(dateStr);
 
                                 return (
                                     <div key={dateStr} className={`flex-shrink-0 w-full md:w-[300px] rounded-2xl flex flex-col p-3 space-y-3 border transition-all md:h-full md:overflow-y-auto custom-scrollbar md:snap-center ${isToday ? 'bg-blue-50/50 border-blue-200 shadow-md ring-2 ring-blue-100' : 'bg-white dark:bg-gray-800 dark:text-gray-100 border-gray-100 dark:border-gray-700 shadow-sm'}`}>
-                                        <div className="text-center pb-2 border-b border-gray-100 dark:border-gray-700/50 sticky top-0 bg-inherit z-10 backdrop-blur-sm flex items-center justify-between px-2">
-                                            <div className="w-6"></div>
-                                            <div>
-                                                <h3 className={`font-black uppercase tracking-wider text-xs ${isToday ? 'text-blue-600' : 'text-gray-400'}`}>{day.toLocaleDateString('en-US', { weekday: 'short' })}</h3>
-                                                <p className={`text-xl font-bold ${isToday ? 'text-blue-800' : 'text-gray-800 dark:text-gray-100'}`}>{day.getDate()}</p>
+                                        <div className="text-center pb-2 border-b border-gray-100 dark:border-gray-700/50 sticky top-0 bg-inherit z-10 backdrop-blur-sm">
+                                            <div className="flex items-center justify-between px-2">
+                                                <div className="w-6"></div>
+                                                <div>
+                                                    <h3 className={`font-black uppercase tracking-wider text-xs ${isToday ? 'text-blue-600' : 'text-gray-400'}`}>{day.toLocaleDateString('en-US', { weekday: 'short' })}</h3>
+                                                    <p className={`text-xl font-bold ${isToday ? 'text-blue-800' : 'text-gray-800 dark:text-gray-100'}`}>{day.getDate()}</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setExpandedDays(prev => ({ ...prev, [dateStr]: !prev[dateStr] }))}
+                                                    title={isDayExpanded ? "Show only scheduled slots" : "Show all meal slots for this day"}
+                                                    className="w-6 h-6 rounded-full text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center text-xs"
+                                                >
+                                                    <i className={`fas ${isDayExpanded ? 'fa-compress-alt' : 'fa-ellipsis-h'}`}></i>
+                                                </button>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setExpandedDays(prev => ({ ...prev, [dateStr]: !prev[dateStr] }))}
-                                                title={isDayExpanded ? "Show only scheduled slots" : "Show all meal slots for this day"}
-                                                className="w-6 h-6 rounded-full text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center text-xs"
-                                            >
-                                                <i className={`fas ${isDayExpanded ? 'fa-compress-alt' : 'fa-ellipsis-h'}`}></i>
-                                            </button>
+                                            {(daySummary.calories > 0 || daySummary.conflicts.length > 0) && (
+                                                <div className="flex flex-wrap items-center justify-center gap-1 mt-1.5 px-1">
+                                                    {daySummary.calories > 0 && (
+                                                        <span
+                                                            title={userProfile.dailyCalorieGoal ? `Daily Goal: ${userProfile.dailyCalorieGoal} kcal` : 'Scheduled daily calories'}
+                                                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                                                userProfile.dailyCalorieGoal && daySummary.calories > userProfile.dailyCalorieGoal * 1.15
+                                                                    ? 'bg-red-100 text-red-700'
+                                                                    : 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                                                            }`}
+                                                        >
+                                                            {daySummary.calories} kcal
+                                                        </span>
+                                                    )}
+                                                    {daySummary.protein > 0 && (
+                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                                            {daySummary.protein}g P
+                                                        </span>
+                                                    )}
+                                                    {daySummary.conflicts.length > 0 && (
+                                                        <span
+                                                            title={`Household dietary conflict: ${daySummary.conflicts.join(', ')}`}
+                                                            className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700"
+                                                        >
+                                                            <i className="fas fa-triangle-exclamation mr-1"></i>Diet Alert
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
 
                                         {slotsToRender.length > 0 ? (

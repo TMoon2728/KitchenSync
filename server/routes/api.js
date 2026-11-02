@@ -1383,18 +1383,19 @@ router.post('/ai/scan-pantry', aiRateLimiter, async (req, res) => {
 
         let currentCredits = user.credits;
 
-        // Pre-Flight Atomic Credit Check & Deduction
+        // Pre-Flight Atomic Credit Check & Deduction (U-04 Ledger)
         if (user.subscriptionTier !== 'pro') {
-            const deductResult = await db.query(
-                'UPDATE users SET credits = credits - 1 WHERE id = $1 AND credits >= 1 RETURNING credits',
-                [user.id]
-            );
-            if (deductResult.rowCount === 0) {
+            const ledgerRes = await deductCredits({
+                userId: user.id,
+                amount: 1,
+                operation: 'scan_pantry'
+            });
+            if (!ledgerRes.ok) {
                 return res.status(402).json({ error: "Insufficient credits" });
             }
             creditDeducted = true;
             deductedUserId = user.id;
-            currentCredits = deductResult.rows[0].credits;
+            currentCredits = ledgerRes.creditsRemaining;
         }
 
         const prompt = `
@@ -1421,8 +1422,7 @@ router.post('/ai/scan-pantry', aiRateLimiter, async (req, res) => {
         };
 
         const modelName = await resolveModel();
-        const result = await genAI.models.generateContent({
-            model: modelName,
+        const result = await generateContentWithFailover(genAI, modelName, {
             contents: [prompt, imagePart],
             config: { responseMimeType: "application/json" }
         });
@@ -1430,6 +1430,9 @@ router.post('/ai/scan-pantry', aiRateLimiter, async (req, res) => {
         const responseText = typeof result.text === 'function' ? result.text() : result.text;
         const cleanedText = responseText.replace(/```json|```/g, '').trim();
         const data = JSON.parse(cleanedText);
+        if (data && Array.isArray(data.items)) {
+            data.items = normalizeRecipeIngredientsList(data.items);
+        }
 
         const finalCredit = user.subscriptionTier === 'pro' ? '∞' : currentCredits;
 
@@ -1439,11 +1442,106 @@ router.post('/ai/scan-pantry', aiRateLimiter, async (req, res) => {
         console.error("Pantry Scan Failed:", error);
 
         if (creditDeducted && deductedUserId) {
-            await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [deductedUserId]).catch(() => {});
-            console.log(`[CreditAudit] Refunded 1 credit to User ${deductedUserId} due to API Pantry Scan failure`);
+            await refundCredits({
+                userId: deductedUserId,
+                amount: 1,
+                operation: 'refund:scan_pantry'
+            });
         }
 
         res.status(500).json({ error: "Scan Failed", details: error.message });
+    }
+});
+
+// 7. Gemini Proxy: Scan Cookbook Page / Handwritten Recipe Card (F-05 Multi-Modal Ingestion)
+router.post('/ai/scan-recipe-image', aiRateLimiter, async (req, res) => {
+    if (!genAI) {
+        return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
+    }
+
+    let creditDeducted = false;
+    let deductedUserId = null;
+
+    try {
+        const { image, familySize } = req.body;
+        if (!image || typeof image !== 'string' || !image.includes(',')) {
+            return res.status(400).json({ error: "A valid base64 image payload is required." });
+        }
+
+        const user = await getUser(req);
+        if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
+
+        let currentCredits = user.credits;
+
+        if (user.subscriptionTier !== 'pro') {
+            const ledgerRes = await deductCredits({
+                userId: user.id,
+                amount: 1,
+                operation: 'scan_recipe_image'
+            });
+            if (!ledgerRes.ok) {
+                return res.status(402).json({ error: "Insufficient credits" });
+            }
+            creditDeducted = true;
+            deductedUserId = user.id;
+            currentCredits = ledgerRes.creditsRemaining;
+        }
+
+        const mimeMatch = image.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,/);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+
+        const prompt = `
+You are an expert culinary OCR and recipe digitization specialist.
+Extract the complete recipe from this photo of a cookbook page, handwritten family recipe card, magazine clipping, or screenshot.
+
+CRITICAL RULES:
+1. Extract the recipe title, servings, prep_time, cook_time, estimated nutrition per serving (calories, protein, fat, carbs), ingredients, and step-by-step instructions.
+2. Keep ingredient "name" as a clean grocery item WITHOUT preparation suffixes (e.g., "Yellow Onion", "Ground Beef", "Large Egg" — put "chopped", "diced", "beaten" in instructions).
+3. Do NOT include plain tap water in the ingredients list.
+4. Number each instruction step (1., 2., 3.) separated by double newlines (\\n\\n).
+${familySize ? `5. Scale ingredient quantities to yield exactly ${familySize} servings and set "servings" to ${familySize}.` : ''}
+`;
+
+        const imagePart = {
+            inlineData: {
+                data: image.split(',')[1],
+                mimeType
+            }
+        };
+
+        const modelName = await resolveModel();
+        const resolvedSchema = resolveServerSchema('recipe');
+        const result = await generateContentWithFailover(genAI, modelName, {
+            contents: [prompt, imagePart],
+            config: {
+                responseMimeType: "application/json",
+                ...(resolvedSchema ? { responseSchema: resolvedSchema } : {})
+            }
+        });
+
+        const responseText = typeof result.text === 'function' ? result.text() : result.text;
+        const rawJson = JSON.parse(responseText.replace(/```json|```/g, '').trim());
+        const normalizedRecipe = normalizeExtractedRecipe(rawJson, 'Cookbook / Card Scan', null, familySize);
+
+        if (!normalizedRecipe) {
+            throw new Error("Could not extract a complete recipe from the image.");
+        }
+
+        const finalCredit = user.subscriptionTier === 'pro' ? '∞' : currentCredits;
+        res.json({
+            result: normalizedRecipe,
+            creditsRemaining: finalCredit
+        });
+    } catch (error) {
+        console.error("Recipe Image Scan Failed:", error);
+        if (creditDeducted && deductedUserId) {
+            await refundCredits({
+                userId: deductedUserId,
+                amount: 1,
+                operation: 'refund:scan_recipe_image'
+            });
+        }
+        res.status(500).json({ error: "Recipe Image Scan Failed", details: error.message });
     }
 });
 

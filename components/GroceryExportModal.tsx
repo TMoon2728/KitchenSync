@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { formatShoppingItemLine } from '../utils/ingredientNormalizer';
+import { buildStoreSearchUrl } from '../utils/calendarExport';
 
 interface GroceryExportModalProps {
     isOpen: boolean;
@@ -19,7 +20,20 @@ const GroceryExportModal: React.FC<GroceryExportModalProps> = ({
     const [step, setStep] = useState(0);
     const [progress, setProgress] = useState(0);
     const [isCopied, setIsCopied] = useState(false);
-    const [exportFormat, setExportFormat] = useState<'flat' | 'aisle'>('flat');
+    const [exportFormat, setExportFormat] = useState<'flat' | 'aisle' | 'links'>('flat');
+    const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+
+    const handleNativeShare = async () => {
+        if (!canNativeShare || !formattedText) return;
+        try {
+            await navigator.share({
+                title: `KitchenSync Shopping List (${shoppingList.length} items)`,
+                text: formattedText
+            });
+        } catch {
+            // User cancelled share sheet
+        }
+    };
 
     const formattedText = useMemo(() => {
         if (!shoppingList || shoppingList.length === 0) return '';
@@ -144,8 +158,8 @@ const GroceryExportModal: React.FC<GroceryExportModalProps> = ({
                     {step === 3 && (
                         <div className="space-y-4 animate-fade-in text-left">
                             {/* Format Switcher + Copy Again Button */}
-                            <div className="flex items-center justify-between gap-2 bg-gray-100 dark:bg-gray-700/60 p-1.5 rounded-xl">
-                                <div className="flex items-center gap-1">
+                            <div className="flex flex-wrap items-center justify-between gap-2 bg-gray-100 dark:bg-gray-700/60 p-1.5 rounded-xl">
+                                <div className="flex flex-wrap items-center gap-1">
                                     <button
                                         type="button"
                                         onClick={() => setExportFormat('flat')}
@@ -155,7 +169,7 @@ const GroceryExportModal: React.FC<GroceryExportModalProps> = ({
                                                 : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
                                         }`}
                                     >
-                                        Store Paste (Clean)
+                                        Store Paste
                                     </button>
                                     <button
                                         type="button"
@@ -166,24 +180,70 @@ const GroceryExportModal: React.FC<GroceryExportModalProps> = ({
                                                 : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
                                         }`}
                                     >
-                                        Grouped by Aisle
+                                        By Aisle
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setExportFormat('links')}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                                            exportFormat === 'links'
+                                                ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                                                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
+                                        }`}
+                                    >
+                                        <i className="fas fa-search-plus mr-1" />Store Links
                                     </button>
                                 </div>
 
-                                <button
-                                    type="button"
-                                    onClick={() => copyToClipboard(formattedText)}
-                                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition"
-                                >
-                                    <i className={`fas ${isCopied ? 'fa-check' : 'fa-copy'}`} />
-                                    <span>{isCopied ? 'Copied!' : 'Copy'}</span>
-                                </button>
+                                <div className="flex items-center gap-1.5">
+                                    {canNativeShare && (
+                                        <button
+                                            type="button"
+                                            onClick={handleNativeShare}
+                                            className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1 transition"
+                                            title="Share via mobile share sheet"
+                                        >
+                                            <i className="fas fa-share-nodes" />
+                                            <span>Share</span>
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => copyToClipboard(formattedText)}
+                                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition"
+                                    >
+                                        <i className={`fas ${isCopied ? 'fa-check' : 'fa-copy'}`} />
+                                        <span>{isCopied ? 'Copied!' : 'Copy'}</span>
+                                    </button>
+                                </div>
                             </div>
 
-                            {/* Live Clipboard Preview */}
-                            <div className="bg-gray-50 dark:bg-gray-900/70 p-3.5 rounded-2xl border border-gray-200 dark:border-gray-700 max-h-52 overflow-y-auto font-mono text-xs text-gray-700 dark:text-gray-200 whitespace-pre-wrap leading-relaxed select-all">
-                                {formattedText}
-                            </div>
+                            {/* Live Clipboard Preview OR Direct Store Search Deep-Links */}
+                            {exportFormat === 'links' ? (
+                                <div className="bg-gray-50 dark:bg-gray-900/70 p-3 rounded-2xl border border-gray-200 dark:border-gray-700 max-h-52 overflow-y-auto space-y-1.5">
+                                    <p className="text-[11px] font-bold text-gray-400 uppercase px-1 mb-1">
+                                        Tap any item to search directly on {favoriteStoreName}:
+                                    </p>
+                                    {shoppingList.map((item, idx) => (
+                                        <a
+                                            key={idx}
+                                            href={buildStoreSearchUrl(favoriteStoreName, favoriteStoreUrl, item.name)}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center justify-between px-3 py-2 rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 hover:border-green-400 text-xs font-semibold text-gray-800 dark:text-gray-100 transition-colors group"
+                                        >
+                                            <span>{formatShoppingItemLine(item)}</span>
+                                            <span className="text-green-600 dark:text-green-400 font-bold text-[11px] flex items-center gap-1">
+                                                Find <i className="fas fa-external-link-alt text-[10px] group-hover:translate-x-0.5 transition-transform" />
+                                            </span>
+                                        </a>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="bg-gray-50 dark:bg-gray-900/70 p-3.5 rounded-2xl border border-gray-200 dark:border-gray-700 max-h-52 overflow-y-auto font-mono text-xs text-gray-700 dark:text-gray-200 whitespace-pre-wrap leading-relaxed select-all">
+                                    {formattedText}
+                                </div>
+                            )}
 
                             <div className="flex gap-3 pt-1">
                                 <button

@@ -9,6 +9,11 @@ import Spinner from '../components/Spinner';
 import confetti from 'canvas-confetti';
 import { convertQuantity } from '../utils/unitConversion';
 import { UNSCHEDULED_PLAN_KEY, FLEXIBLE_SLOT_KEY } from '../utils/schedule';
+import {
+    scoreRecipeAgainstPantry,
+    getExpiryStatus,
+    inferDefaultExpiryDate
+} from '../utils/pantryMatcher';
 import type { Ingredient } from '../types';
 
 const StatCard: React.FC<{ icon: string; title: string; value: string | number; color: string; delay: string; to: string; state?: any }> = ({ icon, title, value, color, delay, to, state }) => (
@@ -50,10 +55,10 @@ const Dashboard: React.FC = () => {
     }, []);
 
     const kitchenStats = useMemo(() => {
-        const pantryItemNames = new Set(pantry.map(item => item.name.toLowerCase()));
-        const recipesCanMake = recipes.filter(recipe =>
-            recipe.ingredients.every(ing => pantryItemNames.has(ing.name.toLowerCase()))
-        ).length;
+        const recipesCanMake = recipes.filter(recipe => {
+            const score = scoreRecipeAgainstPantry(recipe, pantry);
+            return score.totalCount > 0 && score.matchPercentage >= 80;
+        }).length;
 
         return {
             totalRecipes: recipes.length,
@@ -62,6 +67,13 @@ const Dashboard: React.FC = () => {
             recipesCanMake: recipesCanMake
         };
     }, [recipes, pantry]);
+
+    const expiringPantryItems = useMemo(() => {
+        return pantry.filter(item => {
+            const status = getExpiryStatus(item.expiryDate);
+            return status.status === 'expired' || status.status === 'expiring_soon';
+        });
+    }, [pantry]);
 
     // Enhanced Gamification Logic
     const xpStats = useMemo(() => {
@@ -203,7 +215,7 @@ const Dashboard: React.FC = () => {
             quantity: 1, 
             unit: ing.unit || 'unit',
             category: ing.category || 'Other',
-            expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            expiryDate: inferDefaultExpiryDate(ing.category || 'Other', ing.name)
         }));
         
         await batchAddPantryItems(itemsToAdd);
@@ -311,6 +323,41 @@ const Dashboard: React.FC = () => {
                     </div>
                 </Link>
             </div>
+
+            {/* Expiring Soon Quick-Rescue Banner (F-03) */}
+            {expiringPantryItems.length > 0 && (
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/30 dark:to-orange-900/30 border border-amber-200 dark:border-amber-700/60 p-4 rounded-2xl shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in">
+                    <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                            <i className="fas fa-hourglass-half"></i>
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-extrabold text-amber-900 dark:text-amber-100">
+                                Expiry Radar: {expiringPantryItems.length} item(s) need to be used soon
+                            </h3>
+                            <p className="text-xs text-amber-800 dark:text-amber-200/80 mt-0.5">
+                                {expiringPantryItems.slice(0, 5).map(i => i.name).join(', ')}
+                                {expiringPantryItems.length > 5 ? ` +${expiringPantryItems.length - 5} more` : ''}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                        <Link
+                            to="/recipes"
+                            state={{ filter: 'expiring' }}
+                            className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5"
+                        >
+                            <i className="fas fa-utensils"></i> Rescue Recipes
+                        </Link>
+                        <Link
+                            to="/pantry"
+                            className="px-3 py-2 rounded-xl bg-white dark:bg-gray-800 border border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-200 text-xs font-bold hover:bg-amber-100 transition-colors"
+                        >
+                            View Pantry
+                        </Link>
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Main Content Area */}
