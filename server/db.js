@@ -3,15 +3,25 @@ const { Pool } = require('pg');
 // Initialize the PostgreSQL Pool
 const isLocalhost = (process.env.DATABASE_URL || '').includes('localhost');
 
+const sslConfig = isLocalhost
+    ? false
+    : process.env.DATABASE_CA_CERT
+        ? { rejectUnauthorized: true, ca: process.env.DATABASE_CA_CERT }
+        : { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED === 'true' };
+
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://localhost/kitchensync',
+    max: Number(process.env.DB_POOL_MAX) || 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
     // Render external connections require SSL. Local Postgres usually doesn't.
-    ssl: isLocalhost ? false : { rejectUnauthorized: false }
+    ssl: sslConfig
 });
 
 pool.on('error', (err) => {
-    console.error('Unexpected error on idle client', err);
-    process.exit(-1);
+    // Log idle client errors without terminating the entire Express server;
+    // pg.Pool automatically evicts the disconnected idle client and reconnects on next query.
+    console.error('[PostgreSQL Pool] Idle client error (evicted automatically):', err.message);
 });
 
 // Initialize Schema

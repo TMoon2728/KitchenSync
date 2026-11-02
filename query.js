@@ -1,8 +1,19 @@
+const path = require('path');
+const dotenv = require('dotenv');
 const { Pool } = require('pg');
 
+dotenv.config({ path: path.resolve(__dirname, '.env.local') });
+dotenv.config();
+
+if (!process.env.DATABASE_URL) {
+  console.error('Error: DATABASE_URL environment variable is required.');
+  process.exit(1);
+}
+
+const isLocalhost = process.env.DATABASE_URL.includes('localhost');
 const pool = new Pool({
-  connectionString: 'postgresql://meal_engine_db_final_25wm_user:6WqlohUpgwjSKPJujXgpMmwHN80bOcWX@dpg-d3g7hgffte5s73bst2dg-a.oregon-postgres.render.com/meal_engine_db_final_25wm',
-  ssl: { rejectUnauthorized: false }
+  connectionString: process.env.DATABASE_URL,
+  ssl: isLocalhost ? false : { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' }
 });
 
 pool.query('SELECT id, username, email FROM users;', (err, res) => {

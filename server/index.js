@@ -12,6 +12,9 @@ dotenv.config(); // Standard .env fallback
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust Render / reverse proxy hops so express-rate-limit uses the real client IP
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(cors());
 

@@ -204,7 +204,7 @@ router.put('/user/profile', async (req, res) => {
     }
 });
 
-// 3. Consume Credits
+// 3. Consume Credits (Atomic Pre-Flight Deduction)
 router.post('/credits/consume', async (req, res) => {
     try {
         const { amount } = req.body;
@@ -212,96 +212,98 @@ router.post('/credits/consume', async (req, res) => {
 
         if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-        if (typeof amount !== 'number' || amount <= 0) {
-            return res.status(400).json({ error: "Invalid amount. Must be a positive number." });
+        if (typeof amount !== 'number' || !Number.isInteger(amount) || amount <= 0 || amount > 10) {
+            return res.status(400).json({ error: "Invalid amount. Must be a positive integer between 1 and 10." });
         }
 
         if (user.subscriptionTier === 'pro') {
             return res.json({ success: true, remaining: '∞', tier: 'pro' });
         }
 
-        if (user.credits >= amount) {
-            // Transaction
-            await db.query('UPDATE users SET credits = credits - $1 WHERE id = $2', [amount, user.id]);
-            const updatedCredits = user.credits - amount;
-            return res.json({ success: true, remaining: updatedCredits, tier: user.subscriptionTier });
-        } else {
+        const deductResult = await db.query(
+            'UPDATE users SET credits = credits - $1 WHERE id = $2 AND credits >= $1 RETURNING credits',
+            [amount, user.id]
+        );
+
+        if (deductResult.rowCount === 0) {
             return res.status(402).json({ error: "Insufficient credits", current: user.credits });
         }
+
+        const updatedCredits = deductResult.rows[0].credits;
+        return res.json({ success: true, remaining: updatedCredits, tier: user.subscriptionTier });
     } catch (e) {
         console.error("Consume Credits Error:", e);
         res.status(500).json({ error: "Failed to consume credits" });
     }
 });
 
-// --- Model Resolution Helper ---
+// --- Model Resolution Helper (Single-Flight Memoized) ---
 let activeModel = null;
+let modelResolutionPromise = null;
 
 const resolveModel = async () => {
     if (activeModel) return activeModel;
+    if (modelResolutionPromise) return modelResolutionPromise;
 
-    // 1. Try Configured/Default
     const preferred = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
-    try {
-        // Test validity (lightweight check if possible, or just list)
-        const list = await genAI.models.list();
-        const available = [];
-        for await (const m of list) {
-            available.push(m);
-        }
+    modelResolutionPromise = (async () => {
+        try {
+            const list = await genAI.models.list();
+            const available = [];
+            for await (const m of list) {
+                available.push(m);
+            }
 
-        const modelNames = available.map(m => m.name.replace('models/', ''));
-        console.log("Available Models:", modelNames);
+            const modelNames = available.map(m => m.name.replace('models/', ''));
+            console.log("Available Models:", modelNames);
 
-        // Check if preferred exists
-        if (modelNames.includes(preferred)) {
+            if (modelNames.includes(preferred)) {
+                activeModel = preferred;
+                return activeModel;
+            }
+
+            const flash25 = modelNames.find(n => n.includes('flash') && n.includes('2.5'));
+            if (flash25) {
+                activeModel = flash25;
+                return activeModel;
+            }
+
+            const flash20 = modelNames.find(n => n.includes('flash') && n.includes('2.0'));
+            if (flash20) {
+                activeModel = flash20;
+                return activeModel;
+            }
+
+            const flash = modelNames.find(n => n.includes('flash') && n.includes('1.5'));
+            if (flash) {
+                activeModel = flash;
+                return activeModel;
+            }
+
+            const pro = modelNames.find(n => n.includes('pro') && (n.includes('2.5') || n.includes('1.5')));
+            if (pro) {
+                activeModel = pro;
+                return activeModel;
+            }
+
+            const anyGemini = modelNames.find(n => n.includes('gemini'));
+            if (anyGemini) {
+                activeModel = anyGemini;
+                return activeModel;
+            }
+
             activeModel = preferred;
             return activeModel;
+        } catch (e) {
+            console.error("Failed to list models for resolution:", e);
+            return preferred;
+        } finally {
+            modelResolutionPromise = null;
         }
+    })();
 
-        // Fallback Strategy
-        // 1. Look for 'gemini-2.5-flash' or 'gemini-2.0-flash'
-        const flash25 = modelNames.find(n => n.includes('flash') && n.includes('2.5'));
-        if (flash25) {
-            activeModel = flash25;
-            return activeModel;
-        }
-
-        const flash20 = modelNames.find(n => n.includes('flash') && n.includes('2.0'));
-        if (flash20) {
-            activeModel = flash20;
-            return activeModel;
-        }
-
-        // 2. Look for 'flash' (1.5)
-        const flash = modelNames.find(n => n.includes('flash') && n.includes('1.5'));
-        if (flash) {
-            activeModel = flash;
-            return activeModel;
-        }
-
-        // 3. Look for 'pro'
-        const pro = modelNames.find(n => n.includes('pro') && (n.includes('2.5') || n.includes('1.5')));
-        if (pro) {
-            activeModel = pro;
-            return activeModel;
-        }
-
-        // 4. Any gemini
-        const anyGemini = modelNames.find(n => n.includes('gemini'));
-        if (anyGemini) {
-            activeModel = anyGemini;
-            return activeModel;
-        }
-
-        activeModel = preferred; // Hope for the best
-        return activeModel;
-
-    } catch (e) {
-        console.error("Failed to list models for resolution:", e);
-        return preferred; // Fallback so local dev without API keys listing perms still attempts
-    }
+    return modelResolutionPromise;
 };
 
 
@@ -312,13 +314,17 @@ router.post('/generate-recipe', aiRateLimiter, async (req, res) => {
     }
 
     const rawCost = req.body?.cost;
-    const creditCost = (typeof rawCost === 'number' && Number.isInteger(rawCost) && rawCost >= 1) ? rawCost : 1;
+    const creditCost = (typeof rawCost === 'number' && Number.isInteger(rawCost) && rawCost >= 1 && rawCost <= 5) ? rawCost : 1;
+    let creditDeducted = false;
+    let deductedUserId = null;
 
     try {
         const { prompt, schema, familySize } = req.body;
-        const user = await getUser(req);
+        if (!prompt || typeof prompt !== 'string') {
+            return res.status(400).json({ error: "A valid prompt string is required." });
+        }
 
-        // Auth Check
+        const user = await getUser(req);
         if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
 
         let currentCredits = user.credits;
@@ -332,6 +338,8 @@ router.post('/generate-recipe', aiRateLimiter, async (req, res) => {
             if (deductResult.rowCount === 0) {
                 return res.status(402).json({ error: "Insufficient credits" });
             }
+            creditDeducted = true;
+            deductedUserId = user.id;
             currentCredits = deductResult.rows[0].credits;
         }
 
@@ -362,7 +370,6 @@ router.post('/generate-recipe', aiRateLimiter, async (req, res) => {
             parsedOutput.ingredients = normalizeRecipeIngredientsList(parsedOutput.ingredients);
         }
 
-        // Refetch credit count
         const finalCredit = user.subscriptionTier === 'pro' ? '∞' : currentCredits;
 
         res.json({
@@ -373,13 +380,10 @@ router.post('/generate-recipe', aiRateLimiter, async (req, res) => {
     } catch (error) {
         console.error("Gemini API Error:", error);
         
-        // Refund credit on failure
-        if (req.user) {
-            const userParams = await getUser(req);
-            if (userParams && userParams.subscriptionTier !== 'pro') {
-                 await db.query('UPDATE users SET credits = credits + $1 WHERE id = $2', [creditCost, req.user.id]);
-                 console.log(`[CreditAudit] Refunded ${creditCost} credit(s) to User ${req.user.id} due to API failure`);
-            }
+        // Refund credit ONLY if pre-flight deduction actually occurred
+        if (creditDeducted && deductedUserId) {
+            await db.query('UPDATE users SET credits = credits + $1 WHERE id = $2', [creditCost, deductedUserId]).catch(() => {});
+            console.log(`[CreditAudit] Refunded ${creditCost} credit(s) to User ${deductedUserId} due to API failure`);
         }
 
         // Reset active model on 404 to trigger re-resolution next time
@@ -396,11 +400,16 @@ router.post('/generate-image', aiRateLimiter, async (req, res) => {
         return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
     }
 
+    let creditDeducted = false;
+    let deductedUserId = null;
+
     try {
         const { prompt } = req.body;
-        const user = await getUser(req);
+        if (!prompt || typeof prompt !== 'string') {
+            return res.status(400).json({ error: "A valid prompt string is required." });
+        }
 
-        // Auth Check
+        const user = await getUser(req);
         if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
 
         let currentCredits = user.credits;
@@ -414,6 +423,8 @@ router.post('/generate-image', aiRateLimiter, async (req, res) => {
             if (deductResult.rowCount === 0) {
                 return res.status(402).json({ error: "Insufficient credits" });
             }
+            creditDeducted = true;
+            deductedUserId = user.id;
             currentCredits = deductResult.rows[0].credits;
         }
 
@@ -441,7 +452,6 @@ router.post('/generate-image', aiRateLimiter, async (req, res) => {
             }
         } catch (genError) {
             console.error("Gemini native image generation failed. Using fallback:", genError);
-            // Fallback to a food-related placeholder containing a representation of the prompt
             base64Image = `https://loremflickr.com/500/500/food,meal`;
         }
 
@@ -455,13 +465,9 @@ router.post('/generate-image', aiRateLimiter, async (req, res) => {
     } catch (error) {
         console.error("Gemini Image Generation Error:", error);
 
-         // Refund credit on failure
-        if (req.user) {
-            const userParams = await getUser(req);
-            if (userParams && userParams.subscriptionTier !== 'pro') {
-                 await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [req.user.id]);
-                 console.log(`[CreditAudit] Refunded 1 credit to User ${req.user.id} due to API Image failure`);
-            }
+        if (creditDeducted && deductedUserId) {
+            await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [deductedUserId]).catch(() => {});
+            console.log(`[CreditAudit] Refunded 1 credit to User ${deductedUserId} due to API Image failure`);
         }
 
         res.status(500).json({ error: "Image Generation Failed", details: error.message });
@@ -474,8 +480,15 @@ router.post('/generate-image', aiRateLimiter, async (req, res) => {
 router.post('/chat', aiRateLimiter, async (req, res) => {
     if (!genAI) return res.status(503).json({ error: "AI Service Unavailable" });
 
+    let creditDeducted = false;
+    let deductedUserId = null;
+
     try {
-        // 1. Auth & Credit Check
+        const { history, message, systemInstruction } = req.body;
+        if (!message || typeof message !== 'string') {
+            return res.status(400).json({ error: "A valid message is required." });
+        }
+
         const user = await getUser(req);
         if (!user) return res.status(401).json({ error: "Unauthorized" });
 
@@ -488,9 +501,9 @@ router.post('/chat', aiRateLimiter, async (req, res) => {
             if (deductResult.rowCount === 0) {
                 return res.status(402).json({ error: "Insufficient credits" });
             }
+            creditDeducted = true;
+            deductedUserId = user.id;
         }
-
-        const { history, message, systemInstruction } = req.body;
 
         const modelName = await resolveModel();
         const chat = genAI.chats.create({
@@ -506,13 +519,9 @@ router.post('/chat', aiRateLimiter, async (req, res) => {
     } catch (error) {
         console.error("Chat Error:", error);
 
-        // Refund credit on failure
-        if (req.user) {
-            const userParams = await getUser(req);
-            if (userParams && userParams.subscriptionTier !== 'pro') {
-                 await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [req.user.id]);
-                 console.log(`[CreditAudit] Refunded 1 credit to User ${req.user.id} due to API Chat failure`);
-            }
+        if (creditDeducted && deductedUserId) {
+            await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [deductedUserId]).catch(() => {});
+            console.log(`[CreditAudit] Refunded 1 credit to User ${deductedUserId} due to API Chat failure`);
         }
 
         res.status(500).json({ error: "Chat Failed" });
@@ -520,6 +529,33 @@ router.post('/chat', aiRateLimiter, async (req, res) => {
 });
 
 // --- URL Scraping & Pinterest Unwrapping Helpers ---
+const isPrivateOrReservedIp = (ipStr) => {
+    const clean = String(ipStr || '').toLowerCase().replace(/^\[|\]$/g, '');
+    if (
+        clean === 'localhost' ||
+        clean === '127.0.0.1' ||
+        clean === '0.0.0.0' ||
+        clean === '::1' ||
+        clean === '::' ||
+        clean.startsWith('127.') ||
+        clean.startsWith('10.') ||
+        clean.startsWith('192.168.') ||
+        clean.startsWith('169.254.') ||
+        clean.startsWith('::ffff:127.') ||
+        clean.startsWith('::ffff:10.') ||
+        clean.startsWith('::ffff:192.168.') ||
+        clean.startsWith('::ffff:169.254.') ||
+        clean.startsWith('fe80:') ||
+        clean.startsWith('fc00:') ||
+        clean.startsWith('fd00:') ||
+        /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(clean) ||
+        /^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\./.test(clean)
+    ) {
+        return true;
+    }
+    return false;
+};
+
 const isSafePublicUrl = (urlStr) => {
     try {
         const parsed = new URL(urlStr);
@@ -528,14 +564,10 @@ const isSafePublicUrl = (urlStr) => {
         }
         const host = parsed.hostname.toLowerCase();
         if (
-            host === 'localhost' ||
-            host === '127.0.0.1' ||
-            host === '0.0.0.0' ||
-            host === '::1' ||
-            host.startsWith('10.') ||
-            host.startsWith('192.168.') ||
-            host.startsWith('169.254.') ||
-            /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)
+            isPrivateOrReservedIp(host) ||
+            host.endsWith('.local') ||
+            host.endsWith('.internal') ||
+            /^\d+$/.test(host) // block decimal-encoded IPv4 literals
         ) {
             return { ok: false, error: "Restricted URL host" };
         }
@@ -669,8 +701,55 @@ const extractHtmlInsights = (rawHtml = '') => {
     };
 };
 
+const dns = require('dns').promises;
+
+const assertSafeResolvedHost = async (urlStr) => {
+    const check = isSafePublicUrl(urlStr);
+    if (!check.ok) return check;
+    const hostname = check.parsed.hostname.replace(/^\[|\]$/g, '');
+    try {
+        const records = await dns.lookup(hostname, { all: true });
+        for (const rec of records) {
+            if (isPrivateOrReservedIp(rec.address)) {
+                return { ok: false, error: "Restricted resolved IP address" };
+            }
+        }
+        return { ok: true, parsed: check.parsed };
+    } catch (_) {
+        return { ok: false, error: "Could not resolve target hostname" };
+    }
+};
+
+const readBoundedText = async (response, maxBytes = 2 * 1024 * 1024) => {
+    if (!response.body || typeof response.body.getReader !== 'function') {
+        const text = await response.text();
+        return text.substring(0, maxBytes);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8', { fatal: false });
+    let totalBytes = 0;
+    let out = '';
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+            totalBytes += value.byteLength;
+            if (totalBytes > maxBytes) {
+                out += decoder.decode(value.subarray(0, Math.max(0, maxBytes - (totalBytes - value.byteLength))), { stream: false });
+                await reader.cancel().catch(() => {});
+                break;
+            }
+            out += decoder.decode(value, { stream: true });
+        }
+    }
+    out += decoder.decode();
+    return out;
+};
+
 const fetchViaJinaReader = async (targetUrl) => {
     try {
+        const safety = await assertSafeResolvedHost(targetUrl);
+        if (!safety.ok) return '';
         const res = await fetch(`https://r.jina.ai/${targetUrl}`, {
             headers: {
                 'Accept': 'text/plain',
@@ -679,7 +758,7 @@ const fetchViaJinaReader = async (targetUrl) => {
             signal: AbortSignal.timeout(12000)
         });
         if (!res.ok) return '';
-        const text = await res.text();
+        const text = await readBoundedText(res, 512 * 1024);
         return text ? text.substring(0, 60000) : '';
     } catch (e) {
         console.warn(`[ParseURL] Jina Reader failed for ${targetUrl}: ${e.message}`);
@@ -693,22 +772,40 @@ const fetchSingleUrlInsights = async (targetUrl) => {
     let blockedOrEmpty = false;
 
     try {
-        const pageResponse = await fetch(targetUrl, {
-            redirect: 'follow',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9'
-            },
-            signal: AbortSignal.timeout(10000)
-        });
-        if (pageResponse.url && isSafePublicUrl(pageResponse.url).ok) {
-            finalUrl = pageResponse.url;
+        let currentUrl = targetUrl;
+        let pageResponse = null;
+
+        // Follow up to 4 redirects manually, validating each hop against SSRF & DNS rebinding
+        for (let hop = 0; hop <= 4; hop++) {
+            const hopCheck = await assertSafeResolvedHost(currentUrl);
+            if (!hopCheck.ok) {
+                throw new Error(hopCheck.error || 'Blocked unsafe redirect hop');
+            }
+            finalUrl = currentUrl;
+
+            pageResponse = await fetch(currentUrl, {
+                redirect: 'manual',
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9'
+                },
+                signal: AbortSignal.timeout(10000)
+            });
+
+            if (pageResponse.status >= 300 && pageResponse.status < 400) {
+                const location = pageResponse.headers.get('location');
+                if (!location) break;
+                currentUrl = new URL(location, currentUrl).toString();
+                continue;
+            }
+            break;
         }
-        if (!pageResponse.ok) {
+
+        if (!pageResponse || !pageResponse.ok) {
             blockedOrEmpty = true;
         } else {
-            rawHtml = await pageResponse.text();
+            rawHtml = await readBoundedText(pageResponse, 2 * 1024 * 1024);
             if (rawHtml.includes('Just a moment...') || rawHtml.includes('cf-browser-verification') || rawHtml.length < 1000) {
                 blockedOrEmpty = true;
             }
@@ -803,6 +900,9 @@ router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
         return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
     }
 
+    let creditDeducted = false;
+    let deductedUserId = null;
+
     try {
         const { url, schema, familySize } = req.body;
         const user = await getUser(req);
@@ -810,8 +910,8 @@ router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
         // Auth & Credit Check
         if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
 
-        // SSRF Protection: Validate URL protocol and block private/loopback hosts
-        const safetyCheck = isSafePublicUrl(url);
+        // SSRF Protection: Validate URL protocol, private IP ranges, and DNS resolution
+        const safetyCheck = await assertSafeResolvedHost(url);
         if (!safetyCheck.ok) {
             return res.status(400).json({ error: safetyCheck.error });
         }
@@ -827,6 +927,8 @@ router.post('/ai/parse-url', aiRateLimiter, async (req, res) => {
             if (deductResult.rowCount === 0) {
                 return res.status(402).json({ error: "Insufficient credits" });
             }
+            creditDeducted = true;
+            deductedUserId = user.id;
             currentCredits = deductResult.rows[0].credits;
         }
 
@@ -975,13 +1077,9 @@ Respond ONLY with a valid JSON object (no markdown formatting, no extra commenta
     } catch (error) {
         console.error("URL Parsing Failed:", error);
 
-         // Refund credit on failure
-        if (req.user) {
-            const userParams = await getUser(req);
-            if (userParams && userParams.subscriptionTier !== 'pro') {
-                 await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [req.user.id]);
-                 console.log(`[CreditAudit] Refunded 1 credit to User ${req.user.id} due to API URL Parse failure`);
-            }
+        if (creditDeducted && deductedUserId) {
+            await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [deductedUserId]).catch(() => {});
+            console.log(`[CreditAudit] Refunded 1 credit to User ${deductedUserId} due to API URL Parse failure`);
         }
 
         res.status(500).json({ error: "URL Parsing Failed", details: error.message });
@@ -994,8 +1092,15 @@ router.post('/ai/analyze-receipt', aiRateLimiter, async (req, res) => {
         return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
     }
 
+    let creditDeducted = false;
+    let deductedUserId = null;
+
     try {
         const { image, currentShoppingList } = req.body; // image as base64
+        if (!image || typeof image !== 'string' || !image.includes(',')) {
+            return res.status(400).json({ error: "A valid base64 image payload is required." });
+        }
+
         const user = await getUser(req);
 
         // Auth Check
@@ -1012,6 +1117,8 @@ router.post('/ai/analyze-receipt', aiRateLimiter, async (req, res) => {
             if (deductResult.rowCount === 0) {
                 return res.status(402).json({ error: "Insufficient credits" });
             }
+            creditDeducted = true;
+            deductedUserId = user.id;
             currentCredits = deductResult.rows[0].credits;
         }
 
@@ -1039,7 +1146,7 @@ router.post('/ai/analyze-receipt', aiRateLimiter, async (req, res) => {
         // Prepare image part
         const imagePart = {
             inlineData: {
-                data: image.split(',')[1], // Remove "data:image/jpeg;base64," prefix if present
+                data: image.split(',')[1],
                 mimeType: "image/jpeg"
             }
         };
@@ -1050,7 +1157,6 @@ router.post('/ai/analyze-receipt', aiRateLimiter, async (req, res) => {
             contents: [prompt, imagePart],
             config: {
                 responseMimeType: "application/json"
-                // schema could be added here for strictness
             }
         });
 
@@ -1070,23 +1176,22 @@ router.post('/ai/analyze-receipt', aiRateLimiter, async (req, res) => {
     } catch (error) {
         console.error("Receipt Analysis Failed:", error);
 
-         // Refund credit on failure
-        if (req.user) {
-            const userParams = await getUser(req);
-            if (userParams && userParams.subscriptionTier !== 'pro') {
-                 await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [req.user.id]);
-                 console.log(`[CreditAudit] Refunded 1 credit to User ${req.user.id} due to API Receipt Parse failure`);
-            }
+        if (creditDeducted && deductedUserId) {
+            await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [deductedUserId]).catch(() => {});
+            console.log(`[CreditAudit] Refunded 1 credit to User ${deductedUserId} due to API Receipt Parse failure`);
         }
 
         res.status(500).json({ error: "Analysis Failed", details: error.message });
     }
 });
 
-// 6. Debug: List Models
-router.get('/ai/models', async (req, res) => {
+// 6. Debug: List Models (Authenticated & Rate-Limited)
+router.get('/ai/models', aiRateLimiter, async (req, res) => {
     if (!genAI) return res.status(503).json({ error: "AI Service Unavailable" });
     try {
+        const user = await getUser(req);
+        if (!user) return res.status(401).json({ error: "Unauthorized" });
+
         let models = [];
         try {
             const list = await genAI.models.list();
@@ -1096,7 +1201,6 @@ router.get('/ai/models', async (req, res) => {
         } catch (e1) {
             console.warn("List models method 1 failed", e1);
             try {
-                // Fallback for older/different SDK structure
                 const response = await genAI.listModels();
                 models = response;
             } catch (e2) {
@@ -1106,7 +1210,7 @@ router.get('/ai/models', async (req, res) => {
         }
 
         const names = Array.isArray(models) ? models.map(m => m.name) : models;
-        res.json({ models: names, current_configured: process.env.GEMINI_MODEL || "gemini-1.5-flash" });
+        res.json({ models: names, current_configured: process.env.GEMINI_MODEL || "gemini-2.5-flash" });
     } catch (error) {
         console.error("List Models Error:", error);
         res.status(500).json({ error: "Failed to list models" });
@@ -1119,8 +1223,15 @@ router.post('/ai/scan-pantry', aiRateLimiter, async (req, res) => {
         return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
     }
 
+    let creditDeducted = false;
+    let deductedUserId = null;
+
     try {
         const { image } = req.body;
+        if (!image || typeof image !== 'string' || !image.includes(',')) {
+            return res.status(400).json({ error: "A valid base64 image payload is required." });
+        }
+
         const user = await getUser(req);
 
         if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
@@ -1136,6 +1247,8 @@ router.post('/ai/scan-pantry', aiRateLimiter, async (req, res) => {
             if (deductResult.rowCount === 0) {
                 return res.status(402).json({ error: "Insufficient credits" });
             }
+            creditDeducted = true;
+            deductedUserId = user.id;
             currentCredits = deductResult.rows[0].credits;
         }
 
@@ -1180,13 +1293,9 @@ router.post('/ai/scan-pantry', aiRateLimiter, async (req, res) => {
     } catch (error) {
         console.error("Pantry Scan Failed:", error);
 
-         // Refund credit on failure
-        if (req.user) {
-            const userParams = await getUser(req);
-            if (userParams && userParams.subscriptionTier !== 'pro') {
-                 await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [req.user.id]);
-                 console.log(`[CreditAudit] Refunded 1 credit to User ${req.user.id} due to API Pantry Scan failure`);
-            }
+        if (creditDeducted && deductedUserId) {
+            await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [deductedUserId]).catch(() => {});
+            console.log(`[CreditAudit] Refunded 1 credit to User ${deductedUserId} due to API Pantry Scan failure`);
         }
 
         res.status(500).json({ error: "Scan Failed", details: error.message });

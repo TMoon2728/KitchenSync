@@ -1,9 +1,13 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Recipe, PantryItem, MealPlan, ShoppingItem, Ingredient } from '../types';
 import { MOCK_RECIPES, MOCK_PANTRY } from '../mockData';
 import { authFetch } from '../utils/api';
 import { convertQuantity } from '../utils/unitConversion';
-import { normalizeRecipeIngredient } from '../utils/ingredientNormalizer';
+import {
+    normalizeRecipeIngredient,
+    cleanIngredientNameAndUnit,
+    isPlainCookingWater
+} from '../utils/ingredientNormalizer';
 import { useUser } from './UserContext';
 
 const cleanRecipeList = (list: Recipe[]): Recipe[] =>
@@ -156,22 +160,36 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
         syncData();
     }, [isAuthenticated]);
 
-    // Wrapped setMealPlan that persists to both localStorage and PostgreSQL
+    // Wrapped setMealPlan that persists to both localStorage and PostgreSQL without racing inside the React state updater
+    const mealPlanDirtyRef = useRef(false);
+
     const setMealPlan: React.Dispatch<React.SetStateAction<MealPlan>> = useCallback((action) => {
-        setMealPlanState(prev => {
-            const nextPlan = typeof action === 'function' ? action(prev) : action;
-            if (isAuthenticated) {
-                getAccessToken().then(token => {
-                    authFetch('/api/data/meal-plan', {
-                        method: 'PUT',
-                        body: JSON.stringify(nextPlan),
-                        token
-                    }).catch(e => console.error("Meal plan sync failed", e));
-                });
-            }
-            return nextPlan;
-        });
-    }, [isAuthenticated, getAccessToken]);
+        mealPlanDirtyRef.current = true;
+        setMealPlanState(prev => (typeof action === 'function' ? action(prev) : action));
+    }, []);
+
+    useEffect(() => {
+        if (!mealPlanDirtyRef.current || !isAuthenticated) return;
+        mealPlanDirtyRef.current = false;
+
+        const controller = new AbortController();
+        getAccessToken()
+            .then(token =>
+                authFetch('/api/data/meal-plan', {
+                    method: 'PUT',
+                    body: JSON.stringify(mealPlan),
+                    token,
+                    signal: controller.signal
+                })
+            )
+            .catch(e => {
+                if (e?.name !== 'AbortError') {
+                    console.error("Meal plan sync failed", e);
+                }
+            });
+
+        return () => controller.abort();
+    }, [mealPlan, isAuthenticated, getAccessToken]);
 
     // Writes
     const addRecipe = async (newRecipe: Omit<Recipe, 'id' | 'is_favorite' | 'rating'>): Promise<Recipe> => {
@@ -321,13 +339,19 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const nextPantry = pantry.map(item => ({ ...item }));
 
         ingredients.forEach(ing => {
-            const pantryItemIndex = nextPantry.findIndex(
-                p => p.name.toLowerCase() === ing.name.toLowerCase()
-            );
+            if (!ing?.name || isPlainCookingWater(ing.name)) return;
+
+            const { canonicalKey: ingKey, unit: ingUnit } = cleanIngredientNameAndUnit(ing.name, ing.unit);
+
+            const pantryItemIndex = nextPantry.findIndex(p => {
+                const { canonicalKey: pKey } = cleanIngredientNameAndUnit(p.name, p.unit);
+                return pKey === ingKey || p.name.toLowerCase().trim() === ing.name.toLowerCase().trim();
+            });
 
             if (pantryItemIndex > -1) {
                 const pantryItem = nextPantry[pantryItemIndex];
-                const conversionResult = convertQuantity(ing.quantity, ing.unit, pantryItem.unit);
+                const { unit: pUnit } = cleanIngredientNameAndUnit(pantryItem.name, pantryItem.unit);
+                const conversionResult = convertQuantity(ing.quantity, ingUnit, pUnit);
 
                 if (conversionResult !== null) {
                     if (isUndo) {

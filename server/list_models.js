@@ -8,7 +8,7 @@ async function listModels() {
             return;
         }
 
-        const genAI = new GoogleGenAI(process.env.GEMINI_API_KEY);
+        const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
         // Note: In some SDK versions, listModels might be on the client or helper.
         // For @google/genai, it is usually separate or on the client.
         // Since I don't have the exact docs for the *very* latest @google/genai vs @google/generative-ai, 

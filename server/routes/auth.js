@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, isDevTokenAllowed } = require('../middleware/auth');
 
 // GET /api/auth/me (Sync & Return Profile)
 router.get('/me', requireAuth, async (req, res) => {
@@ -53,8 +53,8 @@ router.get('/me', requireAuth, async (req, res) => {
 
 // POST /api/auth/login (Dev Mode)
 router.post('/login', (req, res) => {
-    if (process.env.NODE_ENV === 'production') {
-        return res.status(403).json({ error: "Dev login is disabled in production" });
+    if (!isDevTokenAllowed()) {
+        return res.status(403).json({ error: "Dev login is disabled outside local development" });
     }
     const { username } = req.body;
 
@@ -158,8 +158,8 @@ router.post('/link', requireAuth, async (req, res) => {
 });
 
 // GET /api/auth/diagnostics
-router.get('/diagnostics', (req, res) => {
-    if (process.env.NODE_ENV === 'production') {
+router.get('/diagnostics', requireAuth, (req, res) => {
+    if (!isDevTokenAllowed()) {
         return res.status(403).json({ error: "Diagnostics disabled in production" });
     }
     res.json(global.recentAuthLogs || []);

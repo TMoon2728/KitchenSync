@@ -80,6 +80,22 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 // Middleware for parsing JSON for the regular authenticated endpoints
 const jsonParser = express.json();
 
+const ALLOWED_ORIGINS = new Set([
+    process.env.APP_BASE_URL,
+    'https://kitchensync-cpvj.onrender.com',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:3001'
+].filter(Boolean));
+
+function resolveSafeOrigin(req) {
+    const rawOrigin = String(req.headers.origin || '').replace(/\/$/, '');
+    if (rawOrigin && ALLOWED_ORIGINS.has(rawOrigin)) {
+        return rawOrigin;
+    }
+    return process.env.APP_BASE_URL || 'https://kitchensync-cpvj.onrender.com';
+}
+
 router.post('/create-checkout-session', jsonParser, requireAuth, async (req, res) => {
     try {
         const { tier } = req.body;
@@ -94,7 +110,7 @@ router.post('/create-checkout-session', jsonParser, requireAuth, async (req, res
              return res.status(400).json({ error: "Stripe Price ID not configured for this tier." });
         }
 
-        const origin = req.headers.origin || 'http://localhost:5173'; // fallback for local dev
+        const origin = resolveSafeOrigin(req);
 
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
@@ -130,7 +146,7 @@ router.post('/create-portal-session', jsonParser, requireAuth, async (req, res) 
             return res.status(400).json({ error: "No Stripe billing history found for this user." });
         }
         
-        const origin = req.headers.origin || 'http://localhost:5173';
+        const origin = resolveSafeOrigin(req);
 
         const portalSession = await stripe.billingPortal.sessions.create({
             customer: stripeCustomerId,

@@ -2,7 +2,17 @@ const { auth } = require('express-oauth2-jwt-bearer');
 const crypto = require('crypto');
 const db = require('../db');
 
-const generateInviteCode = () => 'KS-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+const generateInviteCode = () => 'KS-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+
+// Cache /userinfo lookups (including negative lookups) for 15 minutes per Auth0 sub
+// to prevent blocking every request or hitting Auth0 rate limits (429).
+const userInfoCache = new Map();
+const USERINFO_CACHE_TTL_MS = 15 * 60 * 1000;
+
+const isDevTokenAllowed = () =>
+    process.env.NODE_ENV !== 'production' &&
+    !process.env.RENDER &&
+    (process.env.NODE_ENV === 'development' || process.env.ALLOW_DEV_TOKENS === 'true' || !process.env.AUTH0_ISSUER_BASE_URL);
 
 // Configured via Envs or defaults (graceful fallback if local dev lacks Auth0 env vars)
 const jwtCheck = (process.env.AUTH0_ISSUER_BASE_URL && process.env.AUTH0_AUDIENCE)
@@ -47,32 +57,42 @@ const populateUser = async (req, res, next) => {
                 user.email = email;
             }
 
-            // Self-healing Part B: The token DOES NOT have the email, we must fetch it
+            // Self-healing Part B: The token DOES NOT have the email, we must fetch it (with TTL cache & timeout)
             if (!email && req.headers['authorization'] && !req.headers['authorization'].includes('eyJhbGciOiJub25lIi')) {
-                req.authLog.push("Email missing in token. Fetching /userinfo...");
-                try {
-                    const baseUrl = process.env.AUTH0_ISSUER_BASE_URL.replace(/\/$/, '');
-                    const userInfoUrl = `${baseUrl}/userinfo`;
-                    const userRes = await fetch(userInfoUrl, {
-                        headers: { Authorization: req.headers['authorization'] }
-                    });
+                const cachedEntry = userInfoCache.get(auth0Id);
+                if (cachedEntry && (Date.now() - cachedEntry.timestamp < USERINFO_CACHE_TTL_MS)) {
+                    email = cachedEntry.email;
+                    req.authLog.push(`Used cached /userinfo result. Email: ${email || 'none'}`);
+                } else {
+                    req.authLog.push("Email missing in token. Fetching /userinfo...");
+                    try {
+                        const baseUrl = process.env.AUTH0_ISSUER_BASE_URL.replace(/\/$/, '');
+                        const userInfoUrl = `${baseUrl}/userinfo`;
+                        const userRes = await fetch(userInfoUrl, {
+                            headers: { Authorization: req.headers['authorization'] },
+                            signal: AbortSignal.timeout(4000)
+                        });
 
-                    if (userRes.ok) {
-                        const profile = await userRes.json();
-                        email = profile.email;
-                        req.authLog.push(`Fetched /userinfo. Email: ${email}`);
-                        
-                        // Self-healing Part C: Update the DB with the fetched email
-                        if (user && email && user.email.includes('placeholder')) {
-                            req.authLog.push(`Repairing placeholder email from fetch ${user.email} -> ${email}`);
-                            await db.query('UPDATE users SET email = $1 WHERE id = $2', [email, user.id]);
-                            user.email = email;
+                        if (userRes.ok) {
+                            const profile = await userRes.json();
+                            email = profile.email || null;
+                            userInfoCache.set(auth0Id, { email, timestamp: Date.now() });
+                            req.authLog.push(`Fetched /userinfo. Email: ${email}`);
+
+                            // Self-healing Part C: Update the DB with the fetched email
+                            if (user && email && user.email.includes('placeholder')) {
+                                req.authLog.push(`Repairing placeholder email from fetch ${user.email} -> ${email}`);
+                                await db.query('UPDATE users SET email = $1 WHERE id = $2', [email, user.id]);
+                                user.email = email;
+                            }
+                        } else {
+                            userInfoCache.set(auth0Id, { email: null, timestamp: Date.now() });
+                            req.authLog.push(`Fetch failed status: ${userRes.status}`);
                         }
-                    } else {
-                        req.authLog.push(`Fetch failed status: ${userRes.status}`);
+                    } catch (fetchErr) {
+                        userInfoCache.set(auth0Id, { email: null, timestamp: Date.now() });
+                        req.authLog.push(`Fetch error: ${fetchErr.message}`);
                     }
-                } catch (fetchErr) {
-                    req.authLog.push(`Fetch error: ${fetchErr.message}`);
                 }
             }
 
@@ -101,10 +121,8 @@ const populateUser = async (req, res, next) => {
                     // Sometimes email is in a custom namespace in Auth0, or directly on payload
                     const resolvedEmail = email || payload['https://kitchensync.com/email'] || payload.email || `${auth0Id}@auth0.placeholder`;
 
-                    // Auto-Provision Admin
-                    const isAdmin = auth0Id === 'admin';
-                    const tier = isAdmin ? 'pro' : 'free';
-                    const credits = isAdmin ? 9999 : 10;
+                    const tier = 'free';
+                    const credits = 10;
                     const inviteCode = generateInviteCode();
 
                     await db.query(
@@ -133,7 +151,7 @@ const populateUser = async (req, res, next) => {
                     req.authLog.push(`Invite code backfill skipped: ${e.message}`);
                 }
             }
-            // Auto-grant admin to the user specifically (fallback to Auth0 ID if email missing)
+            // Auto-grant admin to the owner specifically (fallback to Auth0 ID if email missing)
             if ((user.email === 'tmoon2728@gmail.com' || user.email === 'moonimages@hotmail.com' || user.username === 'google-oauth2|114194546667526169200') && user.subscription_tier !== 'pro') {
                 try {
                     await db.query('UPDATE users SET subscription_tier = $1, credits = $2 WHERE id = $3', ['pro', 999999, user.id]);
@@ -148,46 +166,39 @@ const populateUser = async (req, res, next) => {
             req.user = user;
         } else {
             req.authLog.push("Final resolution: User is null.");
-            req.user = req.auth;
+            req.user = null;
         }
     } else {
         req.authLog.push("No sub in token.");
-        req.user = req.auth;
+        req.user = null;
     }
 
-    console.log("[AuthDebug]", req.authLog);
-    
     // Store last 50 logs globally
     global.recentAuthLogs.unshift({ time: new Date().toISOString(), log: req.authLog });
     if (global.recentAuthLogs.length > 50) global.recentAuthLogs.pop();
-    
+
     next();
 };
 
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'] || req.headers['Authorization'];
-    console.log(`[Token Check] URL: ${req.url}, Header: ${authHeader?.substring(0, 50)}...`);
 
     if (!authHeader) {
-        console.log("[Token Check] No auth header, continuing.");
         return next();
     }
 
-    if (process.env.NODE_ENV !== 'production' && authHeader && authHeader.startsWith('Bearer eyJhbGciOiJub25lIi')) {
-        console.log("[Token Check] Dev Token match successful.");
+    if (isDevTokenAllowed() && authHeader && authHeader.startsWith('Bearer eyJhbGciOiJub25lIi')) {
         const token = authHeader.split(' ')[1];
         try {
             const parts = token.split('.');
-            console.log("[Token Check] Base64 decoding payload...");
             const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
             req.auth = payload;
             req.authLog = [];
             return populateUser(req, res, next);
         } catch (e) {
             console.error("Dev Token Parse Error", e);
+            return next();
         }
-    } else {
-        console.log(`[Token Check] Dev logic false. NODE_ENV=${process.env.NODE_ENV}, startsWith=${authHeader.startsWith('Bearer eyJhbGciOiJub25lIi')}`);
     }
 
     jwtCheck(req, res, async (err) => {
@@ -205,8 +216,10 @@ const authenticateToken = (req, res, next) => {
 };
 
 const requireAuth = (req, res, next) => {
-    if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+    if (!req.user || !req.user.id) {
+        return res.status(401).json({ error: "Unauthorized" });
+    }
     next();
 };
 
-module.exports = { authenticateToken, requireAuth, jwtCheck };
+module.exports = { authenticateToken, requireAuth, jwtCheck, isDevTokenAllowed };

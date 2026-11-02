@@ -1,31 +1,45 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { normalizeRecipeIngredientsList } = require('../utils/ingredientNormalizer');
 
-async function resolveHubHousehold(rawCode) {
-    const code = String(rawCode || '').trim();
-    if (!code) return null;
+const hubSyncLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many Hub Sync requests from this IP, please try again later." }
+});
 
-    const { rows } = await db.query(
-        `SELECT u.*,
-                (SELECT COUNT(*) FROM recipes r WHERE r.user_id = u.id) AS recipe_count
-         FROM users u
-         WHERE UPPER(u.invite_code) = UPPER($1)
-            OR LOWER(u.email) = LOWER($1)
-            OR u.household_id = $1
-         ORDER BY recipe_count DESC, u.created_at ASC
-         LIMIT 1`,
-        [code]
-    );
+async function resolveHubHousehold(rawCode, allowInitialEmailLookup = false) {
+    const code = String(rawCode || '').trim();
+    if (!code || code.length < 4) return null;
+
+    const queryText = allowInitialEmailLookup
+        ? `SELECT u.*,
+                  (SELECT COUNT(*) FROM recipes r WHERE r.user_id = u.id) AS recipe_count
+           FROM users u
+           WHERE UPPER(u.invite_code) = UPPER($1)
+              OR LOWER(u.email) = LOWER($1)
+           ORDER BY recipe_count DESC, u.created_at ASC
+           LIMIT 1`
+        : `SELECT u.*,
+                  (SELECT COUNT(*) FROM recipes r WHERE r.user_id = u.id) AS recipe_count
+           FROM users u
+           WHERE UPPER(u.invite_code) = UPPER($1)
+           ORDER BY recipe_count DESC, u.created_at ASC
+           LIMIT 1`;
+
+    const { rows } = await db.query(queryText, [code]);
 
     if (rows.length === 0) return null;
     const user = rows[0];
 
     if (!user.invite_code) {
-        const generated = 'KS-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+        const generated = 'KS-' + crypto.randomBytes(4).toString('hex').toUpperCase();
         try {
             await db.query('UPDATE users SET invite_code = $1 WHERE id = $2', [generated, user.id]);
             user.invite_code = generated;
@@ -108,13 +122,13 @@ async function buildHubSyncPayload(user, effectiveHousehold) {
 // --- FAMILY HUB CLOUD SYNC (Authenticated via Invite Code or Email) ---
 
 // GET /api/data/hub-sync?code=KS-XXXXXX
-router.get('/hub-sync', async (req, res) => {
+router.get('/hub-sync', hubSyncLimiter, async (req, res) => {
     try {
         const code = req.query.code || req.headers['x-hub-sync-code'];
-        const resolved = await resolveHubHousehold(code);
+        const resolved = await resolveHubHousehold(code, false);
         if (!resolved) {
             return res.status(404).json({
-                error: "No KitchenSync account found for that Invite Code or Email."
+                error: "No KitchenSync account found for that Invite Code."
             });
         }
         const payload = await buildHubSyncPayload(resolved.user, resolved.effectiveHousehold);
@@ -126,13 +140,13 @@ router.get('/hub-sync', async (req, res) => {
 });
 
 // POST /api/data/hub-sync (Push updates from Family Hub to KitchenSync Cloud)
-router.post('/hub-sync', async (req, res) => {
+router.post('/hub-sync', hubSyncLimiter, async (req, res) => {
     try {
         const code = req.body?.code || req.query.code || req.headers['x-hub-sync-code'];
-        const resolved = await resolveHubHousehold(code);
+        const resolved = await resolveHubHousehold(code, false);
         if (!resolved) {
             return res.status(404).json({
-                error: "No KitchenSync account found for that Invite Code or Email."
+                error: "No KitchenSync account found for that Invite Code."
             });
         }
 
@@ -142,6 +156,9 @@ router.post('/hub-sync', async (req, res) => {
         if (Array.isArray(newRecipes) && newRecipes.length > 0) {
             for (const r of newRecipes) {
                 const { id, ...data } = r;
+                if (Array.isArray(data.ingredients)) {
+                    data.ingredients = normalizeRecipeIngredientsList(data.ingredients);
+                }
                 await db.query(
                     'INSERT INTO recipes (user_id, data, is_favorite) VALUES ($1, $2, $3)',
                     [user.id, data, !!r.is_favorite]
@@ -163,24 +180,61 @@ router.post('/hub-sync', async (req, res) => {
             const client = await db.connect();
             try {
                 await client.query('BEGIN');
-                await client.query(
-                    'DELETE FROM pantry WHERE user_id IN (SELECT id FROM users WHERE household_id = $1 OR (household_id IS NULL AND id::text = $1))',
+                const existingRes = await client.query(
+                    'SELECT id, user_id, name, unit FROM pantry WHERE user_id IN (SELECT id FROM users WHERE household_id = $1 OR (household_id IS NULL AND id::text = $1)) ORDER BY id ASC FOR UPDATE',
                     [effectiveHousehold]
                 );
-                for (const item of pantry) {
-                    if (!item.name || Number(item.quantity) <= 0) continue;
-                    await client.query(
-                        'INSERT INTO pantry (user_id, name, quantity, unit, category, expiry_date) VALUES ($1, $2, $3, $4, $5, $6)',
-                        [
-                            user.id,
-                            item.name,
-                            Number(item.quantity) || 1,
-                            item.unit || 'each',
-                            item.category || 'Pantry',
-                            item.expiryDate || item.expiry_date || null
-                        ]
-                    );
+                const existingById = new Map();
+                const existingByNameUnit = new Map();
+                for (const row of existingRes.rows) {
+                    existingById.set(Number(row.id), row);
+                    const key = `${String(row.name || '').toLowerCase().trim()}__${String(row.unit || 'each').toLowerCase().trim()}`;
+                    if (!existingByNameUnit.has(key)) {
+                        existingByNameUnit.set(key, row);
+                    }
                 }
+
+                const retainedIds = new Set();
+                for (const item of pantry) {
+                    if (!item || !item.name || Number(item.quantity) <= 0) continue;
+                    const name = String(item.name).trim();
+                    const qty = Number(item.quantity) || 1;
+                    const unit = String(item.unit || 'each').trim();
+                    const category = String(item.category || 'Pantry');
+                    const expiry = item.expiryDate || item.expiry_date || null;
+                    const nameUnitKey = `${name.toLowerCase()}__${unit.toLowerCase()}`;
+
+                    let matchedRow = null;
+                    if (item.id && existingById.has(Number(item.id)) && !retainedIds.has(Number(item.id))) {
+                        matchedRow = existingById.get(Number(item.id));
+                    } else if (existingByNameUnit.has(nameUnitKey)) {
+                        const candidate = existingByNameUnit.get(nameUnitKey);
+                        if (!retainedIds.has(Number(candidate.id))) {
+                            matchedRow = candidate;
+                        }
+                    }
+
+                    if (matchedRow) {
+                        retainedIds.add(Number(matchedRow.id));
+                        await client.query(
+                            'UPDATE pantry SET name = $1, quantity = $2, unit = $3, category = $4, expiry_date = $5 WHERE id = $6',
+                            [name, qty, unit, category, expiry, matchedRow.id]
+                        );
+                    } else {
+                        const insRes = await client.query(
+                            'INSERT INTO pantry (user_id, name, quantity, unit, category, expiry_date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+                            [user.id, name, qty, unit, category, expiry]
+                        );
+                        retainedIds.add(Number(insRes.rows[0].id));
+                    }
+                }
+
+                for (const row of existingRes.rows) {
+                    if (!retainedIds.has(Number(row.id))) {
+                        await client.query('DELETE FROM pantry WHERE id = $1', [row.id]);
+                    }
+                }
+
                 await client.query('COMMIT');
             } catch (err) {
                 await client.query('ROLLBACK');
