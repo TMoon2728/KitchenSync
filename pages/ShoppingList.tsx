@@ -393,12 +393,11 @@ const ShoppingList: React.FC = () => {
                 </div>
 
                 <div className="flex gap-2 relative items-center flex-wrap">
-                    {/* Scan Receipt Button */}
+                    {/* Scan / Upload Receipt Button */}
                     <div className="relative">
                         <input
                             type="file"
-                            accept="image/*"
-                            capture="environment"
+                            accept="application/pdf,image/*,.pdf"
                             id="receipt-upload"
                             className="hidden"
                             onChange={handleReceiptCapture}
@@ -407,9 +406,10 @@ const ShoppingList: React.FC = () => {
                         <label
                             htmlFor="receipt-upload"
                             className={`cursor-pointer bg-indigo-100 text-indigo-700 px-4 py-2 rounded-xl font-bold hover:bg-indigo-200 transition-colors flex items-center shadow-sm ${isScanning ? 'opacity-50 cursor-wait' : ''}`}
+                            title="Upload a digital PDF receipt (like Dillons) or scan a paper receipt photo"
                         >
-                            {isScanning ? <i className="fas fa-spinner fa-spin mr-2"></i> : <i className="fas fa-camera mr-2"></i>}
-                            {isScanning ? 'Analyzing...' : 'Scan Receipt'}
+                            {isScanning ? <i className="fas fa-spinner fa-spin mr-2"></i> : <i className="fas fa-file-invoice mr-2"></i>}
+                            {isScanning ? 'Analyzing...' : 'Upload / Scan Receipt'}
                         </label>
                     </div>
 

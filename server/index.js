@@ -25,7 +25,7 @@ const stripeRoutes = require('./routes/stripe');
 app.use('/api/stripe', stripeRoutes);
 // ------------------------------------------------------
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '20mb' }));
 
 // Auth Middleware (Global check for token)
 const { authenticateToken } = require('./middleware/auth');

@@ -1231,7 +1231,7 @@ Respond ONLY with a valid JSON object (no markdown formatting, no extra commenta
     }
 });
 
-// 6. Gemini Proxy: Analyze Receipt
+// 6. Gemini Proxy: Analyze Receipt (Supports Image Photos AND Digital PDF Receipts like Dillons/Kroger/Walmart)
 router.post('/ai/analyze-receipt', aiRateLimiter, async (req, res) => {
     if (!genAI) {
         return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
@@ -1241,9 +1241,18 @@ router.post('/ai/analyze-receipt', aiRateLimiter, async (req, res) => {
     let deductedUserId = null;
 
     try {
-        const { image, currentShoppingList } = req.body; // image as base64
+        const { image, currentShoppingList = [] } = req.body; // base64 data URL (image/* or application/pdf)
         if (!image || typeof image !== 'string' || !image.includes(',')) {
-            return res.status(400).json({ error: "A valid base64 image payload is required." });
+            return res.status(400).json({ error: "A valid base64 image or PDF receipt payload is required." });
+        }
+
+        const mimeMatch = image.match(/^data:([a-zA-Z0-9.+/-]+);base64,/);
+        const mimeType = mimeMatch ? mimeMatch[1].toLowerCase() : 'image/jpeg';
+        const allowedMime =
+            mimeType === 'application/pdf' ||
+            mimeType.startsWith('image/');
+        if (!allowedMime) {
+            return res.status(400).json({ error: `Unsupported file type (${mimeType}). Please upload a PDF or image receipt.` });
         }
 
         const user = await getUser(req);
@@ -1253,53 +1262,54 @@ router.post('/ai/analyze-receipt', aiRateLimiter, async (req, res) => {
 
         let currentCredits = user.credits;
 
-        // Pre-Flight Atomic Credit Check & Deduction
+        // Pre-Flight Atomic Credit Check & Deduction (U-04 Ledger)
         if (user.subscriptionTier !== 'pro') {
-            const deductResult = await db.query(
-                'UPDATE users SET credits = credits - 1 WHERE id = $1 AND credits >= 1 RETURNING credits',
-                [user.id]
-            );
-            if (deductResult.rowCount === 0) {
+            const ledgerRes = await deductCredits({
+                userId: user.id,
+                amount: 1,
+                operation: 'analyze_receipt'
+            });
+            if (!ledgerRes.ok) {
                 return res.status(402).json({ error: "Insufficient credits" });
             }
             creditDeducted = true;
             deductedUserId = user.id;
-            currentCredits = deductResult.rows[0].credits;
+            currentCredits = ledgerRes.creditsRemaining;
         }
 
         const prompt = `
-        You are a smart shopping assistant. Compare this receipt image with the user's current shopping list.
+        You are a smart grocery receipt parser. Analyze this grocery receipt (which may be a digital PDF receipt from Dillons, Kroger, Walmart, Instacart, or Target, or a photo of a paper receipt) and compare it with the user's current shopping list.
         
         Current Shopping List:
         ${JSON.stringify(currentShoppingList)}
         
         Task:
-        1. Identify clear matches between the receipt and the shopping list (ignore minor name variations like "Eggs" vs "Dozen Eggs").
-        2. Identify extra items on the receipt that are NOT on the list.
-        3. Ignore non-food items like tax, total, or generic store IDs.
-        4. For 'extra' items, guess the category and unit.
+        1. Extract all food, beverage, and kitchen grocery items purchased on the receipt.
+        2. Expand abbreviated store codes or brand shorthand into clean, human-friendly grocery names (e.g., "KRO 2% MLK 1GAL" -> "2% Milk", "DILLONS LRG EGGS 18CT" -> "Large Eggs").
+        3. Identify clear matches between the receipt items and the Current Shopping List (ignore minor variations).
+        4. Put all remaining purchased food/grocery items into "extra" with their purchased quantity, standardized unit ('each', 'lb', 'oz', 'gal', 'cup', 'can', 'pkg', 'bottle', 'bag', 'box'), and grocery aisle category ('Produce', 'Meat', 'Dairy & Eggs', 'Bakery', 'Frozen', 'Pantry Staples', 'Beverages', 'Household', 'Other').
+        5. Ignore non-grocery lines (tax, subtotal, coupons, savings, fuel points, pickup/delivery fees, payment method, store address, or out-of-stock/voided items).
         
-        Output JSON:
+        Output strictly as JSON:
         {
           "matched": ["Item Name From List"],
           "extra": [
-             { "name": "Item Name", "quantity": 1, "unit": "unit", "category": "Produce" }
+             { "name": "Clean Grocery Item Name", "quantity": 1, "unit": "each", "category": "Produce" }
           ]
         }
         `;
 
-        // Prepare image part
-        const imagePart = {
+        // Prepare multimodal part (supports application/pdf and image/*)
+        const receiptPart = {
             inlineData: {
                 data: image.split(',')[1],
-                mimeType: "image/jpeg"
+                mimeType
             }
         };
 
         const modelName = await resolveModel();
-        const result = await genAI.models.generateContent({
-            model: modelName,
-            contents: [prompt, imagePart],
+        const result = await generateContentWithFailover(genAI, modelName, {
+            contents: [prompt, receiptPart],
             config: {
                 responseMimeType: "application/json"
             }
@@ -1310,6 +1320,9 @@ router.post('/ai/analyze-receipt', aiRateLimiter, async (req, res) => {
         // Parse JSON safely
         const cleanedText = responseText.replace(/```json|```/g, '').trim();
         const data = JSON.parse(cleanedText);
+        if (data && Array.isArray(data.extra)) {
+            data.extra = normalizeRecipeIngredientsList(data.extra);
+        }
 
         const finalCredit = user.subscriptionTier === 'pro' ? '∞' : currentCredits;
 
@@ -1322,8 +1335,11 @@ router.post('/ai/analyze-receipt', aiRateLimiter, async (req, res) => {
         console.error("Receipt Analysis Failed:", error);
 
         if (creditDeducted && deductedUserId) {
-            await db.query('UPDATE users SET credits = credits + 1 WHERE id = $1', [deductedUserId]).catch(() => {});
-            console.log(`[CreditAudit] Refunded 1 credit to User ${deductedUserId} due to API Receipt Parse failure`);
+            await refundCredits({
+                userId: deductedUserId,
+                amount: 1,
+                operation: 'refund:analyze_receipt'
+            });
         }
 
         res.status(500).json({ error: "Analysis Failed", details: error.message });

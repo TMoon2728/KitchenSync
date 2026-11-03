@@ -38,10 +38,11 @@ const Pantry: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
+    const [showScanMenu, setShowScanMenu] = useState(false);
 
     // Vision Scan Staging Review Modal State (F-02)
     const [stagedScanItems, setStagedScanItems] = useState<StagedPantryItem[] | null>(null);
-    const [stagedScanSource, setStagedScanSource] = useState<'Fridge / Pantry Photo' | 'Receipt Photo'>('Fridge / Pantry Photo');
+    const [stagedScanSource, setStagedScanSource] = useState<'Fridge / Pantry Photo' | 'Receipt Photo' | 'Uploaded Receipt'>('Fridge / Pantry Photo');
 
     interface Suggestion {
         recipeName: string;
@@ -90,7 +91,7 @@ const Pantry: React.FC = () => {
         });
     }, [pantry, expiryFilter]);
 
-    const openStagingModal = (rawItems: any[], sourceLabel: 'Fridge / Pantry Photo' | 'Receipt Photo') => {
+    const openStagingModal = (rawItems: any[], sourceLabel: 'Fridge / Pantry Photo' | 'Receipt Photo' | 'Uploaded Receipt') => {
         const prepared: StagedPantryItem[] = (rawItems || []).map((item: any) => {
             const cat = resolveCanonicalCategory(item.name || '', item.category);
             return {
@@ -118,11 +119,16 @@ const Pantry: React.FC = () => {
         setStagedScanItems(null);
     };
 
-    const handleReceiptCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleReceiptCapture = async (
+        e: React.ChangeEvent<HTMLInputElement>,
+        mode: 'camera' | 'upload' = 'camera'
+    ) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        setShowScanMenu(false);
         setIsScanning(true);
+        setError(null);
         const reader = new FileReader();
         reader.onloadend = async () => {
             const base64 = reader.result as string;
@@ -137,18 +143,21 @@ const Pantry: React.FC = () => {
 
                 if (res.ok) {
                     const data = await res.json();
-                    const newItems = data.result.extra || [];
+                    const newItems = data.result?.extra || [];
                     if (newItems.length > 0) {
-                        openStagingModal(newItems, 'Receipt Photo');
+                        openStagingModal(
+                            newItems,
+                            mode === 'upload' || file.type === 'application/pdf' ? 'Uploaded Receipt' : 'Receipt Photo'
+                        );
                     } else {
-                        setError("No items identified on receipt.");
+                        setError("No grocery items identified on that receipt.");
                     }
                 } else {
-                    setError("Receipt analysis failed.");
+                    setError("Receipt analysis failed. Please make sure the PDF or photo is clear.");
                 }
             } catch (err) {
                 console.error("Scan failed", err);
-                setError("Error scanning receipt.");
+                setError("Error analyzing receipt.");
             } finally {
                 setIsScanning(false);
                 e.target.value = '';
@@ -161,7 +170,9 @@ const Pantry: React.FC = () => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        setShowScanMenu(false);
         setIsScanning(true);
+        setError(null);
         const reader = new FileReader();
         reader.onloadend = async () => {
             const base64 = reader.result as string;
@@ -392,57 +403,116 @@ const Pantry: React.FC = () => {
                         Smart shelf-life tracking & instant vision inventory
                     </p>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-                    {/* Scan Pantry Button */}
-                    <div className="relative flex-1 sm:flex-none">
-                        <input
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            id="pantry-shelf-upload"
-                            className="hidden"
-                            onChange={handlePantryCapture}
-                            disabled={isScanning}
-                        />
-                        <label
-                            htmlFor="pantry-shelf-upload"
-                            className={`cursor-pointer bg-blue-100 w-full sm:w-auto justify-center border border-blue-200 text-blue-800 px-4 py-2 rounded-xl font-bold hover:bg-blue-200 transition-colors flex items-center shadow-sm ${
-                                isScanning ? 'opacity-50 cursor-wait' : ''
-                            }`}
-                            title="Take a photo of your fridge or pantry to stage and review items!"
-                        >
-                            {isScanning ? (
-                                <i className="fas fa-spinner fa-spin md:mr-2"></i>
-                            ) : (
-                                <i className="fas fa-camera-viewfinder md:mr-2"></i>
-                            )}
-                            <span className="ml-2">{isScanning ? 'Scanning...' : 'Scan Fridge'}</span>
-                        </label>
-                    </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
+                    {/* Hidden File Inputs for Hamburger Scan/Upload Menu */}
+                    <input
+                        type="file"
+                        accept="application/pdf,image/*,.pdf"
+                        id="pantry-receipt-pdf-upload"
+                        className="hidden"
+                        onChange={(e) => handleReceiptCapture(e, 'upload')}
+                        disabled={isScanning}
+                    />
+                    <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        id="pantry-receipt-upload"
+                        className="hidden"
+                        onChange={(e) => handleReceiptCapture(e, 'camera')}
+                        disabled={isScanning}
+                    />
+                    <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        id="pantry-shelf-upload"
+                        className="hidden"
+                        onChange={handlePantryCapture}
+                        disabled={isScanning}
+                    />
 
-                    <div className="relative flex-1 sm:flex-none">
-                        <input
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            id="pantry-receipt-upload"
-                            className="hidden"
-                            onChange={handleReceiptCapture}
+                    {/* Hamburger Menu for Upload Receipt / Scan Receipt / Scan Fridge */}
+                    <div className="relative">
+                        <button
+                            type="button"
+                            onClick={() => !isScanning && setShowScanMenu(prev => !prev)}
                             disabled={isScanning}
-                        />
-                        <label
-                            htmlFor="pantry-receipt-upload"
-                            className={`cursor-pointer bg-white dark:bg-gray-800 dark:text-gray-100 w-full sm:w-auto justify-center border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-xl font-bold hover:bg-gray-50 dark:bg-gray-700/50 transition-colors flex items-center shadow-sm ${
+                            aria-expanded={showScanMenu}
+                            aria-label="Scan or Upload Receipt Menu"
+                            className={`w-full sm:w-auto justify-center bg-blue-100 dark:bg-gray-800 border border-blue-200 dark:border-gray-700 text-blue-800 dark:text-gray-100 px-4 py-2.5 rounded-xl font-bold hover:bg-blue-200 dark:hover:bg-gray-700 transition-colors flex items-center gap-2.5 shadow-sm ${
                                 isScanning ? 'opacity-50 cursor-wait' : ''
                             }`}
                         >
                             {isScanning ? (
-                                <i className="fas fa-spinner fa-spin md:mr-2"></i>
+                                <i className="fas fa-spinner fa-spin"></i>
                             ) : (
-                                <i className="fas fa-receipt md:mr-2"></i>
+                                <i className="fas fa-bars text-base"></i>
                             )}
-                            <span className="ml-2">{isScanning ? 'Scanning...' : 'Scan Receipt'}</span>
-                        </label>
+                            <span>{isScanning ? 'Scanning...' : 'Scan / Upload'}</span>
+                            <i className={`fas fa-chevron-down text-xs transition-transform ${showScanMenu ? 'rotate-180' : ''}`}></i>
+                        </button>
+
+                        {showScanMenu && (
+                            <>
+                                <div
+                                    className="fixed inset-0 z-20"
+                                    onClick={() => setShowScanMenu(false)}
+                                />
+                                <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl py-2 z-30 animate-fade-in">
+                                    <label
+                                        htmlFor="pantry-receipt-pdf-upload"
+                                        className="cursor-pointer px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700/70 flex items-center gap-3 transition-colors"
+                                    >
+                                        <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-300 flex items-center justify-center flex-shrink-0">
+                                            <i className="fas fa-file-pdf"></i>
+                                        </div>
+                                        <div>
+                                            <span className="font-bold text-sm text-gray-800 dark:text-gray-100 block">
+                                                Upload Receipt
+                                            </span>
+                                            <span className="text-[11px] text-gray-500 dark:text-gray-400 block">
+                                                Dillons / digital PDF or image
+                                            </span>
+                                        </div>
+                                    </label>
+
+                                    <label
+                                        htmlFor="pantry-receipt-upload"
+                                        className="cursor-pointer px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700/70 flex items-center gap-3 transition-colors"
+                                    >
+                                        <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 flex items-center justify-center flex-shrink-0">
+                                            <i className="fas fa-receipt"></i>
+                                        </div>
+                                        <div>
+                                            <span className="font-bold text-sm text-gray-800 dark:text-gray-100 block">
+                                                Scan Receipt
+                                            </span>
+                                            <span className="text-[11px] text-gray-500 dark:text-gray-400 block">
+                                                Take photo of paper receipt
+                                            </span>
+                                        </div>
+                                    </label>
+
+                                    <label
+                                        htmlFor="pantry-shelf-upload"
+                                        className="cursor-pointer px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700/70 flex items-center gap-3 transition-colors"
+                                    >
+                                        <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 flex items-center justify-center flex-shrink-0">
+                                            <i className="fas fa-camera-viewfinder"></i>
+                                        </div>
+                                        <div>
+                                            <span className="font-bold text-sm text-gray-800 dark:text-gray-100 block">
+                                                Scan Fridge
+                                            </span>
+                                            <span className="text-[11px] text-gray-500 dark:text-gray-400 block">
+                                                Take photo of fridge or pantry
+                                            </span>
+                                        </div>
+                                    </label>
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-2xl w-full sm:w-auto mt-2 sm:mt-0">
