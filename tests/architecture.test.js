@@ -289,3 +289,62 @@ Instructions:
     assert.ok(buildStoreSearchUrl('H-E-B', 'https://www.heb.com', 'Ground Beef').includes('heb.com/search?q=Ground%20Beef'));
     assert.ok(formatCookbookMarkdown([{ name: 'Test Recipe', meal_type: 'Main Course', servings: 4, ingredients: [], instructions: 'Cook.' }]).includes('## Test Recipe'));
 });
+
+test('Dillons / Kroger Digital PDF Receipt Parser handles "%.3f lbs" weighted items and mobile octet-stream MIME types', () => {
+    const {
+        detectReceiptMimeType,
+        parseDillonsInvoiceText
+    } = require('../server/utils/pdfReceiptParser');
+
+    const detected = detectReceiptMimeType('data:application/octet-stream;base64,JVBERi0xLjQK');
+    assert.equal(detected.mimeType, 'application/pdf');
+    assert.equal(detected.base64Data, 'JVBERi0xLjQK');
+
+    const sampleInvoice = `
+ITEMS PURCHASED (48)
+Birds Eye Steamfresh Sweet Peas Frozen Vegetables, 10 oz
+1 × $0.99
+$0.99
+Item Coupon/Sale: -$0.50
+Broccoli Crown, 1 ct
+%.3f lbs
+$3.01
+Fresh Bunch of Bananas – 5-7 Bananas, 1 bunch
+%.3f lbs
+$1.68
+Kroger® 1% Lowfat Milk Half Gallon, 1/2 gal
+3 × $0.66
+$1.99
+Kroger® Grade AA Large White Eggs, 18 ct
+1 × $2.00
+$2.00
+Tyson® All Natural Fresh Boneless Skinless Chicken Thighs, 1.9 lb
+%.3f lbs
+$7.12
+PAYMENT DETAILS
+`;
+
+    const rawItems = parseDillonsInvoiceText(sampleInvoice);
+    const normalized = normalizeRecipeIngredientsList(rawItems);
+    assert.equal(normalized.length, 6);
+
+    const broccoli = normalized.find(i => i.name === 'Broccoli Crown');
+    assert.ok(broccoli);
+    assert.equal(broccoli.quantity, 1);
+    assert.equal(broccoli.unit, 'each');
+    assert.equal(broccoli.category, 'Produce');
+
+    const eggs = normalized.find(i => i.name === 'Large White Eggs');
+    assert.ok(eggs);
+    assert.equal(eggs.quantity, 18);
+    assert.equal(eggs.unit, 'each');
+
+    const milk = normalized.find(i => i.name.includes('Milk'));
+    assert.ok(milk);
+    assert.equal(milk.quantity, 1.5);
+    assert.equal(milk.unit, 'gal');
+
+    const thighs = normalized.find(i => i.name.includes('Chicken Thighs'));
+    assert.ok(thighs);
+    assert.equal(thighs.unit, 'lb');
+});

@@ -536,9 +536,26 @@ const ShoppingList: React.FC = () => {
                             </ul>
                         </div>
                         <div>
-                            <h4 className="font-bold text-orange-700 mb-2">Extras Found ({scanResult.extra?.length || 0})</h4>
+                            <div className="flex items-center justify-between mb-2 gap-2">
+                                <h4 className="font-bold text-orange-700">Extras Found ({scanResult.extra?.length || 0})</h4>
+                                {scanResult.extra?.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            const allExtras = scanResult.extra || [];
+                                            if (allExtras.length === 0) return;
+                                            await batchAddPantryItems(allExtras);
+                                            setScanResult(prev => prev ? { ...prev, extra: [] } : null);
+                                        }}
+                                        className="text-xs bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded-lg font-bold shadow-sm transition-colors"
+                                    >
+                                        <i className="fas fa-plus-circle mr-1"></i>
+                                        Add All ({scanResult.extra.length}) to Pantry
+                                    </button>
+                                )}
+                            </div>
                             {scanResult.extra?.length > 0 ? (
-                                <div className="space-y-3">
+                                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                                     {scanResult.extra.map((item, idx) => (
                                         <div key={idx} className="flex items-center justify-between bg-white dark:bg-gray-800 dark:text-gray-100 p-2 rounded-lg border border-orange-100">
                                             <div>

@@ -208,7 +208,14 @@ export function resolveCanonicalCategoryCore(cleanName, rawCategory) {
             return 'Bakery';
         }
         if (
-            /\b(?:oil|olive oil|vegetable oil|canola oil|sesame oil|coconut oil|cooking spray|vinegar|soy sauce|tamari|worcestershire|fish sauce|oyster sauce|hoisin|teriyaki|hot sauce|hot pepper sauce|sriracha|tabasco|ketchup|mustard|mayonnaise|mayo|bbq sauce|barbecue sauce|marinara|pasta sauce|tomato sauce|tomato paste|tomato soup|condensed|soup|broth|stock|bouillon|panko|breadcrumb|bread crumb|flour|sugar|brown sugar|powdered sugar|confectioners|honey|maple syrup|molasses|agave|cornstarch|baking powder|baking soda|yeast|vanilla|cocoa|chocolate chip|pasta|spaghetti|fettuccine|penne|rigatoni|macaroni|lasagna|orzo|noodle|ramen|rice|quinoa|couscous|barley|farro|oat|oatmeal|cereal|granola|bean|black bean|kidney bean|pinto bean|cannellini|chickpea|garbanzo|lentil|peanut butter|almond butter|jam|jelly|preserves|salsa|taco seasoning|seasoning|spice|salt|black pepper|white pepper|cayenne|paprika|cumin|coriander|turmeric|curry|chili powder|oregano|thyme|rosemary|basil|bay leaf|cinnamon|nutmeg|clove|allspice|ginger powder|garlic powder|onion powder|red pepper flake|crushed red pepper|almond|walnut|pecan|cashew|peanut|pine nut|pistachio|seed|sesame|chia|flax|sunflower|raisin|cranberr(?:y|ies)|canned)(?:e?s)?\b/.test(
+            /\b(?:juice|orange juice|apple juice|cranberry juice|lemon juice|lime juice|coffee|creamer|coffee creamer|espresso|tea|soda|cola|pop|sparkling water|seltzer|club soda|tonic|coconut water|lemonade|wine|beer|cider|kombucha|energy drink|sports drink|gatorade)(?:e?s)?\b/.test(
+                n
+            )
+        ) {
+            return 'Beverages';
+        }
+        if (
+            /\b(?:oil|olive oil|vegetable oil|canola oil|sesame oil|coconut oil|cooking spray|vinegar|soy sauce|tamari|worcestershire|fish sauce|oyster sauce|hoisin|teriyaki|hot sauce|hot pepper sauce|sriracha|tabasco|ketchup|mustard|mayonnaise|mayo|bbq sauce|barbecue sauce|marinara|pasta sauce|tomato sauce|tomato paste|tomato soup|condensed|soup|broth|stock|bouillon|panko|breadcrumb|bread crumb|flour|sugar|brown sugar|powdered sugar|confectioners|honey|maple syrup|molasses|agave|cornstarch|baking powder|baking soda|yeast|vanilla|cocoa|chocolate chip|cookie dough|marshmallow|fruit snack|gusher|chocolaty bite|mac & cheese|mac and cheese|pasta|spaghetti|fettuccine|penne|rigatoni|macaroni|ditalini|radiatore|trottole|rotini|farfalle|linguine|lasagna|orzo|noodle|ramen|rice|quinoa|couscous|barley|farro|oat|oatmeal|cereal|pebbles|granola|bean|black bean|kidney bean|pinto bean|cannellini|chickpea|garbanzo|lentil|peanut butter|almond butter|jam|jelly|preserves|salsa|taco seasoning|seasoning|spice|salt|black pepper|white pepper|cayenne|paprika|cumin|coriander|turmeric|curry|chili powder|oregano|thyme|rosemary|basil|bay leaf|cinnamon|nutmeg|clove|allspice|ginger powder|garlic powder|onion powder|red pepper flake|crushed red pepper|almond|walnut|pecan|cashew|peanut|pine nut|pistachio|seed|sesame|chia|flax|sunflower|raisin|cranberr(?:y|ies)|canned)(?:e?s)?\b/.test(
                 n
             )
         ) {
@@ -220,13 +227,6 @@ export function resolveCanonicalCategoryCore(cleanName, rawCategory) {
             )
         ) {
             return 'Produce';
-        }
-        if (
-            /\b(?:juice|orange juice|apple juice|coffee|espresso|tea|soda|cola|pop|sparkling water|seltzer|club soda|tonic|coconut water|lemonade|wine|beer|cider|kombucha|energy drink|sports drink)(?:e?s)?\b/.test(
-                n
-            )
-        ) {
-            return 'Beverages';
         }
         if (
             /\b(?:paper towel|toilet paper|napkin|tissue|foil|aluminum foil|plastic wrap|parchment|wax paper|ziploc|storage bag|trash bag|garbage bag|dish soap|detergent|sponge|bleach|cleaner|wipe)(?:e?s)?\b/.test(

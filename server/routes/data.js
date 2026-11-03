@@ -15,9 +15,9 @@ const hubSyncLimiter = rateLimit({
     message: { error: "Too many Hub Sync requests from this IP, please try again later." }
 });
 
-async function resolveHubHousehold(rawCode, allowInitialEmailLookup = false) {
+async function resolveHubHousehold(rawCode, allowInitialEmailLookup = true) {
     const code = String(rawCode || '').trim();
-    if (!code || code.length < 4) return null;
+    if (!code || code.length < 2) return null;
 
     const queryText = allowInitialEmailLookup
         ? `SELECT u.*,
@@ -25,6 +25,7 @@ async function resolveHubHousehold(rawCode, allowInitialEmailLookup = false) {
            FROM users u
            WHERE UPPER(u.invite_code) = UPPER($1)
               OR LOWER(u.email) = LOWER($1)
+              OR u.household_id = $1
            ORDER BY recipe_count DESC, u.created_at ASC
            LIMIT 1`
         : `SELECT u.*,
@@ -126,10 +127,10 @@ async function buildHubSyncPayload(user, effectiveHousehold) {
 router.get('/hub-sync', hubSyncLimiter, async (req, res) => {
     try {
         const code = req.query.code || req.headers['x-hub-sync-code'];
-        const resolved = await resolveHubHousehold(code, false);
+        const resolved = await resolveHubHousehold(code, true);
         if (!resolved) {
             return res.status(404).json({
-                error: "No KitchenSync account found for that Invite Code."
+                error: "No KitchenSync account found for that Invite Code or Email."
             });
         }
         const payload = await buildHubSyncPayload(resolved.user, resolved.effectiveHousehold);
@@ -144,10 +145,10 @@ router.get('/hub-sync', hubSyncLimiter, async (req, res) => {
 router.post('/hub-sync', hubSyncLimiter, async (req, res) => {
     try {
         const code = req.body?.code || req.query.code || req.headers['x-hub-sync-code'];
-        const resolved = await resolveHubHousehold(code, false);
+        const resolved = await resolveHubHousehold(code, true);
         if (!resolved) {
             return res.status(404).json({
-                error: "No KitchenSync account found for that Invite Code."
+                error: "No KitchenSync account found for that Invite Code or Email."
             });
         }
 

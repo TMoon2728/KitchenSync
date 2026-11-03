@@ -10,6 +10,11 @@ const { resolveServerSchema } = require('../schemas/aiSchemas');
 const { compileRecipeFromJsonLd } = require('../utils/jsonLdRecipeCompiler');
 const { generateContentWithFailover } = require('../utils/resilientAi');
 const { deductCredits, refundCredits } = require('../utils/creditLedger');
+const {
+    detectReceiptMimeType,
+    extractTextFromPdfBuffer,
+    parseDillonsInvoiceText
+} = require('../utils/pdfReceiptParser');
 
 // --- AI Rate Limiter ---
 const aiRateLimiter = rateLimit({
@@ -1233,10 +1238,6 @@ Respond ONLY with a valid JSON object (no markdown formatting, no extra commenta
 
 // 6. Gemini Proxy: Analyze Receipt (Supports Image Photos AND Digital PDF Receipts like Dillons/Kroger/Walmart)
 router.post('/ai/analyze-receipt', aiRateLimiter, async (req, res) => {
-    if (!genAI) {
-        return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
-    }
-
     let creditDeducted = false;
     let deductedUserId = null;
 
@@ -1246,8 +1247,7 @@ router.post('/ai/analyze-receipt', aiRateLimiter, async (req, res) => {
             return res.status(400).json({ error: "A valid base64 image or PDF receipt payload is required." });
         }
 
-        const mimeMatch = image.match(/^data:([a-zA-Z0-9.+/-]+);base64,/);
-        const mimeType = mimeMatch ? mimeMatch[1].toLowerCase() : 'image/jpeg';
+        const { mimeType, base64Data } = detectReceiptMimeType(image);
         const allowedMime =
             mimeType === 'application/pdf' ||
             mimeType.startsWith('image/');
@@ -1259,6 +1259,48 @@ router.post('/ai/analyze-receipt', aiRateLimiter, async (req, res) => {
 
         // Auth Check
         if (!user) return res.status(401).json({ error: "Unauthorized. Please Login." });
+
+        // Fast-Path Deterministic PDF Invoice Extraction (Dillons / Kroger Digital PDFs)
+        let extractedPdfText = '';
+        if (mimeType === 'application/pdf' && base64Data) {
+            try {
+                const pdfBuf = Buffer.from(base64Data, 'base64');
+                extractedPdfText = extractTextFromPdfBuffer(pdfBuf);
+                const deterministicItems = parseDillonsInvoiceText(extractedPdfText);
+
+                if (deterministicItems.length > 0) {
+                    const normalizedExtras = normalizeRecipeIngredientsList(deterministicItems);
+                    const matched = [];
+                    const listNorm = Array.isArray(currentShoppingList)
+                        ? currentShoppingList.map(item => String(item || '').trim()).filter(Boolean)
+                        : [];
+
+                    for (const shopItem of listNorm) {
+                        const sLower = shopItem.toLowerCase();
+                        const isMatch = normalizedExtras.some(ext => {
+                            const eLower = ext.name.toLowerCase();
+                            return eLower.includes(sLower) || sLower.includes(eLower);
+                        });
+                        if (isMatch) matched.push(shopItem);
+                    }
+
+                    const finalCredit = user.subscriptionTier === 'pro' ? '∞' : user.credits;
+                    return res.json({
+                        result: {
+                            matched,
+                            extra: normalizedExtras
+                        },
+                        creditsRemaining: finalCredit
+                    });
+                }
+            } catch (pdfErr) {
+                console.warn("Deterministic PDF extraction fallback to Gemini:", pdfErr.message);
+            }
+        }
+
+        if (!genAI) {
+            return res.status(503).json({ error: "AI Service Unavailable (Missing Key)" });
+        }
 
         let currentCredits = user.credits;
 
@@ -1278,17 +1320,19 @@ router.post('/ai/analyze-receipt', aiRateLimiter, async (req, res) => {
         }
 
         const prompt = `
-        You are a smart grocery receipt parser. Analyze this grocery receipt (which may be a digital PDF receipt from Dillons, Kroger, Walmart, Instacart, or Target, or a photo of a paper receipt) and compare it with the user's current shopping list.
+        You are a smart grocery receipt parser. Analyze this grocery receipt (which may be a multi-page digital PDF receipt from Dillons, Kroger, Walmart, Instacart, or Target, or a photo of a paper receipt) and compare it with the user's current shopping list.
         
         Current Shopping List:
         ${JSON.stringify(currentShoppingList)}
+        ${extractedPdfText ? `\nExtracted PDF Text:\n${extractedPdfText}\n` : ''}
         
         Task:
-        1. Extract all food, beverage, and kitchen grocery items purchased on the receipt.
-        2. Expand abbreviated store codes or brand shorthand into clean, human-friendly grocery names (e.g., "KRO 2% MLK 1GAL" -> "2% Milk", "DILLONS LRG EGGS 18CT" -> "Large Eggs").
-        3. Identify clear matches between the receipt items and the Current Shopping List (ignore minor variations).
-        4. Put all remaining purchased food/grocery items into "extra" with their purchased quantity, standardized unit ('each', 'lb', 'oz', 'gal', 'cup', 'can', 'pkg', 'bottle', 'bag', 'box'), and grocery aisle category ('Produce', 'Meat', 'Dairy & Eggs', 'Bakery', 'Frozen', 'Pantry Staples', 'Beverages', 'Household', 'Other').
-        5. Ignore non-grocery lines (tax, subtotal, coupons, savings, fuel points, pickup/delivery fees, payment method, store address, or out-of-stock/voided items).
+        1. Extract EVERY food, beverage, and kitchen grocery item purchased on the receipt across all pages.
+        2. Expand abbreviated store codes or strip brand noise into clean, human-friendly grocery names (e.g., "KRO 2% MLK 1GAL" -> "2% Milk", "Kroger Grade AA Large White Eggs, 18 ct" -> "Large White Eggs").
+        3. IMPORTANT FOR DILLONS / KROGER RECEIPTS: Weighted produce/meat/deli items often print "%.3f lbs" instead of a quantity line (for example, "Broccoli Crown, 1 ct" followed by "%.3f lbs", or "Fresh Bunch of Bananas, 1 bunch" followed by "%.3f lbs"). NEVER skip "%.3f lbs" items! Extract their quantity and unit from the item title suffix (e.g. "1 ct" -> quantity 1, unit "each"; "1.9 lb" -> quantity 1.9, unit "lb").
+        4. Identify clear matches between the receipt items and the Current Shopping List (ignore minor variations).
+        5. Put all purchased food/grocery items into "extra" with their purchased quantity, standardized unit ('each', 'lb', 'oz', 'gal', 'cup', 'can', 'pkg', 'bottle', 'bag', 'box', 'bunch'), and grocery aisle category ('Produce', 'Meat', 'Dairy & Eggs', 'Bakery', 'Frozen', 'Pantry Staples', 'Beverages', 'Household', 'Other').
+        6. Ignore non-grocery lines (tax, subtotal, coupons, "Item Coupon/Sale:", savings, fuel points, pickup/delivery fees, payment method, store address, or out-of-stock/voided items).
         
         Output strictly as JSON:
         {
@@ -1302,7 +1346,7 @@ router.post('/ai/analyze-receipt', aiRateLimiter, async (req, res) => {
         // Prepare multimodal part (supports application/pdf and image/*)
         const receiptPart = {
             inlineData: {
-                data: image.split(',')[1],
+                data: base64Data,
                 mimeType
             }
         };
@@ -1311,7 +1355,8 @@ router.post('/ai/analyze-receipt', aiRateLimiter, async (req, res) => {
         const result = await generateContentWithFailover(genAI, modelName, {
             contents: [prompt, receiptPart],
             config: {
-                responseMimeType: "application/json"
+                responseMimeType: "application/json",
+                maxOutputTokens: 8192
             }
         });
 

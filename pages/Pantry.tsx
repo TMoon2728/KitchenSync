@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import type { PantryItem, Recipe, Ingredient } from '../types';
 import { useKitchen } from '../context/KitchenContext';
@@ -39,6 +39,10 @@ const Pantry: React.FC = () => {
     const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
     const [showScanMenu, setShowScanMenu] = useState(false);
+    const [scanNotice, setScanNotice] = useState<string | null>(null);
+    const pdfInputRef = useRef<HTMLInputElement>(null);
+    const receiptCameraInputRef = useRef<HTMLInputElement>(null);
+    const fridgeCameraInputRef = useRef<HTMLInputElement>(null);
 
     // Vision Scan Staging Review Modal State (F-02)
     const [stagedScanItems, setStagedScanItems] = useState<StagedPantryItem[] | null>(null);
@@ -115,6 +119,7 @@ const Pantry: React.FC = () => {
 
         if (toCommit.length > 0) {
             await batchAddPantryItems(toCommit);
+            setScanNotice(`Added ${toCommit.length} item${toCommit.length === 1 ? '' : 's'} from ${stagedScanSource} to your Pantry!`);
         }
         setStagedScanItems(null);
     };
@@ -129,6 +134,7 @@ const Pantry: React.FC = () => {
         setShowScanMenu(false);
         setIsScanning(true);
         setError(null);
+        setScanNotice(null);
         const reader = new FileReader();
         reader.onloadend = async () => {
             const base64 = reader.result as string;
@@ -147,13 +153,16 @@ const Pantry: React.FC = () => {
                     if (newItems.length > 0) {
                         openStagingModal(
                             newItems,
-                            mode === 'upload' || file.type === 'application/pdf' ? 'Uploaded Receipt' : 'Receipt Photo'
+                            mode === 'upload' || file.type === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf')
+                                ? 'Uploaded Receipt'
+                                : 'Receipt Photo'
                         );
                     } else {
                         setError("No grocery items identified on that receipt.");
                     }
                 } else {
-                    setError("Receipt analysis failed. Please make sure the PDF or photo is clear.");
+                    const errBody = await res.json().catch(() => ({}));
+                    setError(errBody?.error || "Receipt analysis failed. Please make sure the PDF or photo is clear.");
                 }
             } catch (err) {
                 console.error("Scan failed", err);
@@ -406,6 +415,7 @@ const Pantry: React.FC = () => {
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
                     {/* Hidden File Inputs for Hamburger Scan/Upload Menu */}
                     <input
+                        ref={pdfInputRef}
                         type="file"
                         accept="application/pdf,image/*,.pdf"
                         id="pantry-receipt-pdf-upload"
@@ -414,6 +424,7 @@ const Pantry: React.FC = () => {
                         disabled={isScanning}
                     />
                     <input
+                        ref={receiptCameraInputRef}
                         type="file"
                         accept="image/*"
                         capture="environment"
@@ -423,6 +434,7 @@ const Pantry: React.FC = () => {
                         disabled={isScanning}
                     />
                     <input
+                        ref={fridgeCameraInputRef}
                         type="file"
                         accept="image/*"
                         capture="environment"
@@ -460,9 +472,13 @@ const Pantry: React.FC = () => {
                                     onClick={() => setShowScanMenu(false)}
                                 />
                                 <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl py-2 z-30 animate-fade-in">
-                                    <label
-                                        htmlFor="pantry-receipt-pdf-upload"
-                                        className="cursor-pointer px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700/70 flex items-center gap-3 transition-colors"
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowScanMenu(false);
+                                            pdfInputRef.current?.click();
+                                        }}
+                                        className="w-full text-left cursor-pointer px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700/70 flex items-center gap-3 transition-colors"
                                     >
                                         <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-300 flex items-center justify-center flex-shrink-0">
                                             <i className="fas fa-file-pdf"></i>
@@ -475,11 +491,15 @@ const Pantry: React.FC = () => {
                                                 Dillons / digital PDF or image
                                             </span>
                                         </div>
-                                    </label>
+                                    </button>
 
-                                    <label
-                                        htmlFor="pantry-receipt-upload"
-                                        className="cursor-pointer px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700/70 flex items-center gap-3 transition-colors"
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowScanMenu(false);
+                                            receiptCameraInputRef.current?.click();
+                                        }}
+                                        className="w-full text-left cursor-pointer px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700/70 flex items-center gap-3 transition-colors"
                                     >
                                         <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 flex items-center justify-center flex-shrink-0">
                                             <i className="fas fa-receipt"></i>
@@ -492,11 +512,15 @@ const Pantry: React.FC = () => {
                                                 Take photo of paper receipt
                                             </span>
                                         </div>
-                                    </label>
+                                    </button>
 
-                                    <label
-                                        htmlFor="pantry-shelf-upload"
-                                        className="cursor-pointer px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700/70 flex items-center gap-3 transition-colors"
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowScanMenu(false);
+                                            fridgeCameraInputRef.current?.click();
+                                        }}
+                                        className="w-full text-left cursor-pointer px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700/70 flex items-center gap-3 transition-colors"
                                     >
                                         <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 flex items-center justify-center flex-shrink-0">
                                             <i className="fas fa-camera-viewfinder"></i>
@@ -509,7 +533,7 @@ const Pantry: React.FC = () => {
                                                 Take photo of fridge or pantry
                                             </span>
                                         </div>
-                                    </label>
+                                    </button>
                                 </div>
                             </>
                         )}
@@ -521,6 +545,39 @@ const Pantry: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Top-Level Scan Status / Error Banner (Visible immediately on Mobile) */}
+            {error && (
+                <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-200 text-sm font-bold flex items-center justify-between gap-3 animate-fade-in">
+                    <div className="flex items-center gap-2.5">
+                        <i className="fas fa-circle-exclamation text-red-500"></i>
+                        <span>{error}</span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setError(null)}
+                        className="text-red-400 hover:text-red-600"
+                    >
+                        <i className="fas fa-times"></i>
+                    </button>
+                </div>
+            )}
+
+            {scanNotice && (
+                <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 text-sm font-bold flex items-center justify-between gap-3 animate-fade-in">
+                    <div className="flex items-center gap-2.5">
+                        <i className="fas fa-circle-check text-emerald-500"></i>
+                        <span>{scanNotice}</span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setScanNotice(null)}
+                        className="text-emerald-400 hover:text-emerald-600"
+                    >
+                        <i className="fas fa-times"></i>
+                    </button>
+                </div>
+            )}
 
             {/* Expiry Radar Alert Banner (F-03) */}
             {expirySummary.length > 0 && (
